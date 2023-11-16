@@ -11,13 +11,14 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 set(dependency_dir ${CMAKE_CURRENT_SOURCE_DIR}/dependencies CACHE INTERNAL "dependency_dir")
-
+set(core_dir ${CMAKE_CURRENT_SOURCE_DIR}/core CACHE INTERNAL "core_dir")
 
 add_subdirectory(
     ${dependency_dir}/glfw
+    ${dependency_dir}/spdlog
 )
 
-
+add_subdirectory(core)
 #raum_glfw
 add_subdirectory(platform/GLFW)
 
@@ -26,7 +27,6 @@ add_subdirectory(renderer)
 file(GLOB_RECURSE Sample
     ${CMAKE_CURRENT_SOURCE_DIR}/Sample/*.*
 )
-
 
 add_executable(RAUM_Sample ${Sample})
 

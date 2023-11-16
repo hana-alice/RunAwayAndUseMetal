@@ -1,5 +1,3 @@
-project(glfw_raum C CXX)
-
 file(GLOB_RECURSE glfw_raum_h ${CMAKE_CURRENT_SOURCE_DIR}/include/*.h)
 file(GLOB_RECURSE glfw_raum_cpp ${CMAKE_CURRENT_SOURCE_DIR}/source/*.cpp)
 source_group("Header Files" FILES ${glfw_raum_h})

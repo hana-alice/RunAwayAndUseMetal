@@ -1,5 +1,3 @@
-project(renderer C CXX)
-
 file(GLOB_RECURSE renderer_raum_h ${CMAKE_CURRENT_LIST_DIR}/rhi/include/*.h)
 file(GLOB_RECURSE renderer_raum_cpp ${CMAKE_CURRENT_LIST_DIR}/rhi/source/*.cpp)
 source_group("Header Files" FILES ${renderer_raum_h})
@@ -10,9 +8,12 @@ set_target_properties(renderer PROPERTIES LINKER_LANGUAGE CXX)
 
 target_include_directories(renderer PUBLIC 
     ${CMAKE_CURRENT_LIST_DIR}/rhi/include
+    ${core_dir}
     ${Vulkan_INCLUDE_DIR}
 )
 
 message(${Vulkan_INCLUDE_DIR})
 
-target_link_libraries(renderer PRIVATE ${Vulkan_LIBRARIES})
+target_link_libraries(renderer PRIVATE 
+    ${Vulkan_LIBRARIES}
+    core)
