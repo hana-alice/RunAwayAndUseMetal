@@ -5,6 +5,8 @@
 namespace rhi {
 class VKDevice {
 public:
+    static VKDevice *getInstance();
+
 private:
     VKDevice();
     ~VKDevice();
@@ -14,6 +16,10 @@ private:
 
     void initInstance();
 
+    static VKDevice *s_inst;
+
     VkInstance _instance{nullptr};
+
+    VkDebugUtilsMessengerEXT _debugMessenger;
 };
 } // namespace rhi

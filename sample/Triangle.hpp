@@ -13,19 +13,14 @@ public:
     void show();
 
 private:
-    platform::NativeWindow* _window{nullptr};
 };
 
 Triangle::Triangle() {
-    _window = new platform::NativeWindow(800, 600);
 }
 
 Triangle::~Triangle() {
-    delete _window;
 }
 
-void Triangle::show() {
-    _window->mainLoop();
-};
+void Triangle::show(){};
 
 } // namespace ruam_sample

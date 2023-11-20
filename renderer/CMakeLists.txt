@@ -12,8 +12,6 @@ target_include_directories(renderer PUBLIC
     ${Vulkan_INCLUDE_DIR}
 )
 
-message(${Vulkan_INCLUDE_DIR})
-
-target_link_libraries(renderer PRIVATE 
+target_link_libraries(renderer PUBLIC 
     ${Vulkan_LIBRARIES}
     core)

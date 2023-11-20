@@ -15,6 +15,8 @@ set(core_dir ${CMAKE_CURRENT_SOURCE_DIR}/core CACHE INTERNAL "core_dir")
 
 add_subdirectory(
     ${dependency_dir}/glfw
+)
+add_subdirectory(
     ${dependency_dir}/spdlog
 )
 
@@ -35,6 +37,7 @@ set_target_properties(RAUM_Sample PROPERTIES LINKER_LANGUAGE CXX)
 target_link_libraries(
     RAUM_Sample
     glfw_raum
+    renderer
 )
 
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT RAUM_Sample)
