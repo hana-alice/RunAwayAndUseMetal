@@ -7,22 +7,22 @@
 
 #define RAUM_CRITICAL_IF(con, ...)                 \
     {                                              \
-        if (!(con)) spdlog::critical(__VA_ARGS__); \
+        if (con) spdlog::critical(__VA_ARGS__); \
     }
 
 #define RAUM_CRITICAL(con, id)                            \
     {                                                     \
-        if (!(con)) spdlog::critical(criticalLUT.at(id)); \
+        if (con) spdlog::critical(criticalLUT.at(id)); \
     }
 
 #define RAUM_ERROR_IF(con, ...)                 \
     {                                           \
-        if (!(con)) spdlog::error(__VA_ARGS__); \
+        if (con) spdlog::error(__VA_ARGS__); \
     }
 
 #define RAUM_ERROR(con, id)                        \
     {                                              \
-        if (!(con)) spdlog::error("error {}", id); \
+        if (con) spdlog::error("error {}", id); \
     }
 
 namespace raum {

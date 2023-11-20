@@ -7,7 +7,7 @@ static constexpr bool enableValidationLayer{true};
 VKDevice* VKDevice::s_inst = nullptr;
 
 namespace {
-bool checkRequiredLayers(const std::vector<const char*> requires, const std::vector<VkLayerProperties>& availables) {
+bool checkRequiredLayers(const std::vector<const char*>& requires, const std::vector<VkLayerProperties>& availables) {
     bool found = false;
     for (const char* require : requires) {
         for (const auto& layer : availables) {
@@ -110,6 +110,7 @@ void VKDevice::initInstance() {
         result = vkEnumerateInstanceLayerProperties(&layerNum, nullptr);
         RAUM_CRITICAL_IF(result != VK_SUCCESS, "vkEnumerateInstanceExtensionProperties");
         std::vector<VkLayerProperties> availableLayers(layerNum);
+        result = vkEnumerateInstanceLayerProperties(&layerNum, availableLayers.data());
         raum::log(availableLayers);
 
         std::vector<const char*> requiredLayers;
@@ -134,8 +135,8 @@ void VKDevice::initInstance() {
             dbgMsgInfo.pfnUserCallback = debugCallback;
             dbgMsgInfo.pUserData = nullptr;
 
-            result = createDebugMessengerExt(_instance, &dbgMsgInfo, nullptr, &_debugMessenger);
-            RAUM_ERROR_IF(result == VK_ERROR_EXTENSION_NOT_PRESENT, "validation ext not found.");
+            //result = createDebugMessengerExt(_instance, &dbgMsgInfo, nullptr, &_debugMessenger);
+            //RAUM_ERROR_IF(result == VK_ERROR_EXTENSION_NOT_PRESENT, "validation ext not found.");
 
             instInfo.pNext = (VkDebugUtilsMessengerCreateInfoEXT*)&dbgMsgInfo;
         }
