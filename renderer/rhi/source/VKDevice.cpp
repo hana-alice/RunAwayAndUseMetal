@@ -1,7 +1,7 @@
 #include "VKDevice.h"
 #include "VKUtils.h"
 #include "utils/log.h"
-namespace rhi {
+namespace raum::rhi {
 
 static constexpr bool enableValidationLayer{true};
 VKDevice* VKDevice::s_inst = nullptr;
@@ -65,6 +65,40 @@ void destroyDebugMessengerExt(VkInstance instance, VkDebugUtilsMessengerEXT debu
     }
 }
 
+uint32_t checkDevice(VkPhysicalDevice device) {
+    VkPhysicalDeviceProperties deviceProperties;
+    vkGetPhysicalDeviceProperties(device, &deviceProperties);
+
+    VkPhysicalDeviceFeatures deviceFeatures;
+    vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
+
+    uint32_t score{1};
+    if (deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) {
+        score += 100;
+    }
+    if (deviceFeatures.geometryShader) {
+        score += 100;
+    }
+    if (deviceFeatures.sparseBinding) {
+        score += 100;
+    }
+
+    return score;
+}
+
+VkPhysicalDevice rankDevices(const std::vector<VkPhysicalDevice>& devices) {
+    uint32_t maxScore{0};
+    VkPhysicalDevice chosen;
+    for (const auto& device : devices) {
+        uint32_t score = checkDevice(device);
+        if (score > maxScore) {
+            maxScore = score;
+            chosen = device;
+        }
+    }
+    return chosen;
+}
+
 } // namespace
 
 VKDevice* VKDevice::getInstance() {
@@ -76,12 +110,14 @@ VKDevice* VKDevice::getInstance() {
 
 VKDevice::VKDevice() {
     initInstance();
+    initDevice();
 }
 
 VKDevice::~VKDevice() {
     if (enableValidationLayer) {
         destroyDebugMessengerExt(_instance, _debugMessenger, nullptr);
     }
+    vkDestroyDevice(_device, nullptr);
     vkDestroyInstance(_instance, nullptr);
 }
 
@@ -135,8 +171,8 @@ void VKDevice::initInstance() {
             dbgMsgInfo.pfnUserCallback = debugCallback;
             dbgMsgInfo.pUserData = nullptr;
 
-            //result = createDebugMessengerExt(_instance, &dbgMsgInfo, nullptr, &_debugMessenger);
-            //RAUM_ERROR_IF(result == VK_ERROR_EXTENSION_NOT_PRESENT, "validation ext not found.");
+            // result = createDebugMessengerExt(_instance, &dbgMsgInfo, nullptr, &_debugMessenger);
+            // RAUM_ERROR_IF(result == VK_ERROR_EXTENSION_NOT_PRESENT, "validation ext not found.");
 
             instInfo.pNext = (VkDebugUtilsMessengerCreateInfoEXT*)&dbgMsgInfo;
         }
@@ -151,4 +187,55 @@ void VKDevice::initInstance() {
     }
 }
 
-} // namespace rhi
+void VKDevice::initDevice() {
+    uint32_t deviceCount{0};
+    vkEnumeratePhysicalDevices(_instance, &deviceCount, nullptr);
+    RAUM_CRITICAL_IF(!deviceCount, "can't find any physic device.");
+
+    std::vector<VkPhysicalDevice> devices(deviceCount);
+    vkEnumeratePhysicalDevices(_instance, &deviceCount, devices.data());
+
+    _physicalDevice = rankDevices(devices);
+
+    VkDeviceQueueCreateInfo queueInfo{};
+    queueInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+
+    uint32_t queueFamilyCount{0};
+    vkGetPhysicalDeviceQueueFamilyProperties(_physicalDevice, &queueFamilyCount, nullptr);
+    std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
+    vkGetPhysicalDeviceQueueFamilyProperties(_physicalDevice, &queueFamilyCount, queueFamilies.data());
+
+    for (const auto& queueFamily : queueFamilies) {
+        if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
+            _indices.graphicsFamily.index = &queueFamily - &queueFamilies[0];
+        } else if (queueFamily.queueFlags & VK_QUEUE_COMPUTE_BIT) {
+            _indices.computeFamily.index = &queueFamily - &queueFamilies[0];
+        } else if (queueFamily.queueFlags & VK_QUEUE_TRANSFER_BIT) {
+            _indices.transferFamily.index = &queueFamily - &queueFamilies[0];
+        }
+    }
+
+    RAUM_CRITICAL_IF(!_indices.graphicsFamily.index.has_value(), "Graphics queue not support.");
+
+    float priority = 1.0f;
+    queueInfo.queueFamilyIndex = _indices.graphicsFamily.index.value();
+    queueInfo.queueCount = 1;
+    queueInfo.pQueuePriorities = &priority;
+
+    VkPhysicalDeviceFeatures deviceFeatures{};
+
+    VkDeviceCreateInfo deviceInfo{};
+    deviceInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+    deviceInfo.pQueueCreateInfos = &queueInfo;
+    deviceInfo.queueCreateInfoCount = 1;
+    deviceInfo.pEnabledFeatures = &deviceFeatures;
+    deviceInfo.enabledExtensionCount = 0;
+    deviceInfo.enabledLayerCount = 0;
+
+    VkResult res = vkCreateDevice(_physicalDevice, &deviceInfo, nullptr, &_device);
+    RAUM_CRITICAL_IF(res != VK_SUCCESS, "failed to create logic device.");
+
+    vkGetDeviceQueue(_device, _indices.graphicsFamily.index.value(), 0, &_indices.graphicsFamily.queue);
+}
+
+} // namespace raum::rhi

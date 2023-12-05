@@ -1,11 +1,16 @@
 #pragma once
 
 #include <vulkan/vulkan.h>
+#include <memory>
+#include "VKDefine.h"
 
-namespace rhi {
+namespace raum::rhi {
+class VKQueue;
 class VKDevice {
 public:
     static VKDevice *getInstance();
+
+    VkPhysicalDevice physicalDevice() { return _physicalDevice; };
 
 private:
     VKDevice();
@@ -15,11 +20,15 @@ private:
     VKDevice(VKDevice &&);
 
     void initInstance();
+    void initDevice();
 
     static VKDevice *s_inst;
 
-    VkInstance _instance{nullptr};
-
+    VkInstance _instance;
     VkDebugUtilsMessengerEXT _debugMessenger;
+    VkPhysicalDevice _physicalDevice;
+    VkDevice _device;
+
+    QueueFamilyIndices _indices{};
 };
-} // namespace rhi
+} // namespace raum::rhi
