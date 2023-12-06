@@ -1,6 +1,8 @@
 #pragma once
+#include <SDL3/SDL.h>
 #include <functional>
 #include <vector>
+
 namespace platform {
 using TickFunction = std::function<void(void)>;
 
@@ -9,12 +11,14 @@ public:
     NativeWindow(uint32_t width, uint32_t height);
     ~NativeWindow();
 
+    void* handle() { return _hwnd; }
     void registerPollEvents(TickFunction&& tickFunc);
 
     void mainLoop();
 
 private:
-    void* _window{nullptr};
+    SDL_Window* _window{nullptr};
+    void* _hwnd;
 
     std::vector<TickFunction> _tickFunc;
 };

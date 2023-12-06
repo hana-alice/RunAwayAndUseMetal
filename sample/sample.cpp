@@ -4,14 +4,21 @@
 #include <iostream>
 #include "Triangle.hpp"
 #include "VKDevice.h"
+#include "VKSwapchain.h"
 namespace raum {
 using platform::NativeWindow;
-using rhi::VKDevice;
+using namespace rhi;
+
+constexpr uint32_t width = 1080u;
+constexpr uint32_t height = 720u;
+
 class Sample {
 public:
     Sample() {
-        _window = std::make_shared<NativeWindow>(800, 600);
-        _device = VKDevice::getInstance();
+        _window = std::make_shared<NativeWindow>(width, height);
+        _device = Device::getInstance();
+        _swaphchain = _device->createSwapchain(SwapchainInfo{width, height, SyncType::RELAX, _window->handle()});
+        
     }
 
     ~Sample() {}
@@ -22,7 +29,8 @@ public:
 
 private:
     std::shared_ptr<NativeWindow> _window;
-    VKDevice* _device;
+    Device* _device;
+    Swapchain* _swaphchain;
 };
 
 } // namespace raum

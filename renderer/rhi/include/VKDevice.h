@@ -1,34 +1,44 @@
 #pragma once
 
 #include <vulkan/vulkan.h>
+#include <map>
 #include <memory>
+#include <queue>
 #include "VKDefine.h"
-
 namespace raum::rhi {
-class VKQueue;
-class VKDevice {
+class Queue;
+class Swapchain;
+class Device {
 public:
-    static VKDevice *getInstance();
+    static Device *getInstance();
 
     VkPhysicalDevice physicalDevice() { return _physicalDevice; };
+    VkInstance instance() { return _instance; }
+
+    Queue *defaultQueue() { return _queues.at(QueueType::GRAPHICS); }
+
+    Queue *createQueue(const QueueInfo &queueInfo);
+    Swapchain *createSwapchain(const SwapchainInfo &info);
 
 private:
-    VKDevice();
-    ~VKDevice();
+    Device();
+    ~Device();
 
-    VKDevice(const VKDevice &) = delete;
-    VKDevice(VKDevice &&);
+    Device(const Device &) = delete;
+    Device(Device &&);
 
     void initInstance();
     void initDevice();
+    void initSurface(void *hwnd);
 
-    static VKDevice *s_inst;
+    static Device *s_inst;
 
     VkInstance _instance;
+    VkSurfaceKHR _surface;
     VkDebugUtilsMessengerEXT _debugMessenger;
     VkPhysicalDevice _physicalDevice;
     VkDevice _device;
 
-    QueueFamilyIndices _indices{};
+    std::map<QueueType, Queue *> _queues;
 };
 } // namespace raum::rhi

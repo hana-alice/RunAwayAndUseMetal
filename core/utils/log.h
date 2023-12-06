@@ -30,7 +30,7 @@ namespace raum {
 template <typename T>
 void log(const T& t);
 
-void log(const char* msg) {
+inline void log(const char* msg) {
     spdlog::log(spdlog::level::info, msg);
 }
 

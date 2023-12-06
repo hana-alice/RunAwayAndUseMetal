@@ -1,6 +1,6 @@
-[submodule "dependencies/glfw"]
-	path = dependencies/glfw
-	url = https://github.com/glfw/glfw.git
 [submodule "dependencies/spdlog"]
 	path = dependencies/spdlog
 	url = https://github.com/gabime/spdlog.git
+[submodule "dependencies/sdl"]
+	path = dependencies/sdl
+	url = https://github.com/libsdl-org/SDL.git

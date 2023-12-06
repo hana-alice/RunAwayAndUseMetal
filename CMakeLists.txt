@@ -14,15 +14,15 @@ set(dependency_dir ${CMAKE_CURRENT_SOURCE_DIR}/dependencies CACHE INTERNAL "depe
 set(core_dir ${CMAKE_CURRENT_SOURCE_DIR}/core CACHE INTERNAL "core_dir")
 
 add_subdirectory(
-    ${dependency_dir}/glfw
+    ${dependency_dir}/sdl
 )
+
 add_subdirectory(
     ${dependency_dir}/spdlog
 )
 
 add_subdirectory(core)
-#raum_glfw
-add_subdirectory(platform/GLFW)
+add_subdirectory(platform/windows)
 
 add_subdirectory(renderer)
 
@@ -36,7 +36,7 @@ set_target_properties(RAUM_Sample PROPERTIES LINKER_LANGUAGE CXX)
 
 target_link_libraries(
     RAUM_Sample
-    glfw_raum
+    win_raum
     renderer
 )
 
