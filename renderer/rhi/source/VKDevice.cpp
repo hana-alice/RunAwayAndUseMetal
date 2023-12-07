@@ -227,12 +227,22 @@ void Device::initDevice() {
 
     VkPhysicalDeviceFeatures deviceFeatures{};
 
+    std::vector<const char*> exts{};
+    exts.emplace_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
+
+    uint32_t extNum{0};
+    vkEnumerateDeviceExtensionProperties(_physicalDevice, nullptr, &extNum, nullptr);
+    std::vector<VkExtensionProperties> availableExts(extNum);
+    vkEnumerateDeviceExtensionProperties(_physicalDevice, nullptr, &extNum, availableExts.data());
+    log(availableExts);
+
     VkDeviceCreateInfo deviceInfo{};
     deviceInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
     deviceInfo.pQueueCreateInfos = &queueInfo;
     deviceInfo.queueCreateInfoCount = 1;
     deviceInfo.pEnabledFeatures = &deviceFeatures;
-    deviceInfo.enabledExtensionCount = 0;
+    deviceInfo.enabledExtensionCount = 1;
+    deviceInfo.ppEnabledExtensionNames = exts.data();
     deviceInfo.enabledLayerCount = 0;
 
     VkResult res = vkCreateDevice(_physicalDevice, &deviceInfo, nullptr, &_device);

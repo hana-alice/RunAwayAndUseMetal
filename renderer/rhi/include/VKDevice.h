@@ -13,6 +13,7 @@ public:
     static Device *getInstance();
 
     VkPhysicalDevice physicalDevice() { return _physicalDevice; };
+    VkDevice device() { return _device; }
     VkInstance instance() { return _instance; }
 
     Queue *defaultQueue() { return _queues.at(QueueType::GRAPHICS); }

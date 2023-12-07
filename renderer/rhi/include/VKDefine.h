@@ -5,6 +5,8 @@
 #include "define.h"
 namespace raum::rhi {
 
+static constexpr uint32_t SwapchainCount{3};
+
 enum class QueueType : uint32_t {
     GRAPHICS,
     COMPUTE,
@@ -16,9 +18,10 @@ struct QueueInfo {
 };
 
 enum class SyncType : uint32_t {
+    IMMEDIATE,
+    VSYNC,
     RELAX,
     MAILBOX,
-    VSYNC,
 };
 
 struct SwapchainInfo {
