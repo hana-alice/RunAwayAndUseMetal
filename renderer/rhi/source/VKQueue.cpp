@@ -1,4 +1,5 @@
 #include "VKQueue.h"
+#include <optional>
 #include <vector>
 #include "VKDevice.h"
 #include "log.h"

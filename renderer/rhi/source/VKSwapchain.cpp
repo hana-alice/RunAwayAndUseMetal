@@ -50,6 +50,8 @@ Swapchain::Swapchain(const SwapchainInfo& info, Device* device) {
         }
     }
 
+    _preferredFormat = preferred.format;
+
     VkPresentModeKHR mode{VK_PRESENT_MODE_FIFO_KHR};
     VkPresentModeKHR hint{VK_PRESENT_MODE_FIFO_KHR};
     switch (info.type) {
@@ -104,12 +106,32 @@ Swapchain::Swapchain(const SwapchainInfo& info, Device* device) {
     _swapchainImages.resize(imageCount);
     vkGetSwapchainImagesKHR(device->device(), _swapchain, &imageCount, _swapchainImages.data());
 
+    for (auto img : _swapchainImages) {
+        VkImageViewCreateInfo viewInfo{};
+        viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        viewInfo.image = img;
+        viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        viewInfo.format = preferred.format;
+        viewInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+        viewInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+        viewInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+        viewInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+        viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        viewInfo.subresourceRange.baseMipLevel = 0;
+        viewInfo.subresourceRange.levelCount = 1;
+        viewInfo.subresourceRange.baseArrayLayer = 0;
+        viewInfo.subresourceRange.layerCount = 1;
+        vkCreateImageView(device->device(), &viewInfo, nullptr, &_swapchainImageViews.emplace_back());
+    }
 #else
     #pragma error Run Away
 #endif
 }
 
 Swapchain::~Swapchain() {
+    for (auto imgView : _swapchainImageViews) {
+        vkDestroyImageView(Device::getInstance()->device(), imgView, nullptr);
+    }
     vkDestroySwapchainKHR(Device::getInstance()->device(), _swapchain, nullptr);
     vkDestroySurfaceKHR(Device::getInstance()->instance(), _surface, nullptr);
 }

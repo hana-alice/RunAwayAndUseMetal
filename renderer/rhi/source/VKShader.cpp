@@ -1,0 +1,47 @@
+#include "VKShader.h"
+#include "VKDevice.h"
+#include "log.h"
+#include "shaderc/shaderc.h"
+namespace raum::rhi {
+shaderc::Compiler Shader::shaderCompiler{};
+Shader::Shader(const ShaderSourceInfo& shaderInfo) {
+    shaderc::CompileOptions options{};
+    options.SetTargetEnvironment(shaderc_target_env_vulkan, shaderc_env_version_vulkan_1_3);
+    options.SetTargetSpirv(shaderc_spirv_version_1_3);
+    options.SetOptimizationLevel(shaderc_optimization_level_performance);
+    options.SetGenerateDebugInfo();
+
+    // P. B. T
+    auto mapStage = [](ShaderStage stage) {
+        switch (stage) {
+            case ShaderStage::Vertex:
+                return shaderc_glsl_vertex_shader;
+            case ShaderStage::Fragment:
+                return shaderc_glsl_fragment_shader;
+            case ShaderStage::Compute:
+                return shaderc_glsl_compute_shader;
+        }
+        return shaderc_glsl_vertex_shader;
+    };
+
+    const auto& stage = shaderInfo.stage;
+
+    auto result = shaderCompiler.CompileGlslToSpv(stage.source.c_str(), stage.source.size(), mapStage(stage.stage), shaderInfo.sourcePath.c_str(), "main", options);
+    if (result.GetCompilationStatus() != shaderc_compilation_status_success) {
+        RAUM_ERROR("Failed to compile shader: {0}", result.GetErrorMessage());
+    }
+
+    VkShaderModuleCreateInfo createInfo{};
+    createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+    createInfo.codeSize = result.end() - result.begin();
+    createInfo.pCode = reinterpret_cast<const uint32_t*>(result.cbegin());
+    VkResult res = vkCreateShaderModule(Device::getInstance()->device(), &createInfo, nullptr, &_shaderModule);
+
+    RAUM_ERROR_IF(res != VK_SUCCESS, "Failed to create shader module");
+}
+
+Shader::~Shader() {
+    vkDestroyShaderModule(Device::getInstance()->device(), _shaderModule, nullptr);
+}
+
+} // namespace raum::rhi
