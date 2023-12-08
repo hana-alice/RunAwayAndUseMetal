@@ -1,0 +1,54 @@
+#include "VKGraphicsPipeline.h"
+namespace raum::rhi {
+GraphicsPipelineState::GraphicsPipelineState(const GraphicsPipelineStateInfo& pipelineInfo) {
+    RAUM_ERROR_IF(pipelineInfo.shaders.size() < 2, "At least two shaders are required!");
+
+    std::vector<VkPipelineShaderStageCreateInfo> shaderStages(pipelineInfo.shaders.size());
+    for (auto* shader : pipelineInfo.shaders) {
+        if (shader->stage() == ShaderStage::VERTEX) {
+            VkPipelineShaderStageCreateInfo vertexStage{};
+            vertexStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+            vertexStage.stage = VK_SHADER_STAGE_VERTEX_BIT;
+            vertexStage.pName = "main";
+            vertexStage.shaderModule = shader->shaderModule();
+            vertexStage.pSpecializationInfo = nullptr;
+            shaderStages.emplace_back(vertexStage);
+        } else if (shader->stage() == ShaderStage::TASK) {
+        } else if (shader->stage() == ShaderStage::MESH) {
+        } else if (shader->stage() == ShaderStage::FRAGMENT) {
+            VkPipelineShaderStageCreateInfo fragmentStage{};
+            fragmentStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+            fragmentStage.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+            fragmentStage.pName = "main";
+            fragmentStage.shaderModule = shader->shaderModule();
+            fragmentStage.pSpecializationInfo = nullptr;
+            shaderStages.emplace_back(fragmentStage);
+        }
+    }
+
+    std::array<VkDynamicState> dynamicStates{
+        VK_DYNAMIC_STATE_VIEWPORT,
+        VK_DYNAMIC_STATE_SCISSOR,
+        // VK_DYNAMIC_STATE_LINE_WIDTH,
+        // VK_DYNAMIC_STATE_DEPTH_BIAS,
+        // VK_DYNAMIC_STATE_BLEND_CONSTANTS,
+        // VK_DYNAMIC_STATE_DEPTH_BOUNDS,
+        // VK_DYNAMIC_STATE_STENCIL_COMPARE_MASK,
+        // VK_DYNAMIC_STATE_STENCIL_WRITE_MASK,
+        // VK_DYNAMIC_STATE_STENCIL_REFERENCE,
+        // VK_DYNAMIC_STATE_VIEWPORT_W_SCALING_NV,
+        // VK_DYNAMIC_STATE_DISCARD_RECTANGLE_EXT,
+        // VK_DYNAMIC_STATE_SAMPLE_LOCATIONS_EXT,
+        // VK_DYNAMIC_STATE_VIEWPORT_SHADING_RATE_PALETTE_NV,
+        // VK_DYNAMIC_STATE_VIEWPORT_COARSE_SAMPLE_ORDER_NV,
+    };
+    VkPipelineDynamicStateCreateInfo dynamicState{};
+    dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+    dynamicState.dynamicStateCount = dynamicStates.size();
+    dynamicState.pDynamicStates = dynamicStates.data();
+
+    VkPipelineVertexInputStateCreateInfo vertexInputState{};
+    vertexInputState.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+    vertexInputState.vertexBindingDescriptionCount = 0;
+}
+}; // namespace raum::rhi

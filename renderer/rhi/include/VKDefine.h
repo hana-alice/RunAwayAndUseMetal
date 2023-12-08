@@ -163,9 +163,11 @@ struct SwapchainInfo {
 };
 
 enum class ShaderStage : uint8_t {
-    Vertex,
-    Fragment,
-    Compute,
+    VERTEX,
+    TASK,
+    MESH,
+    FRAGMENT,
+    COMPUTE,
 };
 struct SourceStage {
     ShaderStage stage;
@@ -208,6 +210,10 @@ struct Range {
 struct ImageViewInfo {
     Range range{};
     Format format{Format::UNKNOWN};
+};
+class Shader;
+struct GraphicsPipelineStateInfo {
+    std::vector<Shader*> shaders;
 };
 
 struct DeviceInfo {

@@ -13,9 +13,16 @@ public:
 
     ~Shader();
 
+    ShaderStage stage() const { return _stage; }
+
+    VkShaderModule shaderModule() const { return _shaderModule; }
+
 private:
     VkShaderModule _shaderModule;
     static shaderc::Compiler shaderCompiler;
+
+    ShaderStage _stage;
+    DEBUG(std::string _source;)
 };
 
 } // namespace raum::rhi

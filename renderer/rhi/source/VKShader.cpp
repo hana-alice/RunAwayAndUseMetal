@@ -5,6 +5,9 @@
 namespace raum::rhi {
 shaderc::Compiler Shader::shaderCompiler{};
 Shader::Shader(const ShaderSourceInfo& shaderInfo) {
+    _stage = shaderInfo.stage.stage;
+    DEBUG(_source = shaderInfo.stage.source;)
+
     shaderc::CompileOptions options{};
     options.SetTargetEnvironment(shaderc_target_env_vulkan, shaderc_env_version_vulkan_1_3);
     options.SetTargetSpirv(shaderc_spirv_version_1_3);
@@ -14,11 +17,11 @@ Shader::Shader(const ShaderSourceInfo& shaderInfo) {
     // P. B. T
     auto mapStage = [](ShaderStage stage) {
         switch (stage) {
-            case ShaderStage::Vertex:
+            case ShaderStage::VERTEX:
                 return shaderc_glsl_vertex_shader;
-            case ShaderStage::Fragment:
+            case ShaderStage::FRAGMENT:
                 return shaderc_glsl_fragment_shader;
-            case ShaderStage::Compute:
+            case ShaderStage::COMPUTE:
                 return shaderc_glsl_compute_shader;
         }
         return shaderc_glsl_vertex_shader;
