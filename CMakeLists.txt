@@ -24,9 +24,9 @@ add_subdirectory(
     ${dependency_dir}/spdlog
 )
 
-# add_subdirectory(
-#     ${dependency_dir}/tinyobjloader
-# )
+add_subdirectory(
+    ${dependency_dir}/tinyobjloader
+)
 
 add_subdirectory(
     ${dependency_dir}/vma

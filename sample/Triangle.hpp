@@ -1,7 +1,7 @@
 #pragma once
 #include "window.h"
 
-namespace ruam_sample {
+namespace ruam::sample {
 
 class Triangle {
 public:
@@ -23,4 +23,4 @@ Triangle::~Triangle() {
 
 void Triangle::show(){};
 
-} // namespace ruam_sample
+} // namespace ruam::sample

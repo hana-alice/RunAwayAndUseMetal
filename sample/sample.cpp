@@ -2,6 +2,7 @@
 
 #include <cstdlib>
 #include <iostream>
+#include "Model.hpp"
 #include "Triangle.hpp"
 #include "VKDevice.h"
 #include "VKSwapchain.h"
@@ -18,7 +19,6 @@ public:
         _window = std::make_shared<NativeWindow>(width, height);
         _device = Device::getInstance();
         _swaphchain = _device->createSwapchain(SwapchainInfo{width, height, SyncType::RELAX, _window->handle()});
-        
     }
 
     ~Sample() {}

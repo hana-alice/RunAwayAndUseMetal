@@ -42,15 +42,6 @@ enum class Format : uint16_t {
     B8G8R8A8_UINT,
     B8G8R8A8_SINT,
     B8G8R8A8_SRGB,
-    A8B8G8R8_UNORM_PACK32,
-    A8B8G8R8_SNORM_PACK32,
-    A8B8G8R8_UINT_PACK32,
-    A8B8G8R8_SINT_PACK32,
-    A8B8G8R8_SRGB_PACK32,
-    A2R10G10B10_UNORM_PACK32,
-    A2R10G10B10_SNORM_PACK32,
-    A2R10G10B10_UINT_PACK32,
-    A2R10G10B10_SINT_PACK32,
     R16_UNORM,
     R16_SNORM,
     R16_UINT,
@@ -95,8 +86,6 @@ enum class Format : uint16_t {
     R64G64B64A64_UINT,
     R64G64B64A64_SINT,
     R64G64B64A64_SFLOAT,
-    B10G11R11_UFLOAT_PACK32,
-    E5B9G9R9_UFLOAT_PACK32,
     D16_UNORM,
     X8_D24_UNORM_PACK32,
     D32_SFLOAT,
@@ -126,10 +115,6 @@ enum class Format : uint16_t {
     ETC2_R8G8B8A1_SRGB_BLOCK,
     ETC2_R8G8B8A8_UNORM_BLOCK,
     ETC2_R8G8B8A8_SRGB_BLOCK,
-    EAC_R11_UNORM_BLOCK,
-    EAC_R11_SNORM_BLOCK,
-    EAC_R11G11_UNORM_BLOCK,
-    EAC_R11G11_SNORM_BLOCK,
     ASTC_4x4_UNORM_BLOCK,
     ASTC_4x4_SRGB_BLOCK,
     ASTC_5x4_UNORM_BLOCK,
@@ -137,6 +122,12 @@ enum class Format : uint16_t {
     ASTC_5x5_UNORM_BLOCK,
     ASTC_5x5_SRGB_BLOCK,
     ASTC_6x5_UNORM_BLOCK,
+};
+
+struct FormatInfo {
+    VkFormat format;
+    uint32_t size;
+    uint32_t macroPixelCount;
 };
 
 enum class QueueType : uint8_t {
@@ -211,9 +202,33 @@ struct ImageViewInfo {
     Range range{};
     Format format{Format::UNKNOWN};
 };
+
+enum class InputRate : uint8_t {
+    PER_VERTEX,
+    PER_INSTANCE,
+};
+
+struct VertexAttribute {
+    uint32_t location{0};
+    uint32_t binding{0};
+    Format format;
+    InputRate rate;
+};
+
+using VertexBufferAttribute = std::vector<VertexAttribute>;
+
+using VertexLayout = std::vector<VertexBufferAttribute>;
+struct FragmentLayout {
+};
+
+// struct GraphicsPipelineLayout {
+//     VertexLayout vertexLayout;
+// };
+
 class Shader;
 struct GraphicsPipelineStateInfo {
     std::vector<Shader*> shaders;
+    VertexLayout vertexLayout;
 };
 
 enum class MemoryUsage : uint8_t {

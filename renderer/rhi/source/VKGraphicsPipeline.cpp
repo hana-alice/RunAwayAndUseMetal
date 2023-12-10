@@ -1,5 +1,6 @@
 #include "VKGraphicsPipeline.h"
 #include "VKShader.h"
+#include "VKUtils.h"
 #include "log.h"
 namespace raum::rhi {
 GraphicsPipelineState::GraphicsPipelineState(const GraphicsPipelineStateInfo& pipelineInfo) {
@@ -49,8 +50,37 @@ GraphicsPipelineState::GraphicsPipelineState(const GraphicsPipelineStateInfo& pi
     dynamicState.dynamicStateCount = dynamicStates.size();
     dynamicState.pDynamicStates = dynamicStates.data();
 
+    const auto& vertexLayout = pipelineInfo.vertexLayout;
+    std::vector<VkVertexInputBindingDescription> bindingDescs(vertexLayout.size());
+    std::vector<VkVertexInputAttributeDescription> attrDescs{};
+    std::vector<uint32_t> offset(vertexLayout.size(), 0);
+    for (size_t i = 0; i < vertexLayout.size(); ++i) {
+        const auto& bufferLayout = vertexLayout[i];
+        auto& bindingDesc = bindingDescs[i];
+        bindingDesc.inputRate = mapRate(bufferLayout.front().rate);
+        // TODO(Zeqiang): Required in feature implementation
+        bindingDesc.binding = i;
+        for (size_t j = 0; j < bufferLayout.size(); ++j) {
+            const auto& desc = bufferLayout[j];
+            const auto& fmtInfo = formatInfo(desc.format);
+            auto& attr = attrDescs.emplace_back();
+            attr.binding = desc.binding;
+            attr.location = desc.location;
+            attr.format = fmtInfo.format;
+            attr.offset = offset[attr.binding];
+            offset[attr.binding] += fmtInfo.size;
+        }
+    }
+    for (size_t i = 0; i < vertexLayout.size(); ++i) {
+        auto& bindingDesc = bindingDescs[i];
+        bindingDesc.stride = offset[i];
+    }
+
     VkPipelineVertexInputStateCreateInfo vertexInputState{};
     vertexInputState.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-    vertexInputState.vertexBindingDescriptionCount = 0;
+    vertexInputState.vertexBindingDescriptionCount = bindingDescs.size();
+    vertexInputState.pVertexBindingDescriptions = bindingDescs.data();
+    vertexInputState.vertexAttributeDescriptionCount = attrDescs.size();
+    vertexInputState.pVertexAttributeDescriptions = attrDescs.data();
 }
 }; // namespace raum::rhi

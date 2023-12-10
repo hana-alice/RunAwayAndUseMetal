@@ -20,9 +20,19 @@
         if (con) spdlog::error(__VA_ARGS__); \
     }
 
-#define RAUM_ERROR(con, id)                     \
-    {                                           \
-        if (con) spdlog::error("error {}", id); \
+#define RAUM_ERROR(...)             \
+    {                               \
+        spdlog::error(__VA_ARGS__); \
+    }
+
+#define RAUM_WARN_IF(con, ...)              \
+    {                                       \
+        if (con) spdlog::warn(__VA_ARGS__); \
+    }
+
+#define RAUM_WARN(...)             \
+    {                              \
+        spdlog::warn(__VA_ARGS__); \
     }
 
 namespace raum {
