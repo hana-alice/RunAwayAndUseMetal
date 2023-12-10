@@ -5,6 +5,7 @@
 #include <memory>
 #include <queue>
 #include "VKDefine.h"
+#include "vk_mem_alloc.h"
 namespace raum::rhi {
 class Queue;
 class Swapchain;
@@ -15,6 +16,7 @@ public:
     VkPhysicalDevice physicalDevice() { return _physicalDevice; };
     VkDevice device() { return _device; }
     VkInstance instance() { return _instance; }
+    VmaAllocator &allocator() { return _allocator; }
 
     Queue *defaultQueue() { return _queues.at(QueueType::GRAPHICS); }
 
@@ -39,6 +41,7 @@ private:
     VkDebugUtilsMessengerEXT _debugMessenger;
     VkPhysicalDevice _physicalDevice;
     VkDevice _device;
+    VmaAllocator _allocator;
 
     std::map<QueueType, Queue *> _queues;
 };

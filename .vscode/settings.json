@@ -79,6 +79,13 @@
         "regex": "cpp",
         "stack": "cpp",
         "xtree": "cpp",
-        "map": "cpp"
+        "map": "cpp",
+        "any": "cpp",
+        "cinttypes": "cpp",
+        "coroutine": "cpp",
+        "numeric": "cpp",
+        "set": "cpp",
+        "shared_mutex": "cpp",
+        "unordered_set": "cpp"
     }
 }

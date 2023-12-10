@@ -1,4 +1,5 @@
 #include "VKDevice.h"
+#include "VKBuffer.h"
 #include "VKQueue.h"
 #include "VKSwapchain.h"
 #include "VKUtils.h"
@@ -126,6 +127,7 @@ Device::~Device() {
     }
     _queues.clear();
 
+    vmaDestroyAllocator(_allocator);
     vkDestroyDevice(_device, nullptr);
     vkDestroyInstance(_instance, nullptr);
 }

@@ -16,13 +16,24 @@ set(core_dir ${CMAKE_CURRENT_SOURCE_DIR}/core CACHE INTERNAL "core_dir")
 add_subdirectory(
     ${dependency_dir}/sdl
 )
+set_target_properties(SDL3-shared PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
+)
 
 add_subdirectory(
     ${dependency_dir}/spdlog
 )
 
+# add_subdirectory(
+#     ${dependency_dir}/tinyobjloader
+# )
+
+add_subdirectory(
+    ${dependency_dir}/vma
+)
+
 add_subdirectory(core)
-add_subdirectory(platform/windows)
+add_subdirectory(framework)
 
 add_subdirectory(renderer)
 
@@ -32,11 +43,9 @@ file(GLOB_RECURSE Sample
 
 add_executable(RAUM_Sample ${Sample})
 
-set_target_properties(RAUM_Sample PROPERTIES LINKER_LANGUAGE CXX)
-
 target_link_libraries(
     RAUM_Sample
-    win_raum
+    framework
     renderer
 )
 

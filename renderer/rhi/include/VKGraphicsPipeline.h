@@ -8,8 +8,8 @@ public:
     GraphicsPipelineState(const GraphicsPipelineState&) = delete;
     GraphicsPipelineState(GraphicsPipelineState&&) = delete;
     GraphicsPipelineState& operator=(const GraphicsPipelineState&) = delete;
-    explicit GraphicsPipelineState(const PipelineStateInfo& info);
+    explicit GraphicsPipelineState(const GraphicsPipelineStateInfo& info);
 
 private:
-}
+};
 } // namespace raum::rhi

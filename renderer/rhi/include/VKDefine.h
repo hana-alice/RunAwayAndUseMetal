@@ -8,7 +8,7 @@ namespace raum::rhi {
 
 static constexpr uint32_t SwapchainCount{3};
 
-enum class Format {
+enum class Format : uint16_t {
     // powered by TabNine.
     UNKNOWN,
     A8_UNORM,
@@ -139,7 +139,7 @@ enum class Format {
     ASTC_6x5_UNORM_BLOCK,
 };
 
-enum class QueueType : uint32_t {
+enum class QueueType : uint8_t {
     GRAPHICS,
     COMPUTE,
     TRANSFER,
@@ -148,7 +148,7 @@ struct QueueInfo {
     QueueType type;
 };
 
-enum class SyncType : uint32_t {
+enum class SyncType : uint8_t {
     IMMEDIATE,
     VSYNC,
     RELAX,
@@ -214,6 +214,41 @@ struct ImageViewInfo {
 class Shader;
 struct GraphicsPipelineStateInfo {
     std::vector<Shader*> shaders;
+};
+
+enum class MemoryUsage : uint8_t {
+    HOST_VISIBLE,
+    DEVICE_ONLY,
+    STAGING,
+    LAZY_ALLOCATED,
+};
+
+enum class BufferUsage : uint8_t {
+    UNIFORM = 1,
+    STORAGE = 1 << 1,
+    INDEX = 1 << 2,
+    VERTEX = 1 << 3,
+    INDIRECT = 1 << 4,
+    TRANSFER_SRC = 1 << 5,
+    TRANSFER_DST = 1 << 6,
+};
+
+struct BufferSourceInfo {
+    const uint8_t* data{nullptr};
+    uint32_t size{0};
+    MemoryUsage memUsage{MemoryUsage::DEVICE_ONLY};
+    BufferUsage bufferUsage{BufferUsage::UNIFORM};
+};
+
+struct BufferInfo {
+    uint32_t size{0};
+    MemoryUsage memUsage{MemoryUsage::DEVICE_ONLY};
+    BufferUsage bufferUsage{BufferUsage::UNIFORM};
+};
+
+enum class IndexType : uint8_t {
+    HALF, // most likely 16 bit
+    FULL, // most likely 32 bit
 };
 
 struct DeviceInfo {

@@ -1,4 +1,6 @@
 #include "VKGraphicsPipeline.h"
+#include "VKShader.h"
+#include "log.h"
 namespace raum::rhi {
 GraphicsPipelineState::GraphicsPipelineState(const GraphicsPipelineStateInfo& pipelineInfo) {
     RAUM_ERROR_IF(pipelineInfo.shaders.size() < 2, "At least two shaders are required!");
@@ -10,7 +12,7 @@ GraphicsPipelineState::GraphicsPipelineState(const GraphicsPipelineStateInfo& pi
             vertexStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
             vertexStage.stage = VK_SHADER_STAGE_VERTEX_BIT;
             vertexStage.pName = "main";
-            vertexStage.shaderModule = shader->shaderModule();
+            vertexStage.module = shader->shaderModule();
             vertexStage.pSpecializationInfo = nullptr;
             shaderStages.emplace_back(vertexStage);
         } else if (shader->stage() == ShaderStage::TASK) {
@@ -20,13 +22,13 @@ GraphicsPipelineState::GraphicsPipelineState(const GraphicsPipelineStateInfo& pi
             fragmentStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
             fragmentStage.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
             fragmentStage.pName = "main";
-            fragmentStage.shaderModule = shader->shaderModule();
+            fragmentStage.module = shader->shaderModule();
             fragmentStage.pSpecializationInfo = nullptr;
             shaderStages.emplace_back(fragmentStage);
         }
     }
 
-    std::array<VkDynamicState> dynamicStates{
+    std::vector<VkDynamicState> dynamicStates{
         VK_DYNAMIC_STATE_VIEWPORT,
         VK_DYNAMIC_STATE_SCISSOR,
         // VK_DYNAMIC_STATE_LINE_WIDTH,

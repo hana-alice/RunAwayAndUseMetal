@@ -10,8 +10,11 @@ target_include_directories(renderer PUBLIC
     ${CMAKE_CURRENT_LIST_DIR}/rhi/include
     ${core_dir}
     ${Vulkan_INCLUDE_DIR}
+    ${dependency_dir}/vma/include
 )
 
 target_link_libraries(renderer PUBLIC 
+    GPUOpen::VulkanMemoryAllocator
     ${Vulkan_LIBRARIES}
-    core)
+    core
+)
