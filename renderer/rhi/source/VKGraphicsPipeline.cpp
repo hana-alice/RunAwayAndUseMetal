@@ -78,9 +78,9 @@ GraphicsPipelineState::GraphicsPipelineState(const GraphicsPipelineStateInfo& pi
 
     VkPipelineVertexInputStateCreateInfo vertexInputState{};
     vertexInputState.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-    vertexInputState.vertexBindingDescriptionCount = bindingDescs.size();
+    vertexInputState.vertexBindingDescriptionCount = static_cast<uint32_t>(bindingDescs.size());
     vertexInputState.pVertexBindingDescriptions = bindingDescs.data();
-    vertexInputState.vertexAttributeDescriptionCount = attrDescs.size();
+    vertexInputState.vertexAttributeDescriptionCount = static_cast(attrDescs.size());
     vertexInputState.pVertexAttributeDescriptions = attrDescs.data();
 }
 }; // namespace raum::rhi
