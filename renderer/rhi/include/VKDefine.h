@@ -3,6 +3,7 @@
 #include <vulkan/vulkan.h>
 #include <string>
 #include <vector>
+#include <array>
 #include "define.h"
 namespace raum::rhi {
 
@@ -211,24 +212,222 @@ enum class InputRate : uint8_t {
 struct VertexAttribute {
     uint32_t location{0};
     uint32_t binding{0};
-    Format format;
-    InputRate rate;
+    Format format{Format::UNKNOWN};
+    uint32_t offset{0};
 };
 
-using VertexBufferAttribute = std::vector<VertexAttribute>;
-
-using VertexLayout = std::vector<VertexBufferAttribute>;
-struct FragmentLayout {
+struct VertexBufferAttribute {
+    uint32_t binding{0};
+    uint32_t stride{0};
+    InputRate rate{InputRate::PER_VERTEX};
 };
 
+using VertexBufferAttributes = std::vector<VertexBufferAttribute>;
+using VertexAttributes = std::vector<VertexAttribute>;
+
+struct VertexLayout {
+    VertexAttributes vertexAttrs;
+    VertexBufferAttributes vertexBufferAttrs;
+};
 // struct GraphicsPipelineLayout {
 //     VertexLayout vertexLayout;
 // };
+
+enum class IAType : uint8_t {
+    VB_IB,
+    MESH,
+};
+
+struct Rect2D {
+    int32_t x{0};
+    int32_t y{0};
+    uint32_t w{0};
+    uint32_t h{0};
+};
+
+struct Viewport {
+    Rect2D rect{};
+    float minDepth{0.0f};
+    float maxDepth{0.0f};
+};
+
+enum class PolygonMode : uint8_t {
+    FILL,
+    LINE,
+    POINT,
+};
+
+enum class PrimitiveType : uint8_t {
+    POINT_LIST,
+    LINE_LIST,
+    LINE_STRIP,
+    TRIANGLE_LIST,
+    TRIANGLE_STRIP,
+};
+
+enum class CullMode : uint8_t {
+    NONE,
+    FRONT,
+    BACK,
+    FRONT_AND_BACK,
+};
+
+enum class FrontFace : uint8_t {
+    COUNTER_CLOCKWISE,
+    CLOCKWISE,
+};
+
+struct RasterizationInfo {
+    bool depthClamp{false};
+    bool depthBiasEnable{false};
+    PolygonMode polygonMode{PolygonMode::FILL};
+    CullMode cullMode{CullMode::NONE};
+    FrontFace frontFace{FrontFace::COUNTER_CLOCKWISE};
+    float depthBiasConstantFactor{0.0f};
+    float depthBiasClamp{0.0f};
+    float depthBiasSlopeFactor{0.0f};
+    float lineWidth{1.0f};
+};
+
+struct MultisamplingInfo {
+    bool enable{false};
+    bool sampleShadingEnable{false};
+    bool alphaToCoverageEnable{false};
+    float minSampleShading{0.0f};
+    uint32_t sampleCount{0};
+    uint32_t sampleMask{0};    
+};
+
+enum class CompareOp : uint8_t {
+    NEVER,
+    LESS,
+    EQUAL,
+    LESS_OR_EQUAL,
+    GREATER,
+    NOT_EQUAL,
+    GREATER_OR_EQUAL,
+    ALWAYS,
+};
+
+enum class StencilOp : uint8_t {
+    KEEP,
+    ZERO,
+    REPLACE,
+    INCREMENT_AND_CLAMP,
+    DECREMENT_AND_CLAMP,
+    INVERT,
+    INCREMENT_AND_WRAP,
+    DECREMENT_AND_WRAP,
+};
+
+struct StencilInfo {
+    StencilOp failOp;
+    StencilOp passOp;
+    StencilOp depthFailOp;
+    CompareOp compareOp;
+    uint32_t compareMask{0};
+    uint32_t writeMask{0};
+    uint32_t reference{0};
+};
+
+struct DepthStencilInfo {
+    bool depthTestEnable{false};
+    bool depthWriteEnable{false};
+    bool depthBoundsTestEnable{false};
+    bool stencilTestEnable{false};
+    CompareOp depthCompareOp{CompareOp::LESS_OR_EQUAL};
+    StencilInfo front;
+    StencilInfo back;
+    float minDepthBounds{0.0f};
+    float maxDepthBounds{0.0f};
+};
+
+enum class BlendFactor : uint8_t {
+    ZERO,
+    ONE,
+    SRC_COLOR,
+    ONE_MINUS_SRC_COLOR,
+    DST_COLOR,
+    ONE_MINUS_DST_COLOR,
+    SRC_ALPHA,
+    ONE_MINUS_SRC_ALPHA,
+    DST_ALPHA,
+    ONE_MINUS_DST_ALPHA,
+    CONSTANT_COLOR,
+    ONE_MINUS_CONSTANT_COLOR,
+    CONSTANT_ALPHA,
+    ONE_MINUS_CONSTANT_ALPHA,
+    SRC_ALPHA_SATURATE,
+};
+
+enum class BlendOp : uint8_t {
+    ADD,
+    SUBTRACT,
+    REVERSE_SUBTRACT,
+    MIN,
+    MAX,
+};
+
+enum class Channel : uint8_t {
+    R = 1,
+    G = 1 << 1,
+    B = 1 << 2,
+    A = 1 << 3,
+};
+
+inline Channel operator|(Channel lhs, Channel rhs) {
+    return static_cast<Channel>(static_cast<uint8_t>(lhs) | static_cast<uint8_t>(rhs));
+}
+inline Channel operator&(Channel lhs, Channel rhs) {
+    return static_cast<Channel>(static_cast<uint8_t>(lhs) & static_cast<uint8_t>(rhs));
+}
+
+struct AttachmentBlendInfo {
+    bool blendEnable{false};
+    BlendFactor srcColorBlendFactor{BlendFactor::ONE};
+    BlendFactor dstColorBlendFactor{BlendFactor::ZERO};
+    BlendOp colorBlendOp{BlendOp::ADD};
+    BlendFactor srcAlphaBlendFactor{BlendFactor::ONE};
+    BlendFactor dstAlphaBlendFactor{BlendFactor::ZERO};
+    BlendOp alphaBlendOp{BlendOp::ADD};
+    Channel writemask{Channel::R | Channel::G | Channel::B | Channel::A};
+};
+
+enum class LogicOp : uint8_t {
+    CLEAR,
+    AND,
+    AND_REVERSE,
+    COPY,
+    AND_INVERTED,
+    NOOP,
+    XOR,
+    OR,
+    NOR,
+    EQUIVALENT,
+    INVERT,
+    OR_REVERSE,
+    COPY_INVERTED,
+    OR_INVERTED,
+    NAND,
+    SET,
+};
+
+struct BlendInfo {
+    bool logicOpEnable{false};
+    LogicOp logicOp{LogicOp::CLEAR};
+    std::vector<AttachmentBlendInfo> attachmentBlends; 
+    float blendConstants[4];
+};
 
 class Shader;
 struct GraphicsPipelineStateInfo {
     std::vector<Shader*> shaders;
     VertexLayout vertexLayout;
+    uint32_t viewportCount{1};
+    RasterizationInfo rasterizationInfo{};
+    MultisamplingInfo multisamplingInfo{};
+    DepthStencilInfo depthStencilInfo{};
+    BlendInfo colorBlendInfo{};
 };
 
 enum class MemoryUsage : uint8_t {

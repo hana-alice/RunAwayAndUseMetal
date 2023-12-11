@@ -133,4 +133,274 @@ VkVertexInputRate mapRate(InputRate rate) {
     return VK_VERTEX_INPUT_RATE_VERTEX;
 }
 
+VkCullModeFlags cullMode(CullMode mode) {
+    VkCullModeFlags res = VK_CULL_MODE_NONE;
+    switch (mode) {
+        case CullMode::NONE:
+            res = VK_CULL_MODE_NONE;
+            break;
+        case CullMode::FRONT:
+            res = VK_CULL_MODE_FRONT_BIT;
+            break;
+        case CullMode::BACK:
+            res = VK_CULL_MODE_BACK_BIT;
+            break;
+        case CullMode::FRONT_AND_BACK:
+            res = VK_CULL_MODE_FRONT_AND_BACK;
+            break;
+        default:
+            break;  
+    }
+    return res;
+}
+
+VkPolygonMode polygonMode(PolygonMode mode) {
+    VkPolygonMode res = VK_POLYGON_MODE_FILL;
+    switch (mode) {
+        case PolygonMode::POINT:
+            res = VK_POLYGON_MODE_POINT;
+            break;
+        case PolygonMode::LINE:
+            res = VK_POLYGON_MODE_LINE;
+            break;
+        case PolygonMode::FILL:
+            res = VK_POLYGON_MODE_FILL;
+            break;
+        default:
+            break;
+    }
+    return res;
+}
+
+VkFrontFace frontFace(FrontFace face) {
+    VkFrontFace res = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+    switch (face) {
+        case FrontFace::COUNTER_CLOCKWISE:
+            res = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+            break;
+        case FrontFace::CLOCKWISE:
+            res = VK_FRONT_FACE_CLOCKWISE;
+            break;
+        default:
+            break;
+    }
+    return res;
+}
+VkSampleCountFlagBits sampleCount(uint32_t samples) {
+    VkSampleCountFlagBits res = VK_SAMPLE_COUNT_1_BIT;
+    switch (samples) {
+        case 1:
+            res = VK_SAMPLE_COUNT_1_BIT;
+            break;
+        case 2:
+            res = VK_SAMPLE_COUNT_2_BIT;
+            break;
+        case 4:
+            res = VK_SAMPLE_COUNT_4_BIT;
+            break;
+        case 8:
+            res = VK_SAMPLE_COUNT_8_BIT;
+            break;
+        case 16:
+            res = VK_SAMPLE_COUNT_16_BIT;
+            break;
+    }
+    return res;
+}
+
+VkCompareOp compareOp(CompareOp op) {
+    VkCompareOp res = VK_COMPARE_OP_ALWAYS;
+    switch (op) {
+        case CompareOp::NEVER:
+            res = VK_COMPARE_OP_NEVER;
+            break;
+        case CompareOp::LESS:
+            res = VK_COMPARE_OP_LESS;
+            break;
+        case CompareOp::EQUAL:
+            res = VK_COMPARE_OP_EQUAL;
+            break;
+        case CompareOp::LESS_OR_EQUAL:
+            res = VK_COMPARE_OP_LESS_OR_EQUAL;
+            break;
+        case CompareOp::GREATER:
+            res = VK_COMPARE_OP_GREATER;
+            break;
+        case CompareOp::NOT_EQUAL:
+            res = VK_COMPARE_OP_NOT_EQUAL;
+            break;
+        case CompareOp::GREATER_OR_EQUAL:
+            res = VK_COMPARE_OP_GREATER_OR_EQUAL;
+            break;
+        case CompareOp::ALWAYS:
+            res = VK_COMPARE_OP_ALWAYS;
+            break;
+    }
+    return res;
+}
+
+VkStencilOp stencilOp(StencilOp op) {
+    VkStencilOp res = VK_STENCIL_OP_KEEP;
+    switch (op) {
+        case StencilOp::KEEP:
+            res = VK_STENCIL_OP_KEEP;
+            break;
+        case StencilOp::ZERO:
+            res = VK_STENCIL_OP_ZERO;
+            break;
+        case StencilOp::REPLACE:
+            res = VK_STENCIL_OP_REPLACE;
+            break;
+        case StencilOp::INCREMENT_AND_CLAMP:
+            res = VK_STENCIL_OP_INCREMENT_AND_CLAMP;
+            break;
+        case StencilOp::DECREMENT_AND_CLAMP:
+            res = VK_STENCIL_OP_DECREMENT_AND_CLAMP;
+            break;
+        case StencilOp::INVERT:
+            res = VK_STENCIL_OP_INVERT;
+            break;
+        case StencilOp::INCREMENT_AND_WRAP:
+            res = VK_STENCIL_OP_INCREMENT_AND_WRAP;
+            break;
+        case StencilOp::DECREMENT_AND_WRAP:
+            res = VK_STENCIL_OP_DECREMENT_AND_WRAP;
+            break;
+    }
+    return res;
+}
+
+VkBlendFactor blendFactor(BlendFactor factor) {
+    VkBlendFactor res = VK_BLEND_FACTOR_ONE;
+    switch (factor) {
+        case BlendFactor::ZERO:
+            res = VK_BLEND_FACTOR_ZERO;
+            break;
+        case BlendFactor::ONE:
+            res = VK_BLEND_FACTOR_ONE;
+            break;
+        case BlendFactor::SRC_COLOR:
+            res = VK_BLEND_FACTOR_SRC_COLOR;
+            break;
+        case BlendFactor::ONE_MINUS_SRC_COLOR:
+            res = VK_BLEND_FACTOR_ONE_MINUS_SRC_COLOR;
+            break;
+        case BlendFactor::DST_COLOR:
+            res = VK_BLEND_FACTOR_DST_COLOR;
+            break;
+        case BlendFactor::ONE_MINUS_DST_COLOR:
+            res = VK_BLEND_FACTOR_ONE_MINUS_DST_COLOR;
+            break;
+        case BlendFactor::SRC_ALPHA:
+            res = VK_BLEND_FACTOR_SRC_ALPHA;
+            break;
+        case BlendFactor::ONE_MINUS_SRC_ALPHA:
+            res = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+            break;
+        case BlendFactor::DST_ALPHA:
+            res = VK_BLEND_FACTOR_DST_ALPHA;
+            break;
+        case BlendFactor::ONE_MINUS_DST_ALPHA:
+            res = VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA;
+            break;
+        case BlendFactor::CONSTANT_COLOR:
+            res = VK_BLEND_FACTOR_CONSTANT_COLOR;
+            break;
+        case BlendFactor::ONE_MINUS_CONSTANT_COLOR:
+            res = VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR;
+            break;
+        case BlendFactor::CONSTANT_ALPHA:
+            res = VK_BLEND_FACTOR_CONSTANT_ALPHA;
+            break;
+        case BlendFactor::ONE_MINUS_CONSTANT_ALPHA:
+            res = VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA;
+            break;
+        case BlendFactor::SRC_ALPHA_SATURATE:
+            res = VK_BLEND_FACTOR_SRC_ALPHA_SATURATE;
+            break;
+    }
+    return res;
+}
+
+VkBlendOp blendOp(BlendOp op) {
+    VkBlendOp res = VK_BLEND_OP_ADD;
+    switch (op) {
+        case BlendOp::ADD:
+            res = VK_BLEND_OP_ADD;
+            break;
+        case BlendOp::SUBTRACT:
+            res = VK_BLEND_OP_SUBTRACT;
+            break;
+        case BlendOp::REVERSE_SUBTRACT:
+            res = VK_BLEND_OP_REVERSE_SUBTRACT;
+            break;
+        case BlendOp::MIN:
+            res = VK_BLEND_OP_MIN;
+            break;
+        case BlendOp::MAX:
+            res = VK_BLEND_OP_MAX;
+            break;
+    }
+    return res;
+}
+
+VkColorComponentFlags colorComponentFlags(Channel channel) {
+    return static_cast<VkColorComponentFlags>(channel);
+}
+
+VkLogicOp logicOp(LogicOp op) {
+    VkLogicOp res = VK_LOGIC_OP_CLEAR;
+    switch (op) {
+        case LogicOp::CLEAR:
+            res = VK_LOGIC_OP_CLEAR;
+            break;
+        case LogicOp::AND:
+            res = VK_LOGIC_OP_AND;
+            break;
+        case LogicOp::AND_REVERSE:
+            res = VK_LOGIC_OP_AND_REVERSE;
+            break;
+        case LogicOp::COPY:
+            res = VK_LOGIC_OP_COPY;
+            break;
+        case LogicOp::AND_INVERTED:
+            res = VK_LOGIC_OP_AND_INVERTED;
+            break;
+        case LogicOp::NOOP:
+            res = VK_LOGIC_OP_NO_OP;
+            break;
+        case LogicOp::XOR:
+            res = VK_LOGIC_OP_XOR;
+            break;
+        case LogicOp::OR:
+            res = VK_LOGIC_OP_OR;
+            break;
+        case LogicOp::NOR:
+            res = VK_LOGIC_OP_NOR;
+            break;
+        case LogicOp::EQUIVALENT:
+            res = VK_LOGIC_OP_EQUIVALENT;
+            break;
+        case LogicOp::INVERT:
+            res = VK_LOGIC_OP_INVERT;
+            break;
+        case LogicOp::OR_REVERSE:
+            res = VK_LOGIC_OP_OR_REVERSE;
+            break;
+        case LogicOp::COPY_INVERTED:
+            res = VK_LOGIC_OP_COPY_INVERTED;
+            break;
+        case LogicOp::OR_INVERTED:
+            res = VK_LOGIC_OP_OR_INVERTED;
+            break;
+        case LogicOp::NAND:
+            res = VK_LOGIC_OP_NAND;
+            break;
+        case LogicOp::SET:
+            res = VK_LOGIC_OP_SET;
+            break;
+    }
+    return res;
+}
+
 } // namespace raum::rhi

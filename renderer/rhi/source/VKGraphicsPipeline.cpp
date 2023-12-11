@@ -6,6 +6,9 @@ namespace raum::rhi {
 GraphicsPipelineState::GraphicsPipelineState(const GraphicsPipelineStateInfo& pipelineInfo) {
     RAUM_ERROR_IF(pipelineInfo.shaders.size() < 2, "At least two shaders are required!");
 
+    VkGraphicsPipelineCreateInfo pipelineCreateInfo = {};
+    pipelineCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+
     std::vector<VkPipelineShaderStageCreateInfo> shaderStages(pipelineInfo.shaders.size());
     for (auto* shader : pipelineInfo.shaders) {
         if (shader->stage() == ShaderStage::VERTEX) {
@@ -28,6 +31,8 @@ GraphicsPipelineState::GraphicsPipelineState(const GraphicsPipelineStateInfo& pi
             shaderStages.emplace_back(fragmentStage);
         }
     }
+    pipelineCreateInfo.stageCount = static_cast<uint32_t>(shaderStages.size());
+    pipelineCreateInfo.pStages = shaderStages.data();
 
     std::vector<VkDynamicState> dynamicStates{
         VK_DYNAMIC_STATE_VIEWPORT,
@@ -49,31 +54,27 @@ GraphicsPipelineState::GraphicsPipelineState(const GraphicsPipelineStateInfo& pi
     dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
     dynamicState.dynamicStateCount = dynamicStates.size();
     dynamicState.pDynamicStates = dynamicStates.data();
+    pipelineCreateInfo.pDynamicState = &dynamicState;
 
     const auto& vertexLayout = pipelineInfo.vertexLayout;
-    std::vector<VkVertexInputBindingDescription> bindingDescs(vertexLayout.size());
-    std::vector<VkVertexInputAttributeDescription> attrDescs{};
-    std::vector<uint32_t> offset(vertexLayout.size(), 0);
-    for (size_t i = 0; i < vertexLayout.size(); ++i) {
-        const auto& bufferLayout = vertexLayout[i];
+    std::vector<VkVertexInputBindingDescription> bindingDescs(vertexLayout.vertexBufferAttrs.size());
+    std::vector<VkVertexInputAttributeDescription> attrDescs(vertexLayout.vertexAttrs.size());
+
+    for (size_t i = 0; i < vertexLayout.vertexBufferAttrs.size(); ++i) {
         auto& bindingDesc = bindingDescs[i];
-        bindingDesc.inputRate = mapRate(bufferLayout.front().rate);
-        // TODO(Zeqiang): Required in feature implementation
-        bindingDesc.binding = i;
-        for (size_t j = 0; j < bufferLayout.size(); ++j) {
-            const auto& desc = bufferLayout[j];
-            const auto& fmtInfo = formatInfo(desc.format);
-            auto& attr = attrDescs.emplace_back();
-            attr.binding = desc.binding;
-            attr.location = desc.location;
-            attr.format = fmtInfo.format;
-            attr.offset = offset[attr.binding];
-            offset[attr.binding] += fmtInfo.size;
-        }
+        const auto& vbAttr = vertexLayout.vertexBufferAttrs[i];
+        bindingDesc.binding = vbAttr.binding;
+        bindingDesc.stride = vbAttr.stride;
+        bindingDesc.inputRate = mapRate(vbAttr.rate);
     }
-    for (size_t i = 0; i < vertexLayout.size(); ++i) {
-        auto& bindingDesc = bindingDescs[i];
-        bindingDesc.stride = offset[i];
+
+    for (size_t i = 0; i < vertexLayout.vertexAttrs.size(); ++i) {
+        const auto& vertexAttr = vertexLayout.vertexAttrs[i];
+        auto& attrDesc = attrDescs[i];
+        attrDesc.binding = vertexAttr.binding;
+        attrDesc.location = vertexAttr.location;
+        attrDesc.offset = vertexAttr.offset;
+        attrDesc.format = formatInfo(vertexAttr.format).format;
     }
 
     VkPipelineVertexInputStateCreateInfo vertexInputState{};
@@ -82,5 +83,100 @@ GraphicsPipelineState::GraphicsPipelineState(const GraphicsPipelineStateInfo& pi
     vertexInputState.pVertexBindingDescriptions = bindingDescs.data();
     vertexInputState.vertexAttributeDescriptionCount = static_cast<uint32_t>(attrDescs.size());
     vertexInputState.pVertexAttributeDescriptions = attrDescs.data();
+    pipelineCreateInfo.pVertexInputState = &vertexInputState;
+
+    VkPipelineInputAssemblyStateCreateInfo iaInfo{};
+    iaInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+    iaInfo.topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
+    iaInfo.primitiveRestartEnable = VK_FALSE;
+    pipelineCreateInfo.pInputAssemblyState = &iaInfo;
+
+    VkPipelineViewportStateCreateInfo vpInfo{};
+    vpInfo.flags = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+    vpInfo.viewportCount = pipelineInfo.viewportCount;
+    vpInfo.scissorCount = pipelineInfo.viewportCount;
+    pipelineCreateInfo.pViewportState = &vpInfo;
+
+    const RasterizationInfo& rasterizationInfo = pipelineInfo.rasterizationInfo;
+    VkPipelineRasterizationStateCreateInfo rsInfo{};
+    rsInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+    rsInfo.cullMode = cullMode(rasterizationInfo.cullMode);
+    rsInfo.lineWidth = rasterizationInfo.lineWidth;
+    rsInfo.polygonMode = polygonMode(rasterizationInfo.polygonMode);
+    rsInfo.depthClampEnable = rasterizationInfo.depthClamp;
+    rsInfo.depthBiasEnable = rasterizationInfo.depthBiasEnable;
+    rsInfo.depthBiasClamp = rasterizationInfo.depthBiasClamp;
+    rsInfo.depthBiasConstantFactor = rasterizationInfo.depthBiasConstantFactor;
+    rsInfo.depthBiasSlopeFactor = rasterizationInfo.depthBiasSlopeFactor;
+    pipelineCreateInfo.pRasterizationState = &rsInfo;
+
+    const MultisamplingInfo& multisamplingInfo = pipelineInfo.multisamplingInfo;
+    if (multisamplingInfo.enable) {
+        VkPipelineMultisampleStateCreateInfo msInfo{};
+        msInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+        msInfo.alphaToCoverageEnable = multisamplingInfo.alphaToCoverageEnable;
+        msInfo.minSampleShading = multisamplingInfo.minSampleShading;
+        msInfo.pSampleMask = &multisamplingInfo.sampleMask;
+        msInfo.sampleShadingEnable = multisamplingInfo.sampleShadingEnable;
+        msInfo.rasterizationSamples = sampleCount(multisamplingInfo.sampleCount);
+        pipelineCreateInfo.pMultisampleState = &msInfo;
+    }
+
+    const DepthStencilInfo& depthStencilInfo = pipelineInfo.depthStencilInfo;
+    VkPipelineDepthStencilStateCreateInfo dsInfo{};
+    dsInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+    dsInfo.depthTestEnable = depthStencilInfo.depthTestEnable;
+    dsInfo.depthWriteEnable = depthStencilInfo.depthWriteEnable;
+    dsInfo.depthCompareOp = compareOp(depthStencilInfo.depthCompareOp);
+    dsInfo.depthBoundsTestEnable = depthStencilInfo.depthBoundsTestEnable;
+    dsInfo.minDepthBounds = depthStencilInfo.minDepthBounds;
+    dsInfo.maxDepthBounds = depthStencilInfo.maxDepthBounds;
+    dsInfo.stencilTestEnable = depthStencilInfo.stencilTestEnable;
+
+    dsInfo.front.depthFailOp = stencilOp(depthStencilInfo.front.depthFailOp);
+    dsInfo.front.failOp = stencilOp(depthStencilInfo.front.failOp);
+    dsInfo.front.passOp = stencilOp(depthStencilInfo.front.passOp);
+    dsInfo.front.compareOp = compareOp(depthStencilInfo.front.compareOp);
+    dsInfo.front.compareMask = depthStencilInfo.front.compareMask;
+    dsInfo.front.writeMask = depthStencilInfo.front.writeMask;
+    dsInfo.front.reference = depthStencilInfo.front.reference;
+
+    dsInfo.back.depthFailOp = stencilOp(depthStencilInfo.back.depthFailOp);
+    dsInfo.back.failOp = stencilOp(depthStencilInfo.back.failOp);
+    dsInfo.back.passOp = stencilOp(depthStencilInfo.back.passOp);
+    dsInfo.back.compareOp = compareOp(depthStencilInfo.back.compareOp);
+    dsInfo.back.compareMask = depthStencilInfo.back.compareMask;
+    dsInfo.back.writeMask = depthStencilInfo.back.writeMask;
+    dsInfo.back.reference = depthStencilInfo.back.reference;
+
+    dsInfo.minDepthBounds = depthStencilInfo.minDepthBounds;
+    dsInfo.maxDepthBounds = depthStencilInfo.maxDepthBounds;
+
+    pipelineCreateInfo.pDepthStencilState = &dsInfo;
+
+    const auto& colorBlendInfo = pipelineInfo.colorBlendInfo;
+    VkPipelineColorBlendStateCreateInfo cbInfo{};
+    cbInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+    cbInfo.blendConstants[0] = colorBlendInfo.blendConstants[0];
+    cbInfo.blendConstants[1] = colorBlendInfo.blendConstants[1];
+    cbInfo.blendConstants[2] = colorBlendInfo.blendConstants[2];
+    cbInfo.blendConstants[3] = colorBlendInfo.blendConstants[3];
+    cbInfo.logicOpEnable = colorBlendInfo.logicOpEnable;
+    cbInfo.logicOp = logicOp(colorBlendInfo.logicOp);
+    cbInfo.attachmentCount = static_cast<uint32_t>(colorBlendInfo.attachmentBlends.size());
+    std::vector<VkPipelineColorBlendAttachmentState> colorBlendAttachments(colorBlendInfo.attachmentBlends.size());
+    for (size_t i = 0; i < colorBlendInfo.attachmentBlends.size(); ++i) {
+        const auto& attachmentBlend = colorBlendInfo.attachmentBlends[i];
+        auto& colorBlendAttachment = colorBlendAttachments[i];
+        colorBlendAttachment.blendEnable = attachmentBlend.blendEnable;
+        colorBlendAttachment.srcColorBlendFactor = blendFactor(attachmentBlend.srcColorBlendFactor);
+        colorBlendAttachment.dstColorBlendFactor = blendFactor(attachmentBlend.dstColorBlendFactor);
+        colorBlendAttachment.srcAlphaBlendFactor = blendFactor(attachmentBlend.srcAlphaBlendFactor);
+        colorBlendAttachment.dstAlphaBlendFactor = blendFactor(attachmentBlend.dstAlphaBlendFactor);
+        colorBlendAttachment.alphaBlendOp = blendOp(attachmentBlend.alphaBlendOp);
+        colorBlendAttachment.colorWriteMask = colorComponentFlags(attachmentBlend.writemask);
+    }
+    cbInfo.pAttachments = colorBlendAttachments.data();
+    
 }
 }; // namespace raum::rhi

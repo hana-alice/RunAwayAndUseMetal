@@ -22,6 +22,26 @@ FormatInfo formatInfo(Format format);
 
 VkVertexInputRate mapRate(InputRate rate);
 
+VkCullModeFlags cullMode(CullMode mode);
+
+VkPolygonMode polygonMode(PolygonMode mode);
+
+VkFrontFace frontFace(FrontFace face);
+
+VkSampleCountFlagBits sampleCount(uint32_t sampleCount);
+
+VkCompareOp compareOp(CompareOp compareOp);
+
+VkStencilOp stencilOp(StencilOp stencilOp);
+
+VkBlendFactor blendFactor(BlendFactor blendFactor);
+
+VkBlendOp blendOp(BlendOp blendOp);
+
+VkColorComponentFlags colorComponentFlags(Channel channel);
+
+VkLogicOp logicOp(LogicOp op);
+
 } // namespace rhi
 
 } // namespace raum
