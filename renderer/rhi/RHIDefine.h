@@ -1,6 +1,5 @@
 #pragma once
 #include <stdint.h>
-#include <vulkan/vulkan.h>
 #include <array>
 #include <string>
 #include <vector>
@@ -13,7 +12,7 @@ namespace raum::rhi {
     inline T operator&(T lhs, T rhs) {                                                                                            \
         return static_cast<T>(static_cast<std::underlying_type<T>::type>(lhs) & static_cast<std::underlying_type<T>::type>(rhs)); \
     }                                                                                                                             \
-    inline bool test(T lhs, T rhs) {                                                                                                     \
+    inline bool test(T lhs, T rhs) {                                                                                              \
         return static_cast<std::underlying_type<T>::type>(lhs & rhs);                                                             \
     }
 
@@ -139,12 +138,6 @@ enum class Format : uint16_t {
     ASTC_5x5_UNORM_BLOCK,
     ASTC_5x5_SRGB_BLOCK,
     ASTC_6x5_UNORM_BLOCK,
-};
-
-struct FormatInfo {
-    VkFormat format;
-    uint32_t size;
-    uint32_t macroPixelCount;
 };
 
 enum class QueueType : uint8_t {

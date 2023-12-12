@@ -9,6 +9,7 @@
 namespace raum::rhi {
 class Queue;
 class Swapchain;
+class Buffer;
 class Device {
 public:
     static Device *getInstance();

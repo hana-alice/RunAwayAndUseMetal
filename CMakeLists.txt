@@ -12,6 +12,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 set(dependency_dir ${CMAKE_CURRENT_SOURCE_DIR}/dependencies CACHE INTERNAL "dependency_dir")
 set(core_dir ${CMAKE_CURRENT_SOURCE_DIR}/core CACHE INTERNAL "core_dir")
+set(renderer_dir ${CMAKE_CURRENT_SOURCE_DIR}/renderer CACHE INTERNAL "renderer_dir")
 
 add_subdirectory(
     ${dependency_dir}/sdl
@@ -35,7 +36,7 @@ add_subdirectory(
 add_subdirectory(core)
 add_subdirectory(framework)
 
-add_subdirectory(renderer)
+add_subdirectory(renderer/rhi)
 
 file(GLOB_RECURSE Sample
     ${CMAKE_CURRENT_SOURCE_DIR}/Sample/*.*
@@ -46,7 +47,7 @@ add_executable(RAUM_Sample ${Sample})
 target_link_libraries(
     RAUM_Sample
     framework
-    renderer
+    rhi
 )
 
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT RAUM_Sample)
