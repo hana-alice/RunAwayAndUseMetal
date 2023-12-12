@@ -2,6 +2,9 @@
 #include "VKShader.h"
 #include "VKUtils.h"
 #include "log.h"
+#include "VKPipelineLayout.h"
+#include "VKRenderPass.h"
+#include "VKDevice.h"
 namespace raum::rhi {
 GraphicsPipelineState::GraphicsPipelineState(const GraphicsPipelineStateInfo& pipelineInfo) {
     RAUM_ERROR_IF(pipelineInfo.shaders.size() < 2, "At least two shaders are required!");
@@ -52,7 +55,7 @@ GraphicsPipelineState::GraphicsPipelineState(const GraphicsPipelineStateInfo& pi
     };
     VkPipelineDynamicStateCreateInfo dynamicState{};
     dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-    dynamicState.dynamicStateCount = dynamicStates.size();
+    dynamicState.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
     dynamicState.pDynamicStates = dynamicStates.data();
     pipelineCreateInfo.pDynamicState = &dynamicState;
 
@@ -177,6 +180,18 @@ GraphicsPipelineState::GraphicsPipelineState(const GraphicsPipelineStateInfo& pi
         colorBlendAttachment.colorWriteMask = colorComponentFlags(attachmentBlend.writemask);
     }
     cbInfo.pAttachments = colorBlendAttachments.data();
+    pipelineCreateInfo.pColorBlendState = &cbInfo;
+    pipelineCreateInfo.subpass = pipelineInfo.subpassIndex;
+    pipelineCreateInfo.basePipelineHandle = VK_NULL_HANDLE;
+    pipelineCreateInfo.basePipelineIndex = 0;
+    pipelineCreateInfo.layout = pipelineInfo.pipelineLayout->layout();
+    pipelineCreateInfo.renderPass = pipelineInfo.renderPass->renderPass();
     
+    VkResult res = vkCreateGraphicsPipelines(Device::getInstance()->device(), VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &_pipeline);
 }
+
+GraphicsPipelineState::~GraphicsPipelineState() {
+    vkDestroyPipeline(Device::getInstance()->device(), _pipeline, nullptr);
+}
+
 }; // namespace raum::rhi

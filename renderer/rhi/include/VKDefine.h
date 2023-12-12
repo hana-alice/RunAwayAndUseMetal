@@ -1,11 +1,27 @@
 #pragma once
 #include <stdint.h>
 #include <vulkan/vulkan.h>
+#include <array>
 #include <string>
 #include <vector>
-#include <array>
 #include "define.h"
 namespace raum::rhi {
+#define OPERABLE(T)                                                                                                               \
+    inline T operator|(T lhs, T rhs) {                                                                                            \
+        return static_cast<T>(static_cast<std::underlying_type<T>::type>(lhs) | static_cast<std::underlying_type<T>::type>(rhs)); \
+    }                                                                                                                             \
+    inline T operator&(T lhs, T rhs) {                                                                                            \
+        return static_cast<T>(static_cast<std::underlying_type<T>::type>(lhs) & static_cast<std::underlying_type<T>::type>(rhs)); \
+    }                                                                                                                             \
+    inline bool test(T lhs, T rhs) {                                                                                                     \
+        return static_cast<std::underlying_type<T>::type>(lhs & rhs);                                                             \
+    }
+
+class Shader;
+class PipelineLayout;
+class RenderPass;
+class DescriptorSetLayout;
+class DescriptorSet;
 
 static constexpr uint32_t SwapchainCount{3};
 
@@ -154,13 +170,15 @@ struct SwapchainInfo {
     void* hwnd;
 };
 
-enum class ShaderStage : uint8_t {
-    VERTEX,
-    TASK,
-    MESH,
-    FRAGMENT,
-    COMPUTE,
+enum class ShaderStage : uint32_t {
+    VERTEX = 1,
+    TASK = 1 << 1,
+    MESH = 1 << 2,
+    FRAGMENT = 1 << 3,
+    COMPUTE = 1 << 4,
 };
+OPERABLE(ShaderStage)
+
 struct SourceStage {
     ShaderStage stage;
     std::string source;
@@ -233,6 +251,164 @@ struct VertexLayout {
 //     VertexLayout vertexLayout;
 // };
 
+enum class DescriptorType {
+    SAMPLER,
+    SAMPLED_IMAGE,
+    STORAGE_IMAGE,
+    UNIFORM_TEXEL_BUFFER,
+    STORAGE_TEXEL_BUFFER,
+    UNIFORM_BUFFER,
+    STORAGE_BUFFER,
+    UNIFORM_BUFFER_DYNAMIC,
+    STORAGE_BUFFER_DYNAMIC,
+    INPUT_ATTACHMENT,
+};
+
+struct DescriptorBinding {
+    uint32_t binding{0};
+    DescriptorType type{DescriptorType::UNIFORM_BUFFER};
+    uint32_t count{1};
+    ShaderStage visibility;
+};
+
+using DescriptorBindings = std::vector<DescriptorBinding>;
+struct DescriptorSetLayoutInfo {
+    DescriptorBindings descriptorBindings;
+};
+
+struct PushConstantRange {
+    ShaderStage stage{ShaderStage::VERTEX};
+    uint32_t offset{0};
+    uint32_t size{0};
+};
+
+struct PipelineLayoutInfo {
+    std::vector<PushConstantRange> pushConstantRanges;
+    std::vector<DescriptorSetLayout*> setLayouts;
+};
+
+enum class LoadOp : uint8_t {
+    LOAD,
+    CLEAR,
+    DISCARD,
+};
+
+enum class StoreOp : uint8_t {
+    STORE,
+    CLEAR,
+};
+
+enum class ImageLayout : uint8_t {
+    UNDEFINED,
+    GENERAL,
+    COLOR_ATTACHMENT_OPTIMAL,
+    DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+    DEPTH_STENCIL_READ_ONLY_OPTIMAL,
+    SHADER_READ_ONLY_OPTIMAL,
+    TRANSFER_SRC_OPTIMAL,
+    TRANSFER_DST_OPTIMAL,
+    PREINITIALIZED,
+    DEPTH_READ_ONLY_STENCIL_ATTACHMENT_OPTIMAL,
+    DEPTH_ATTACHMENT_STENCIL_READ_ONLY_OPTIMAL,
+    DEPTH_ATTACHMENT_OPTIMAL,
+    DEPTH_READ_ONLY_OPTIMAL,
+    STENCIL_ATTACHMENT_OPTIMAL,
+    STENCIL_READ_ONLY_OPTIMAL,
+    READ_ONLY_OPTIMAL,
+    ATTACHMENT_OPTIMAL,
+    PRESENT,
+    SHADING_RATE,
+};
+
+struct AttachmentInfo {
+    LoadOp loadOp{LoadOp::CLEAR};
+    StoreOp storeOp{StoreOp::STORE};
+    LoadOp stencilLoadOp{LoadOp::CLEAR};
+    StoreOp stencilStoreOp{StoreOp::STORE};
+    Format format{Format::UNKNOWN};
+    uint32_t sampleCount{1};
+    ImageLayout initialLayout{ImageLayout::UNDEFINED};
+    ImageLayout finalLayout{ImageLayout::UNDEFINED};
+};
+
+struct AttachmentReference {
+    uint8_t index;
+    ImageLayout layout{ImageLayout::READ_ONLY_OPTIMAL};
+};
+
+struct SubpassInfo {
+    std::vector<uint32_t> preserves;
+    std::vector<AttachmentReference> inputs;
+    std::vector<AttachmentReference> colors;
+    std::vector<AttachmentReference> resolves;
+    std::vector<AttachmentReference> depthStencil; // expect only one
+};
+
+enum class PipelineStage : uint8_t {
+    TOP_OF_PIPE,
+    DRAW_INDIRECT,
+    VERTEX_INPUT,
+    VERTEX_SHADER,
+    FRAGMENT_SHADER,
+    EARLY_FRAGMENT_TESTS,
+    LATE_FRAGMENT_TESTS,
+    COLOR_ATTACHMENT_OUTPUT,
+    COMPUTE_SHADER,
+    TRANSFER,
+    BOTTOM_OF_PIPE,
+    HOST,
+    TASK_SHADER,
+    MESH_SHADER,
+};
+
+enum class AccessFlags : uint32_t {
+    NONE = 0,
+    INDIRECT_COMMAND_READ = 1 << 0,
+    INDEX_READ = 1 << 1,
+    VERTEX_ATTRIBUTE_READ = 1 << 2,
+    UNIFORM_READ = 1 << 3,
+    INPUT_ATTACHMENT_READ = 1 << 4,
+    SHADER_READ = 1 << 5,
+    SHADER_WRITE = 1 << 6,
+    COLOR_ATTACHMENT_READ = 1 << 7,
+    COLOR_ATTACHMENT_WRITE = 1 << 8,
+    DEPTH_STENCIL_ATTACHMENT_READ = 1 << 9,
+    DEPTH_STENCIL_ATTACHMENT_WRITE = 1 << 10,
+    TRANSFER_READ = 1 << 11,
+    TRANSFER_WRITE = 1 << 12,
+    HOST_READ = 1 << 13,
+    HOST_WRITE = 1 << 14,
+    MEMORY_READ = 1 << 15,
+    MEMORY_WRITE = 1 << 16,
+
+    SHADING_RATE_ATTACHMENT_READ = 1 << 23,
+};
+OPERABLE(AccessFlags)
+
+enum class DependencyFlags : uint32_t {
+    BY_REGION = 1 << 0,
+    VIEW_LOCAL = 1 << 1,
+    DEVICE_GROUP = 1 << 2,
+    FEEDBACK_LOOP = 1 << 3,
+};
+OPERABLE(DependencyFlags)
+
+struct SubpassDependency {
+    uint32_t src{0xFFFFFFFF};
+    uint32_t dst{0xFFFFFFFF};
+    PipelineStage srcStage{PipelineStage::TOP_OF_PIPE};
+    PipelineStage dstStage{PipelineStage::BOTTOM_OF_PIPE};
+    AccessFlags srcAccessFlags{AccessFlags::NONE};
+    AccessFlags dstAccessFlags{AccessFlags::NONE};
+    DependencyFlags dependencyFlags{DependencyFlags::BY_REGION};
+};
+
+struct RenderPassInfo {
+    std::vector<AttachmentInfo> attachments;
+    std::vector<SubpassInfo> subpasses;
+    std::vector<SubpassDependency> dependencies;
+};
+
 enum class IAType : uint8_t {
     VB_IB,
     MESH,
@@ -295,7 +471,7 @@ struct MultisamplingInfo {
     bool alphaToCoverageEnable{false};
     float minSampleShading{0.0f};
     uint32_t sampleCount{0};
-    uint32_t sampleMask{0};    
+    uint32_t sampleMask{0};
 };
 
 enum class CompareOp : uint8_t {
@@ -374,13 +550,7 @@ enum class Channel : uint8_t {
     B = 1 << 2,
     A = 1 << 3,
 };
-
-inline Channel operator|(Channel lhs, Channel rhs) {
-    return static_cast<Channel>(static_cast<uint8_t>(lhs) | static_cast<uint8_t>(rhs));
-}
-inline Channel operator&(Channel lhs, Channel rhs) {
-    return static_cast<Channel>(static_cast<uint8_t>(lhs) & static_cast<uint8_t>(rhs));
-}
+OPERABLE(Channel)
 
 struct AttachmentBlendInfo {
     bool blendEnable{false};
@@ -415,15 +585,17 @@ enum class LogicOp : uint8_t {
 struct BlendInfo {
     bool logicOpEnable{false};
     LogicOp logicOp{LogicOp::CLEAR};
-    std::vector<AttachmentBlendInfo> attachmentBlends; 
+    std::vector<AttachmentBlendInfo> attachmentBlends;
     float blendConstants[4];
 };
 
-class Shader;
 struct GraphicsPipelineStateInfo {
+    PipelineLayout* pipelineLayout{nullptr};
+    RenderPass* renderPass{nullptr};
     std::vector<Shader*> shaders;
-    VertexLayout vertexLayout;
+    uint32_t subpassIndex{0};
     uint32_t viewportCount{1};
+    VertexLayout vertexLayout;
     RasterizationInfo rasterizationInfo{};
     MultisamplingInfo multisamplingInfo{};
     DepthStencilInfo depthStencilInfo{};
@@ -437,7 +609,7 @@ enum class MemoryUsage : uint8_t {
     LAZY_ALLOCATED,
 };
 
-enum class BufferUsage : uint8_t {
+enum class BufferUsage : uint32_t {
     UNIFORM = 1,
     STORAGE = 1 << 1,
     INDEX = 1 << 2,
@@ -448,15 +620,15 @@ enum class BufferUsage : uint8_t {
 };
 
 struct BufferSourceInfo {
+    MemoryUsage memUsage{MemoryUsage::DEVICE_ONLY};
     const uint8_t* data{nullptr};
     uint32_t size{0};
-    MemoryUsage memUsage{MemoryUsage::DEVICE_ONLY};
     BufferUsage bufferUsage{BufferUsage::UNIFORM};
 };
 
 struct BufferInfo {
-    uint32_t size{0};
     MemoryUsage memUsage{MemoryUsage::DEVICE_ONLY};
+    uint32_t size{0};
     BufferUsage bufferUsage{BufferUsage::UNIFORM};
 };
 

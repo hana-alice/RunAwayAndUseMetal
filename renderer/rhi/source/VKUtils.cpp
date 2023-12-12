@@ -403,4 +403,279 @@ VkLogicOp logicOp(LogicOp op) {
     return res;
 }
 
+VkDescriptorType descriptorType(DescriptorType type) {
+    VkDescriptorType descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    switch (type) {
+        case DescriptorType::SAMPLER:
+            descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
+            break;
+        case DescriptorType::SAMPLED_IMAGE:
+            descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+            break;
+        case DescriptorType::STORAGE_IMAGE:
+            descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+            break;
+        case DescriptorType::UNIFORM_TEXEL_BUFFER:
+            descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER;
+            break;
+        case DescriptorType::STORAGE_TEXEL_BUFFER:
+            descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER;
+            break;
+        case DescriptorType::UNIFORM_BUFFER:
+            descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+            break;
+        case DescriptorType::STORAGE_BUFFER:
+            descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+            break;
+        case DescriptorType::UNIFORM_BUFFER_DYNAMIC:
+            descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+            break;
+        case DescriptorType::STORAGE_BUFFER_DYNAMIC:
+            descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC;
+            break;
+        case DescriptorType::INPUT_ATTACHMENT:
+            descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
+            break;
+    }
+    return descriptorType;
+}
+
+
+VkShaderStageFlags shaderStageFlags(ShaderStage stage) {
+    VkShaderStageFlags res;
+    if (test(stage, ShaderStage::VERTEX)) {
+        res = VK_SHADER_STAGE_VERTEX_BIT;
+    }
+    if (test(stage, ShaderStage::FRAGMENT)) {
+        res = VK_SHADER_STAGE_FRAGMENT_BIT;
+    }
+    if (test(stage, ShaderStage::TASK)) {
+        res = VK_SHADER_STAGE_TASK_BIT_EXT;
+    }
+    if (test(stage, ShaderStage::MESH)) {
+        res = VK_SHADER_STAGE_MESH_BIT_EXT;
+    }
+    if (test(stage, ShaderStage::COMPUTE)) {
+        res = VK_SHADER_STAGE_COMPUTE_BIT;
+    }
+    return res;
+}
+
+VkAttachmentLoadOp loadOp(LoadOp op) {
+    VkAttachmentLoadOp res = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    switch (op) {
+        case LoadOp::LOAD:
+            res = VK_ATTACHMENT_LOAD_OP_LOAD;
+            break;
+        case LoadOp::CLEAR:
+            res = VK_ATTACHMENT_LOAD_OP_CLEAR;
+            break;
+        case LoadOp::DISCARD:
+            res = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+            break;
+    }
+    return res;
+}
+
+VkAttachmentStoreOp storeOp(StoreOp op) {
+    VkAttachmentStoreOp res = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    switch (op) {
+        case StoreOp::STORE:
+            res = VK_ATTACHMENT_STORE_OP_STORE;
+            break;
+        case StoreOp::CLEAR:
+            res = VK_ATTACHMENT_STORE_OP_STORE;
+            break;
+    }
+    return res;
+}
+
+VkImageLayout imageLayout(ImageLayout layout) {
+    VkImageLayout res = VK_IMAGE_LAYOUT_UNDEFINED;
+    switch (layout) {
+        case ImageLayout::UNDEFINED:
+            res = VK_IMAGE_LAYOUT_UNDEFINED;
+            break;
+        case ImageLayout::GENERAL:
+            res = VK_IMAGE_LAYOUT_GENERAL;
+            break;
+        case ImageLayout::COLOR_ATTACHMENT_OPTIMAL:
+            res = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+            break;
+        case ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL:
+            res = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+            break;
+        case ImageLayout::DEPTH_STENCIL_READ_ONLY_OPTIMAL:
+            res = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+            break;
+        case ImageLayout::SHADER_READ_ONLY_OPTIMAL:
+            res = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            break;
+        case ImageLayout::TRANSFER_SRC_OPTIMAL:
+            res = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+            break;
+        case ImageLayout::TRANSFER_DST_OPTIMAL:
+            res = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+            break;
+        case ImageLayout::PREINITIALIZED:
+            res = VK_IMAGE_LAYOUT_PREINITIALIZED;
+            break;
+        case ImageLayout::DEPTH_READ_ONLY_STENCIL_ATTACHMENT_OPTIMAL:
+            res = VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_STENCIL_ATTACHMENT_OPTIMAL;
+            break;
+        case ImageLayout::DEPTH_ATTACHMENT_STENCIL_READ_ONLY_OPTIMAL:
+            res = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_STENCIL_READ_ONLY_OPTIMAL;
+            break;
+        case ImageLayout::DEPTH_ATTACHMENT_OPTIMAL:
+            res = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+            break;
+        case ImageLayout::DEPTH_READ_ONLY_OPTIMAL:
+            res = VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL;
+            break;
+        case ImageLayout::STENCIL_ATTACHMENT_OPTIMAL:
+            res = VK_IMAGE_LAYOUT_STENCIL_ATTACHMENT_OPTIMAL;
+            break;
+        case ImageLayout::STENCIL_READ_ONLY_OPTIMAL:
+            res = VK_IMAGE_LAYOUT_STENCIL_READ_ONLY_OPTIMAL;
+            break;
+        case ImageLayout::READ_ONLY_OPTIMAL:
+            res = VK_IMAGE_LAYOUT_READ_ONLY_OPTIMAL;
+            break;
+        case ImageLayout::ATTACHMENT_OPTIMAL:
+            res = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL;
+            break;
+        case ImageLayout::PRESENT:
+            res = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+            break;
+        case ImageLayout::SHADING_RATE:
+            res = VK_IMAGE_LAYOUT_SHADING_RATE_OPTIMAL_NV;
+            break;
+    }
+    return res;
+}
+
+
+VkPipelineStageFlags pipelineStageFlags(PipelineStage stage) {
+    VkPipelineStageFlags res;
+    switch (stage) {
+        case PipelineStage::TOP_OF_PIPE:
+            res = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+            break;
+        case PipelineStage::DRAW_INDIRECT:
+            res = VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT;
+            break;
+        case PipelineStage::VERTEX_INPUT:
+            res = VK_PIPELINE_STAGE_VERTEX_INPUT_BIT;
+            break;
+        case PipelineStage::VERTEX_SHADER:
+            res = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT;
+            break;
+        case PipelineStage::FRAGMENT_SHADER:
+            res = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+            break;
+        case PipelineStage::EARLY_FRAGMENT_TESTS:
+            res = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+            break;
+        case PipelineStage::LATE_FRAGMENT_TESTS:
+            res = VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+            break;
+        case PipelineStage::COLOR_ATTACHMENT_OUTPUT:
+            res = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+            break;
+        case PipelineStage::COMPUTE_SHADER:
+            res = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+            break;
+        case PipelineStage::TRANSFER:
+            res = VK_PIPELINE_STAGE_TRANSFER_BIT;
+            break;
+        case PipelineStage::BOTTOM_OF_PIPE:
+            res = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+            break;
+        case PipelineStage::HOST:
+            res = VK_PIPELINE_STAGE_HOST_BIT;
+            break;
+        case PipelineStage::TASK_SHADER:
+            res = VK_PIPELINE_STAGE_TASK_SHADER_BIT_NV;
+            break;
+        case PipelineStage::MESH_SHADER:
+            res = VK_PIPELINE_STAGE_MESH_SHADER_BIT_NV;
+            break;
+    }
+    return res;
+}
+
+VkAccessFlags accessFlags(AccessFlags flags) {
+    VkAccessFlags res = VK_ACCESS_NONE;
+    
+    if (test(flags, AccessFlags::INDIRECT_COMMAND_READ)) {
+        res |= VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
+    }
+    if (test(flags, AccessFlags::INDEX_READ)) {
+        res |= VK_ACCESS_INDEX_READ_BIT;
+    }
+    if (test(flags, AccessFlags::VERTEX_ATTRIBUTE_READ)) {
+        res |= VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT;
+    }
+    if (test(flags, AccessFlags::UNIFORM_READ)) {
+        res |= VK_ACCESS_UNIFORM_READ_BIT;
+    }
+    if (test(flags, AccessFlags::INPUT_ATTACHMENT_READ)) {
+        res |= VK_ACCESS_INPUT_ATTACHMENT_READ_BIT;
+    }
+    if (test(flags, AccessFlags::SHADER_READ)) {
+        res |= VK_ACCESS_SHADER_READ_BIT;
+    }
+    if (test(flags, AccessFlags::SHADER_WRITE)) {
+        res |= VK_ACCESS_SHADER_WRITE_BIT;
+    }
+    if (test(flags, AccessFlags::COLOR_ATTACHMENT_READ)) {
+        res |= VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
+    }
+    if (test(flags, AccessFlags::COLOR_ATTACHMENT_WRITE)) {
+        res |= VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    }
+    if (test(flags, AccessFlags::DEPTH_STENCIL_ATTACHMENT_READ)) {
+        res |= VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT;
+    }
+    if (test(flags, AccessFlags::DEPTH_STENCIL_ATTACHMENT_WRITE)) {
+        res |= VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+    }
+    if (test(flags, AccessFlags::TRANSFER_READ)) {
+        res |= VK_ACCESS_TRANSFER_READ_BIT;
+    }
+    if (test(flags, AccessFlags::TRANSFER_WRITE)) {
+        res |= VK_ACCESS_TRANSFER_WRITE_BIT;
+    }
+    if (test(flags, AccessFlags::HOST_READ)) {
+        res |= VK_ACCESS_HOST_READ_BIT;
+    }
+    if (test(flags, AccessFlags::HOST_WRITE)) {
+        res |= VK_ACCESS_HOST_WRITE_BIT;
+    }
+    if (test(flags, AccessFlags::MEMORY_READ)) {
+        res |= VK_ACCESS_MEMORY_READ_BIT;
+    }
+    if (test(flags, AccessFlags::MEMORY_WRITE)) {
+        res |= VK_ACCESS_MEMORY_WRITE_BIT;
+    }
+    return res;
+}
+
+VkDependencyFlags dependencyFlags(DependencyFlags flags) {
+    VkDependencyFlags res;
+    if (test(flags, DependencyFlags::BY_REGION)) {
+        res |= VK_DEPENDENCY_BY_REGION_BIT;
+    }
+    if (test(flags, DependencyFlags::VIEW_LOCAL)) {
+        res |= VK_DEPENDENCY_VIEW_LOCAL_BIT;
+    }
+    if (test(flags, DependencyFlags::DEVICE_GROUP)) {
+        res |= VK_DEPENDENCY_DEVICE_GROUP_BIT;
+    }
+    if (test(flags, DependencyFlags::FEEDBACK_LOOP)) {
+        res |= VK_DEPENDENCY_FEEDBACK_LOOP_BIT_EXT;
+    }
+    return res;
+}
+
 } // namespace raum::rhi

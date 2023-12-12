@@ -42,6 +42,22 @@ VkColorComponentFlags colorComponentFlags(Channel channel);
 
 VkLogicOp logicOp(LogicOp op);
 
+VkDescriptorType descriptorType(DescriptorType type);
+
+VkShaderStageFlags shaderStageFlags(ShaderStage stage);
+
+VkAttachmentLoadOp loadOp(LoadOp op);
+
+VkAttachmentStoreOp storeOp(StoreOp op);
+
+VkImageLayout imageLayout(ImageLayout layout);
+
+VkPipelineStageFlags pipelineStageFlags(PipelineStage stage);
+
+VkAccessFlags accessFlags(AccessFlags flags);
+
+VkDependencyFlags dependencyFlags(DependencyFlags flags);
+
 } // namespace rhi
 
 } // namespace raum
