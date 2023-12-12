@@ -261,4 +261,11 @@ Swapchain* Device::createSwapchain(const SwapchainInfo& info) {
     return new Swapchain(info, this);
 }
 
+Buffer* Device::createBuffer(const BufferInfo& info) {
+    return new Buffer(info);
+}
+
+Buffer* Device::createBuffer(const BufferSourceInfo& info) {
+    return new Buffer(info);
+}
 } // namespace raum::rhi

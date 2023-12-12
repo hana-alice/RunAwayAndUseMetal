@@ -23,6 +23,9 @@ public:
     Queue *createQueue(const QueueInfo &queueInfo);
     Swapchain *createSwapchain(const SwapchainInfo &info);
 
+    Buffer *createBuffer(const BufferInfo &info);
+    Buffer *createBuffer(const BufferSourceInfo &info);
+
 private:
     Device();
     ~Device();
@@ -32,7 +35,6 @@ private:
 
     void initInstance();
     void initDevice();
-    void initSurface(void *hwnd);
 
     static Device *s_inst;
 
