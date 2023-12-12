@@ -6,7 +6,7 @@
 #include "VKRenderPass.h"
 #include "VKDevice.h"
 namespace raum::rhi {
-GraphicsPipelineState::GraphicsPipelineState(const GraphicsPipelineStateInfo& pipelineInfo) {
+GraphicsPipelineState::GraphicsPipelineState(const GraphicsPipelineInfo& pipelineInfo) {
     RAUM_ERROR_IF(pipelineInfo.shaders.size() < 2, "At least two shaders are required!");
 
     VkGraphicsPipelineCreateInfo pipelineCreateInfo = {};

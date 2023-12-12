@@ -9,7 +9,7 @@ public:
     GraphicsPipelineState(GraphicsPipelineState&&) = delete;
     GraphicsPipelineState& operator=(const GraphicsPipelineState&) = delete;
     
-    explicit GraphicsPipelineState(const GraphicsPipelineStateInfo& info);
+    explicit GraphicsPipelineState(const GraphicsPipelineInfo& info);
     ~GraphicsPipelineState();
 
     VkPipeline pipeline() const { return _pipeline; }

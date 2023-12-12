@@ -36,7 +36,7 @@ add_subdirectory(
 add_subdirectory(core)
 add_subdirectory(framework)
 
-add_subdirectory(renderer/rhi)
+add_subdirectory(renderer/rhi/vulkan)
 
 file(GLOB_RECURSE Sample
     ${CMAKE_CURRENT_SOURCE_DIR}/Sample/*.*

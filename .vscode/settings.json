@@ -87,5 +87,6 @@
         "set": "cpp",
         "shared_mutex": "cpp",
         "unordered_set": "cpp"
-    }
+    },
+    "C_Cpp.errorSquiggles": "enabled"
 }

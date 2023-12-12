@@ -582,7 +582,7 @@ struct BlendInfo {
     float blendConstants[4];
 };
 
-struct GraphicsPipelineStateInfo {
+struct GraphicsPipelineInfo {
     PipelineLayout* pipelineLayout{nullptr};
     RenderPass* renderPass{nullptr};
     std::vector<Shader*> shaders;
@@ -614,7 +614,7 @@ enum class BufferUsage : uint32_t {
 
 struct BufferSourceInfo {
     MemoryUsage memUsage{MemoryUsage::DEVICE_ONLY};
-    const uint8_t* data{nullptr};
+    const void* data{nullptr};
     uint32_t size{0};
     BufferUsage bufferUsage{BufferUsage::UNIFORM};
 };
