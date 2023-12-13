@@ -1,10 +1,11 @@
 #pragma once
 #include <vector>
+#include "RHISwapchain.h"
 #include "VKDefine.h"
 namespace raum::rhi {
 class Device;
 class ImageView;
-class Swapchain {
+class Swapchain : public RHISwapchain {
 public:
 private:
     Swapchain(const SwapchainInfo& info, Device* device);
@@ -16,6 +17,8 @@ private:
     std::vector<VkImageView> _swapchainImageViews;
 
     VkFormat _preferredFormat;
+
+    Device* _device{nullptr};
 
     friend class Device;
 };

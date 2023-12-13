@@ -1,9 +1,10 @@
 #pragma once
+#include "RHIQueue.h"
 #include "VKDefine.h"
 namespace raum::rhi {
 
 class Device;
-class Queue {
+class Queue : public RHIQueue {
 public:
     uint32_t index() { return _index; }
 

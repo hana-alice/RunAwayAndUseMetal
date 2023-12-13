@@ -61,7 +61,7 @@ VkBufferUsageFlags mapBufferUsage(BufferUsage usage) {
 };
 } // namespace
 
-Buffer::Buffer(const BufferSourceInfo& info) {
+Buffer::Buffer(const BufferSourceInfo& info, RHIDevice* device) : RHIBuffer(info, device), _device(static_cast<Device*>(device)) {
     VkBufferCreateInfo bufferInfo{};
     bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     bufferInfo.size = info.size;
@@ -70,7 +70,7 @@ Buffer::Buffer(const BufferSourceInfo& info) {
 
     VmaAllocationCreateInfo allocaInfo = mapCreateInfo(info.memUsage, true);
 
-    VmaAllocator& allocator = Device::getInstance()->allocator();
+    VmaAllocator& allocator = _device->allocator();
 
     VkResult res = vmaCreateBuffer(allocator, &bufferInfo, &allocaInfo, &_buffer, &_allocation, nullptr);
 
@@ -83,23 +83,14 @@ Buffer::Buffer(const BufferSourceInfo& info) {
 
     RAUM_ERROR_IF(res != VK_SUCCESS, "Failed to create buffer!");
 }
-Buffer::Buffer(const BufferInfo& info) {
+Buffer::Buffer(const BufferInfo& info, RHIDevice* device) : RHIBuffer(info, device), _device(static_cast<Device*>(device)) {
 }
 
 Buffer::~Buffer() {
-    vmaDestroyBuffer(Device::getInstance()->allocator(), _buffer, _allocation);
+    vmaDestroyBuffer(_device->allocator(), _buffer, _allocation);
 }
 
 void Buffer::update(const void* data, uint32_t size, uint32_t offset) {
-}
-
-VertexBuffer::VertexBuffer(const BufferSourceInfo& info, uint32_t stride) : Buffer(info), _stride(stride) {
-}
-
-VertexBuffer::VertexBuffer(const BufferInfo& info, uint32_t stride) : Buffer(info), _stride(stride) {
-}
-
-VertexBuffer::~VertexBuffer() {
 }
 
 } // namespace raum::rhi

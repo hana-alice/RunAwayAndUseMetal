@@ -17,8 +17,8 @@ class Sample {
 public:
     Sample() {
         _window = std::make_shared<NativeWindow>(width, height);
-        _device = Device::getInstance();
-        _swaphchain = _device->createSwapchain(SwapchainInfo{width, height, SyncType::RELAX, _window->handle()});
+        // _device = Device::getInstance();
+        // _swaphchain = _device->createSwapchain(SwapchainInfo{width, height, SyncType::RELAX, _window->handle()});
     }
 
     ~Sample() {}

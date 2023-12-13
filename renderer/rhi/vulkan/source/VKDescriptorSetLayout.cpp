@@ -1,8 +1,9 @@
 #include "VKDescriptorSetLayout.h"
-#include "VKUtils.h"
 #include "VKDevice.h"
+#include "VKUtils.h"
 namespace raum::rhi {
-DescriptorSetLayout::DescriptorSetLayout(const DescriptorSetLayoutInfo& info) {
+DescriptorSetLayout::DescriptorSetLayout(const DescriptorSetLayoutInfo& info, RHIDevice* device)
+: RHIDescriptorSetLayout(info, device), _device(static_cast<Device*>(device)) {
     VkDescriptorSetLayoutCreateInfo descLayoutInfo{};
     descLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 
@@ -17,12 +18,12 @@ DescriptorSetLayout::DescriptorSetLayout(const DescriptorSetLayoutInfo& info) {
     }
     descLayoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
     descLayoutInfo.pBindings = bindings.data();
-    
-    vkCreateDescriptorSetLayout(Device::getInstance()->device(), &descLayoutInfo, nullptr, &_descriptorSetLayout);
+
+    vkCreateDescriptorSetLayout(_device->device(), &descLayoutInfo, nullptr, &_descriptorSetLayout);
 }
 
 DescriptorSetLayout::~DescriptorSetLayout() {
-    vkDestroyDescriptorSetLayout(Device::getInstance()->device(), _descriptorSetLayout, nullptr);
+    vkDestroyDescriptorSetLayout(_device->device(), _descriptorSetLayout, nullptr);
 }
 
-}
+} // namespace raum::rhi

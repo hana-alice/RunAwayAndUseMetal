@@ -4,7 +4,8 @@
 #include "shaderc/shaderc.h"
 namespace raum::rhi {
 shaderc::Compiler Shader::shaderCompiler{};
-Shader::Shader(const ShaderSourceInfo& shaderInfo) {
+Shader::Shader(const ShaderSourceInfo& shaderInfo, RHIDevice* device)
+: RHIShader(shaderInfo, device), _device(static_cast<Device*>(device)) {
     _stage = shaderInfo.stage.stage;
     DEBUG(_source = shaderInfo.stage.source;)
 
@@ -38,13 +39,13 @@ Shader::Shader(const ShaderSourceInfo& shaderInfo) {
     createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
     createInfo.codeSize = result.end() - result.begin();
     createInfo.pCode = reinterpret_cast<const uint32_t*>(result.cbegin());
-    VkResult res = vkCreateShaderModule(Device::getInstance()->device(), &createInfo, nullptr, &_shaderModule);
+    VkResult res = vkCreateShaderModule(_device->device(), &createInfo, nullptr, &_shaderModule);
 
     RAUM_ERROR_IF(res != VK_SUCCESS, "Failed to create shader module");
 }
 
 Shader::~Shader() {
-    vkDestroyShaderModule(Device::getInstance()->device(), _shaderModule, nullptr);
+    vkDestroyShaderModule(_device->device(), _shaderModule, nullptr);
 }
 
 } // namespace raum::rhi

@@ -4,7 +4,7 @@
 #include "VKDevice.h"
 #include "log.h"
 namespace raum::rhi {
-Queue::Queue(const QueueInfo& info, Device* device) {
+Queue::Queue(const QueueInfo& info, Device* device) : RHIQueue(info, device) {
     _info = info;
 
     uint32_t queueFamilyCount{0};

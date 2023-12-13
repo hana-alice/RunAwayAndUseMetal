@@ -1,11 +1,12 @@
 #include "VKPipelineLayout.h"
-#include "VKUtils.h"
 #include "VKDescriptorSetLayout.h"
 #include "VKDevice.h"
+#include "VKUtils.h"
 #include "log.h"
 namespace raum::rhi {
 
-PipelineLayout::PipelineLayout(const PipelineLayoutInfo& info) {
+PipelineLayout::PipelineLayout(const PipelineLayoutInfo& info, RHIDevice* device)
+: RHIPipelineLayout(info, device), _device(static_cast<Device*>(device)) {
     VkPipelineLayoutCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 
@@ -25,12 +26,12 @@ PipelineLayout::PipelineLayout(const PipelineLayoutInfo& info) {
     createInfo.setLayoutCount = static_cast<uint32_t>(layouts.size());
     createInfo.pSetLayouts = layouts.data();
 
-    VkResult res = vkCreatePipelineLayout(Device::getInstance()->device(), &createInfo, nullptr, &_layout);
+    VkResult res = vkCreatePipelineLayout(_device->device(), &createInfo, nullptr, &_layout);
     RAUM_ERROR_IF(res != VK_SUCCESS, "Failed to create pipeline layout");
 }
 
 PipelineLayout::~PipelineLayout() {
-    vkDestroyPipelineLayout(Device::getInstance()->device(), _layout, nullptr);
+    vkDestroyPipelineLayout(_device->device(), _layout, nullptr);
 }
 
 } // namespace raum::rhi

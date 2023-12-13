@@ -4,7 +4,8 @@
 #include "log.h"
 namespace raum::rhi {
 
-RenderPass::RenderPass(const RenderPassInfo& info) {
+RenderPass::RenderPass(const RenderPassInfo& info, RHIDevice* device)
+: RHIRenderPass(info, device), _device(static_cast<Device*>(device)) {
     VkRenderPassCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
 
@@ -77,12 +78,12 @@ RenderPass::RenderPass(const RenderPassInfo& info) {
     createInfo.dependencyCount = static_cast<uint32_t>(dependencies.size());
     createInfo.pDependencies = dependencies.data();
 
-    VkResult res = vkCreateRenderPass(Device::getInstance()->device(), &createInfo, nullptr, &_renderPass);
+    VkResult res = vkCreateRenderPass(_device->device(), &createInfo, nullptr, &_renderPass);
     RAUM_ERROR_IF(res != VK_SUCCESS, "Failed to create renderpass");
 }
 
 RenderPass::~RenderPass() {
-    vkDestroyRenderPass(Device::getInstance()->device(), _renderPass, nullptr);
+    vkDestroyRenderPass(_device->device(), _renderPass, nullptr);
 }
 
 } // namespace raum::rhi

@@ -10,7 +10,8 @@
 #include "log.h"
 
 namespace raum::rhi {
-Swapchain::Swapchain(const SwapchainInfo& info, Device* device) {
+Swapchain::Swapchain(const SwapchainInfo& info, Device* device)
+: RHISwapchain(info, device), _device(static_cast<Device*>(device)) {
 #ifdef WINDOWS
     VkWin32SurfaceCreateInfoKHR surfaceInfo{};
     surfaceInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
@@ -21,7 +22,10 @@ Swapchain::Swapchain(const SwapchainInfo& info, Device* device) {
     VkResult res = vkCreateWin32SurfaceKHR(device->instance(), &surfaceInfo, nullptr, &_surface);
     RAUM_CRITICAL_IF(res != VK_SUCCESS, "failed to create surface");
     VkBool32 support{false};
-    vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, device->defaultQueue()->index(), _surface, &support);
+
+    auto* grfxQ = device->getQueue({QueueType::GRAPHICS});
+    auto qIndex = static_cast<Queue*>(grfxQ)->index();
+    vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, qIndex, _surface, &support);
 
     RAUM_CRITICAL_IF(!support, "surface presentation not supported");
 
@@ -130,9 +134,9 @@ Swapchain::Swapchain(const SwapchainInfo& info, Device* device) {
 
 Swapchain::~Swapchain() {
     for (auto imgView : _swapchainImageViews) {
-        vkDestroyImageView(Device::getInstance()->device(), imgView, nullptr);
+        vkDestroyImageView(_device->device(), imgView, nullptr);
     }
-    vkDestroySwapchainKHR(Device::getInstance()->device(), _swapchain, nullptr);
-    vkDestroySurfaceKHR(Device::getInstance()->instance(), _surface, nullptr);
+    vkDestroySwapchainKHR(_device->device(), _swapchain, nullptr);
+    vkDestroySurfaceKHR(_device->instance(), _surface, nullptr);
 }
 } // namespace raum::rhi

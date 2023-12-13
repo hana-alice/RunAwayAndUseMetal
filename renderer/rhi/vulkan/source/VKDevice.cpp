@@ -1,14 +1,19 @@
 #include "VKDevice.h"
+#include "RHIManager.h"
 #include "VKBuffer.h"
+#include "VKDescriptorSet.h"
+#include "VKDescriptorSetLayout.h"
+#include "VKGraphicsPipeline.h"
 #include "VKQueue.h"
+#include "VKRenderPass.h"
+#include "VKSampler.h"
+#include "VKShader.h"
 #include "VKSwapchain.h"
 #include "VKUtils.h"
 #include "utils/log.h"
-
 namespace raum::rhi {
 
 static constexpr bool enableValidationLayer{true};
-Device* Device::s_inst = nullptr;
 
 namespace {
 bool checkRequiredLayers(const std::vector<const char*>& requires, const std::vector<VkLayerProperties>& availables) {
@@ -104,14 +109,6 @@ VkPhysicalDevice rankDevices(const std::vector<VkPhysicalDevice>& devices) {
 }
 
 } // namespace
-
-Device* Device::getInstance() {
-    if (!s_inst) {
-        s_inst = new Device();
-    }
-    return s_inst;
-}
-
 Device::Device() {
     initInstance();
     initDevice();
@@ -253,19 +250,64 @@ void Device::initDevice() {
     vkGetDeviceQueue(_device, queue->_index, 0, &queue->_vkQueue);
 }
 
-Queue* Device::createQueue(const QueueInfo& info) {
-    return new Queue(info, this);
+RHIQueue* Device::getQueue(const QueueInfo& info) {
+    return _queues.at(info.type);
 }
 
-Swapchain* Device::createSwapchain(const SwapchainInfo& info) {
+RHISwapchain* Device::createSwapchain(const SwapchainInfo& info) {
     return new Swapchain(info, this);
 }
 
-Buffer* Device::createBuffer(const BufferInfo& info) {
-    return new Buffer(info);
+RHIBuffer* Device::createBuffer(const BufferInfo& info) {
+    return new Buffer(info, this);
 }
 
-Buffer* Device::createBuffer(const BufferSourceInfo& info) {
-    return new Buffer(info);
+RHIBuffer* Device::createBuffer(const BufferSourceInfo& info) {
+    return new Buffer(info, this);
 }
+
+RHIImage* Device::createImage(const ImageInfo& info) {
+    return nullptr;
+}
+
+RHIImageView* Device::createImageView(const ImageViewInfo& info) {
+    return nullptr;
+}
+
+RHIDescriptorSet* Device::createDescriptorSet(const DescriptorSetInfo& info) {
+    return nullptr;
+}
+
+RHIDescriptorSetLayout* Device::createDescriptorSetLayout(const DescriptorSetLayoutInfo& info) {
+    return new DescriptorSetLayout(info, this);
+}
+
+RHIShader* Device::createShader(const ShaderSourceInfo& info) {
+    return new Shader(info, this);
+}
+
+RHIShader* Device::createShader(const ShaderBinaryInfo& info) {
+    return nullptr;
+}
+
+RHIGraphicsPipeline* Device::createGraphicsPipeline(const GraphicsPipelineInfo& info) {
+    return new GraphicsPipeline(info, this);
+}
+
+RHISampler* Device::getSampler(const SamplerInfo& info) {
+    return nullptr;
+}
+
+RHIRenderPass* Device::createRenderPass(const RenderPassInfo& info) {
+    return new RenderPass(info, this);
+}
+
+Device* loadRHI() {
+    return new Device();
+}
+
+RHIDevice* loadRHI(API api) {
+    return loadRHI();
+}
+
 } // namespace raum::rhi

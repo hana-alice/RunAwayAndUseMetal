@@ -1,5 +1,5 @@
 #pragma once
-
+#include "RHIImage.h"
 #include "vk_mem_alloc.h"
 namespace raum::rhi {
 class Image {

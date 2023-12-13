@@ -1,11 +1,13 @@
 #pragma once
+#include "RHIShader.h"
 #include "VKDefine.h"
 #include "shaderc/shaderc.hpp"
 namespace raum::rhi {
-class Shader {
+class Device;
+class Shader : public RHIShader {
 public:
-    explicit Shader(const ShaderSourceInfo& shaderInfo);
-    explicit Shader(const ShaderBinaryInfo& shaderInfo);
+    explicit Shader(const ShaderSourceInfo& shaderInfo, RHIDevice* device);
+    explicit Shader(const ShaderBinaryInfo& shaderInfo, RHIDevice* device);
     Shader() = delete;
     Shader(const Shader&) = delete;
     Shader(Shader&&) = delete;
@@ -21,6 +23,7 @@ private:
     VkShaderModule _shaderModule;
     static shaderc::Compiler shaderCompiler;
 
+    Device* _device{nullptr};
     ShaderStage _stage;
     DEBUG(std::string _source;)
 };

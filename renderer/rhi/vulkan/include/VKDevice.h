@@ -4,28 +4,32 @@
 #include <map>
 #include <memory>
 #include <queue>
-#include "VKDefine.h"
+#include "RHIDevice.h"
 #include "vk_mem_alloc.h"
 namespace raum::rhi {
 class Queue;
 class Swapchain;
 class Buffer;
-class Device {
+class Device : public RHIDevice {
 public:
-    static Device *getInstance();
-
     VkPhysicalDevice physicalDevice() { return _physicalDevice; };
     VkDevice device() { return _device; }
     VkInstance instance() { return _instance; }
     VmaAllocator &allocator() { return _allocator; }
 
-    Queue *defaultQueue() { return _queues.at(QueueType::GRAPHICS); }
-
-    Queue *createQueue(const QueueInfo &queueInfo);
-    Swapchain *createSwapchain(const SwapchainInfo &info);
-
-    Buffer *createBuffer(const BufferInfo &info);
-    Buffer *createBuffer(const BufferSourceInfo &info);
+    RHISwapchain *createSwapchain(const SwapchainInfo &) override;
+    RHIQueue *getQueue(const QueueInfo &) override;
+    RHIBuffer *createBuffer(const BufferInfo &) override;
+    RHIBuffer *createBuffer(const BufferSourceInfo &) override;
+    RHIImage *createImage(const ImageInfo &) override;
+    RHIImageView *createImageView(const ImageViewInfo &) override;
+    RHISampler *getSampler(const SamplerInfo &) override;
+    RHIShader *createShader(const ShaderBinaryInfo &) override;
+    RHIShader *createShader(const ShaderSourceInfo &) override;
+    RHIDescriptorSet *createDescriptorSet(const DescriptorSetInfo &) override;
+    RHIDescriptorSetLayout *createDescriptorSetLayout(const DescriptorSetLayoutInfo &) override;
+    RHIGraphicsPipeline *createGraphicsPipeline(const GraphicsPipelineInfo &) override;
+    RHIRenderPass *createRenderPass(const RenderPassInfo &) override;
 
 private:
     Device();
@@ -37,8 +41,6 @@ private:
     void initInstance();
     void initDevice();
 
-    static Device *s_inst;
-
     VkInstance _instance;
     VkSurfaceKHR _surface;
     VkDebugUtilsMessengerEXT _debugMessenger;
@@ -47,5 +49,7 @@ private:
     VmaAllocator _allocator;
 
     std::map<QueueType, Queue *> _queues;
+
+    friend Device *loadRHI();
 };
 } // namespace raum::rhi

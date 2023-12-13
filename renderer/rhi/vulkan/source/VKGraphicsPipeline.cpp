@@ -1,12 +1,13 @@
 #include "VKGraphicsPipeline.h"
+#include "VKDevice.h"
+#include "VKPipelineLayout.h"
+#include "VKRenderPass.h"
 #include "VKShader.h"
 #include "VKUtils.h"
 #include "log.h"
-#include "VKPipelineLayout.h"
-#include "VKRenderPass.h"
-#include "VKDevice.h"
 namespace raum::rhi {
-GraphicsPipelineState::GraphicsPipelineState(const GraphicsPipelineInfo& pipelineInfo) {
+GraphicsPipeline::GraphicsPipeline(const GraphicsPipelineInfo& pipelineInfo, Device* device)
+: RHIGraphicsPipeline(pipelineInfo, device), _device(static_cast<Device*>(device)) {
     RAUM_ERROR_IF(pipelineInfo.shaders.size() < 2, "At least two shaders are required!");
 
     VkGraphicsPipelineCreateInfo pipelineCreateInfo = {};
@@ -186,12 +187,12 @@ GraphicsPipelineState::GraphicsPipelineState(const GraphicsPipelineInfo& pipelin
     pipelineCreateInfo.basePipelineIndex = 0;
     pipelineCreateInfo.layout = pipelineInfo.pipelineLayout->layout();
     pipelineCreateInfo.renderPass = pipelineInfo.renderPass->renderPass();
-    
-    VkResult res = vkCreateGraphicsPipelines(Device::getInstance()->device(), VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &_pipeline);
+
+    VkResult res = vkCreateGraphicsPipelines(_device->device(), VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &_pipeline);
 }
 
-GraphicsPipelineState::~GraphicsPipelineState() {
-    vkDestroyPipeline(Device::getInstance()->device(), _pipeline, nullptr);
+GraphicsPipeline::~GraphicsPipeline() {
+    vkDestroyPipeline(_device->device(), _pipeline, nullptr);
 }
 
 }; // namespace raum::rhi

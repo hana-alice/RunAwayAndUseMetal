@@ -5,6 +5,7 @@
 #include <vector>
 #include "define.h"
 namespace raum::rhi {
+
 #define OPERABLE(T)                                                                                                               \
     inline T operator|(T lhs, T rhs) {                                                                                            \
         return static_cast<T>(static_cast<std::underlying_type<T>::type>(lhs) | static_cast<std::underlying_type<T>::type>(rhs)); \
@@ -23,6 +24,10 @@ class DescriptorSetLayout;
 class DescriptorSet;
 
 static constexpr uint32_t SwapchainCount{3};
+
+enum class API : unsigned char {
+    VULKAN,
+};
 
 enum class Format : uint16_t {
     // powered by TabNine.
@@ -191,6 +196,9 @@ struct ShaderBinaryInfo {
     BinaryStage stage;
 };
 
+struct SamplerInfo {
+};
+
 struct ImageInfo {
     Format format{Format::UNKNOWN};
     uint32_t width{0};
@@ -267,6 +275,9 @@ struct DescriptorBinding {
 using DescriptorBindings = std::vector<DescriptorBinding>;
 struct DescriptorSetLayoutInfo {
     DescriptorBindings descriptorBindings;
+};
+
+struct DescriptorSetInfo {
 };
 
 struct PushConstantRange {

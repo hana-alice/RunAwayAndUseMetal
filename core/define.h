@@ -12,3 +12,13 @@
 #else
     #define DEBUG(exp)
 #endif
+
+#ifdef WINDOWS
+    #ifdef RAUM_EXPORT
+        #define RAUM_API __declspec(dllexport)
+    #else
+        #define RAUM_API __declspec(dllimport)
+    #endif
+#else
+    #define RAUM_API
+#endif

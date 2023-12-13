@@ -1,12 +1,9 @@
 #pragma once
+#include <memory>
+#include "RHIDefine.h"
 #include "RHIDevice.h"
 namespace raum::rhi {
 
-enum class API : unsigned char {
-    VULKAN,
-};
-
-inline RHIDevice* loadRHI(API api);
-inline void unloadRHI(RHIDevice* device);
+RAUM_API RHIDevice* loadRHI(API api);
 
 } // namespace raum::rhi
