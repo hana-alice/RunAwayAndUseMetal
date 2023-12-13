@@ -4,8 +4,7 @@
 #include <iostream>
 #include "Model.hpp"
 #include "Triangle.hpp"
-#include "VKDevice.h"
-#include "VKSwapchain.h"
+#include "RHIManager.h"
 namespace raum {
 using platform::NativeWindow;
 using namespace rhi;
@@ -17,8 +16,8 @@ class Sample {
 public:
     Sample() {
         _window = std::make_shared<NativeWindow>(width, height);
-        // _device = Device::getInstance();
-        // _swaphchain = _device->createSwapchain(SwapchainInfo{width, height, SyncType::RELAX, _window->handle()});
+        _device = loadRHI(API::VULKAN);
+        _swaphchain = _device->createSwapchain(SwapchainInfo{width, height, SyncType::RELAX, _window->handle()});
     }
 
     ~Sample() {}
@@ -29,8 +28,8 @@ public:
 
 private:
     std::shared_ptr<NativeWindow> _window;
-    Device* _device;
-    Swapchain* _swaphchain;
+    RHIDevice* _device;
+    RHISwapchain* _swaphchain;
 };
 
 } // namespace raum

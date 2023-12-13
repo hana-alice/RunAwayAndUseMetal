@@ -8,7 +8,11 @@ public:
     explicit RHIBuffer(const BufferSourceInfo&, RHIDevice*){};
 
     virtual void update(const void* data, uint32_t dataSize, uint32_t bufferOffset) = 0;
+
+protected:
     virtual ~RHIBuffer() = 0;
 };
+
+inline RHIBuffer::~RHIBuffer() {}
 
 } // namespace raum::rhi

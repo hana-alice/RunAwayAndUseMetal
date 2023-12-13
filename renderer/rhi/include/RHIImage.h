@@ -5,6 +5,11 @@ class RHIDevice;
 class RHIImage {
 public:
     explicit RHIImage(const ImageInfo&, RHIDevice*) {}
+
+protected:
     virtual ~RHIImage() = 0;
 };
+
+inline RHIImage::~RHIImage() {}
+
 } // namespace raum::rhi

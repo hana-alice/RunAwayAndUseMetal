@@ -28,5 +28,10 @@ public:
     virtual RHIDescriptorSetLayout* createDescriptorSetLayout(const DescriptorSetLayoutInfo&) = 0;
     virtual RHIGraphicsPipeline* createGraphicsPipeline(const GraphicsPipelineInfo&) = 0;
     virtual RHIRenderPass* createRenderPass(const RenderPassInfo&) = 0;
+
+protected:
+    virtual ~RHIDevice() = 0;
 };
+inline RHIDevice::~RHIDevice() {}
+
 } // namespace raum::rhi

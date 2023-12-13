@@ -22,6 +22,8 @@ class PipelineLayout;
 class RenderPass;
 class DescriptorSetLayout;
 class DescriptorSet;
+class Image;
+class ImageView;
 
 static constexpr uint32_t SwapchainCount{3};
 
@@ -411,6 +413,14 @@ struct RenderPassInfo {
     std::vector<AttachmentInfo> attachments;
     std::vector<SubpassInfo> subpasses;
     std::vector<SubpassDependency> dependencies;
+};
+
+struct FrameBufferInfo {
+    RenderPass* renderPass{nullptr};
+    std::vector<ImageView*> images{nullptr};
+    uint32_t width{0};
+    uint32_t height{0};
+    uint32_t layers{0};
 };
 
 enum class IAType : uint8_t {

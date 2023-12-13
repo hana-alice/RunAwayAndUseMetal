@@ -14,10 +14,10 @@
 #endif
 
 #ifdef WINDOWS
-    #ifdef RAUM_EXPORT
-        #define RAUM_API __declspec(dllexport)
-    #else
+    #ifdef RAUM_IMPORT
         #define RAUM_API __declspec(dllimport)
+    #else
+        #define RAUM_API __declspec(dllexport)
     #endif
 #else
     #define RAUM_API
