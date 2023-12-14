@@ -4,8 +4,8 @@
 #include "VKDevice.h"
 #include "log.h"
 namespace raum::rhi {
-Queue::Queue(const QueueInfo& info, Device* device) 
-    : RHIQueue(info, device), _device(static_cast<Device*>(device)) {
+Queue::Queue(const QueueInfo& info, Device* device)
+: RHIQueue(info, device), _device(static_cast<Device*>(device)) {
     _info = info;
 
     uint32_t queueFamilyCount{0};
@@ -28,7 +28,7 @@ Queue::Queue(const QueueInfo& info, Device* device)
             break;
         }
     }
-    
+
     // vs warning
     if (index.has_value()) {
         _index = index.value();
@@ -36,7 +36,7 @@ Queue::Queue(const QueueInfo& info, Device* device)
         RAUM_CRITICAL_IF(!index.has_value(), "Queue type not support.");
     }
 
-     VkCommandPoolCreateInfo cmdPoolInfo{};
+    VkCommandPoolCreateInfo cmdPoolInfo{};
     cmdPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
     cmdPoolInfo.queueFamilyIndex = _index;
     cmdPoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
@@ -49,6 +49,15 @@ Queue::~Queue() {
 
 RHICommandBuffer* Queue::makeCommandBuffer() {
     return nullptr;
+}
+
+void Queue::enqueue(CommandBuffer* cmdBuffer) {
+    _cmdBufferQueue.emplace_back(cmdBuffer);
+}
+
+void Queue::submit() {
+    VkSubmitInfo info{};
+    info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 }
 
 } // namespace raum::rhi

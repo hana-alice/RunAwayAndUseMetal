@@ -16,10 +16,16 @@ public:
 
     virtual void executeCommandBuffers(RHICommandBuffer* cmdBUffers, uint32_t count) = 0;
 
+    // add to queue to hold place in order
+    virtual void enqueue() = 0;
+
+    // commit to queue, enqueue automatically if not enqueued
+    virtual void commit() = 0;
+
 protected:
     explicit RHICommandBuffer(const CommandBufferInfo& info) {}
 };
 
 inline RHICommandBuffer::~RHICommandBuffer() {}
 
-}
+} // namespace raum::rhi

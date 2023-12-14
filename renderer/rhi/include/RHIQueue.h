@@ -8,6 +8,7 @@ public:
     explicit RHIQueue(const QueueInfo&, RHIDevice*) {}
 
     virtual RHICommandBuffer* makeCommandBuffer() = 0;
+    virtual void submit() = 0;
 
 protected:
     virtual ~RHIQueue() = 0;

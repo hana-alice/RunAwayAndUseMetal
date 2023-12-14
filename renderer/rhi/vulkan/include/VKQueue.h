@@ -4,6 +4,7 @@
 namespace raum::rhi {
 
 class Device;
+class CommandBuffer;
 class Queue : public RHIQueue {
 public:
     uint32_t index() { return _index; }
@@ -12,17 +13,22 @@ public:
 
     RHICommandBuffer* makeCommandBuffer() override;
 
+    void submit() override;
+
+    void enqueue(CommandBuffer* commandBuffer);
+
     ~Queue();
 
 private:
     Queue(const QueueInfo& info, Device* device);
 
+    VkQueue _vkQueue;
+    VkCommandPool _commandPool;
+
     QueueInfo _info;
     uint32_t _index{0};
     Device* _device{nullptr};
-
-    VkQueue _vkQueue;
-    VkCommandPool _commandPool;
+    std::vector<CommandBuffer*> _cmdBufferQueue;
 
     friend class Device;
 };
