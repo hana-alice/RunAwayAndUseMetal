@@ -18,7 +18,8 @@ PipelineLayout::PipelineLayout(const PipelineLayoutInfo& info, RHIDevice* device
 
     std::vector<VkDescriptorSetLayout> layouts(info.setLayouts.size());
     for (size_t i = 0; i < info.setLayouts.size(); ++i) {
-        layouts[i] = info.setLayouts[i]->layout();
+        auto* setLayout = static_cast<DescriptorSetLayout*>(info.setLayouts[i]);
+        layouts[i] = setLayout->layout();
     }
 
     createInfo.pushConstantRangeCount = static_cast<uint32_t>(ranges.size());

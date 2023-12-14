@@ -42,7 +42,6 @@ private:
     void initDevice();
 
     VkInstance _instance;
-    VkSurfaceKHR _surface;
     VkDebugUtilsMessengerEXT _debugMessenger;
     VkPhysicalDevice _physicalDevice;
     VkDevice _device;

@@ -17,13 +17,16 @@ namespace raum::rhi {
         return static_cast<std::underlying_type<T>::type>(lhs & rhs);                                                             \
     }
 
-class Shader;
-class PipelineLayout;
-class RenderPass;
-class DescriptorSetLayout;
-class DescriptorSet;
-class Image;
-class ImageView;
+class RHIShader;
+class RHIPipelineLayout;
+class RHIRenderPass;
+class RHIDescriptorSetLayout;
+class RHIDescriptorSet;
+class RHIImage;
+class RHIImageView;
+class RHIBuffer;
+class RHIBufferView;
+class RHIQueue;
 
 static constexpr uint32_t SwapchainCount{3};
 
@@ -31,7 +34,7 @@ enum class API : unsigned char {
     VULKAN,
 };
 
-enum class Format : uint16_t {
+enum class Format : uint32_t {
     // powered by TabNine.
     UNKNOWN,
     A8_UNORM,
@@ -201,27 +204,137 @@ struct ShaderBinaryInfo {
 struct SamplerInfo {
 };
 
-struct ImageInfo {
-    Format format{Format::UNKNOWN};
-    uint32_t width{0};
-    uint32_t height{0};
-    uint32_t sliceCount{0};
-    uint32_t mipCount{0};
-    uint32_t depth{0};
+enum class ImageType : uint8_t {
+    IMAGE_1D,
+    IMAGE_2D,
+    IMAGE_3D,
 };
 
+struct Vector3 {
+    uint32_t x{0};
+    uint32_t y{0};
+    uint32_t z{0};
+};
+
+enum class ImageUsage : uint32_t {
+    SAMPLED = 1 << 0,
+    STORAGE = 1 << 1,
+    TRANSFER_SRC = 1 << 2,
+    TRANSFER_DST = 1 << 3,
+    COLOR_ATTACHMENT = 1 << 4,
+    DEPTH_STENCIL_ATTACHMENT = 1 << 5,
+    INPUT_ATTACHMENT = 1 << 6,
+    TRANSIENT = 1 << 7,
+    SHADING_RATE = 1 << 8,
+    ATTACHMENT_FEEDBACK_LOOP = 1 << 9,
+};
+OPERABLE(ImageUsage)
+
+enum class SharingMode : uint8_t {
+    CONCURRENT,
+    EXCLUSIVE,
+};
+
+enum class ImageFlag : uint8_t {
+    NONE = 0,
+    SPARSE_BINDING = 1 << 0,
+    SPARSE_RESIDENCY = 1 << 1,
+    SPARSE_ALIASED = 1 << 2,
+    MUTABLE_FORMAT = 1 << 3,
+    ALIAS = 1 << 4,
+};
+OPERABLE(ImageFlag)
+
+enum class ImageLayout : uint8_t {
+    UNDEFINED,
+    GENERAL,
+    COLOR_ATTACHMENT_OPTIMAL,
+    DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+    DEPTH_STENCIL_READ_ONLY_OPTIMAL,
+    SHADER_READ_ONLY_OPTIMAL,
+    TRANSFER_SRC_OPTIMAL,
+    TRANSFER_DST_OPTIMAL,
+    PREINITIALIZED,
+    DEPTH_READ_ONLY_STENCIL_ATTACHMENT_OPTIMAL,
+    DEPTH_ATTACHMENT_STENCIL_READ_ONLY_OPTIMAL,
+    DEPTH_ATTACHMENT_OPTIMAL,
+    DEPTH_READ_ONLY_OPTIMAL,
+    STENCIL_ATTACHMENT_OPTIMAL,
+    STENCIL_READ_ONLY_OPTIMAL,
+    READ_ONLY_OPTIMAL,
+    ATTACHMENT_OPTIMAL,
+    PRESENT,
+    SHADING_RATE,
+};
+
+struct ImageInfo {
+    ImageType type{ImageType::IMAGE_2D};
+    ImageUsage usage{ImageUsage::SAMPLED};
+    SharingMode shareingMode{SharingMode::EXCLUSIVE};
+    ImageFlag imageFlag{ImageFlag::NONE};
+    ImageLayout intialLayout{ImageLayout::UNDEFINED};
+    Format format{Format::UNKNOWN};
+    uint32_t sliceCount{0};
+    uint32_t mipCount{0};
+    uint32_t sampleCount{1};
+    Vector3 extent{};
+    std::vector<uint32_t> queueAccess{};
+};
+
+enum class AspectMask : uint32_t {
+    COLOR = 1 << 0,
+    DEPTH = 1 << 1,
+    STENCIL = 1 << 2,
+    METADATA = 1 << 3,
+    PLANE_0 = 1 << 4,
+    PLANE_1 = 1 << 5,
+    PLANE_2 = 1 << 6,
+};
+OPERABLE(AspectMask)
+
 struct Range {
+    AspectMask aspect{AspectMask::COLOR};
     uint32_t width{0};
     uint32_t height{0};
     uint32_t firstSlice{0};
     uint32_t sliceCount{0};
     uint32_t firstMip{0};
     uint32_t mipCount{0};
-    uint32_t plane{0};
+};
+
+enum class ImageViewType : uint8_t {
+    IMAGE_VIEW_1D,
+    IMAGE_VIEW_2D,
+    IMAGE_VIEW_3D,
+    IMAGE_VIEW_CUBE,
+    IMAGE_VIEW_1D_ARRAY,
+    IMAGE_VIEW_2D_ARRAY,
+    IMAGE_VIEW_CUBE_ARRAY,
+};
+
+enum class ComponentSwizzle : uint8_t {
+    IDENTITY,
+    ZERO,
+    ONE,
+    R,
+    G,
+    B,
+    A,
+};
+
+struct ComponentMapping {
+    ComponentSwizzle r{ComponentSwizzle::IDENTITY};
+    ComponentSwizzle g{ComponentSwizzle::IDENTITY};
+    ComponentSwizzle b{ComponentSwizzle::IDENTITY};
+    ComponentSwizzle a{ComponentSwizzle::IDENTITY};
 };
 
 struct ImageViewInfo {
+    ImageViewType type{ImageViewType::IMAGE_VIEW_2D};
+    RHIImage* image{nullptr};
     Range range{};
+    ComponentMapping componentMapping{};
+    AspectMask aspectMask{AspectMask::COLOR};
     Format format{Format::UNKNOWN};
 };
 
@@ -290,7 +403,7 @@ struct PushConstantRange {
 
 struct PipelineLayoutInfo {
     std::vector<PushConstantRange> pushConstantRanges;
-    std::vector<DescriptorSetLayout*> setLayouts;
+    std::vector<RHIDescriptorSetLayout*> setLayouts;
 };
 
 enum class LoadOp : uint8_t {
@@ -302,28 +415,6 @@ enum class LoadOp : uint8_t {
 enum class StoreOp : uint8_t {
     STORE,
     CLEAR,
-};
-
-enum class ImageLayout : uint8_t {
-    UNDEFINED,
-    GENERAL,
-    COLOR_ATTACHMENT_OPTIMAL,
-    DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-    DEPTH_STENCIL_READ_ONLY_OPTIMAL,
-    SHADER_READ_ONLY_OPTIMAL,
-    TRANSFER_SRC_OPTIMAL,
-    TRANSFER_DST_OPTIMAL,
-    PREINITIALIZED,
-    DEPTH_READ_ONLY_STENCIL_ATTACHMENT_OPTIMAL,
-    DEPTH_ATTACHMENT_STENCIL_READ_ONLY_OPTIMAL,
-    DEPTH_ATTACHMENT_OPTIMAL,
-    DEPTH_READ_ONLY_OPTIMAL,
-    STENCIL_ATTACHMENT_OPTIMAL,
-    STENCIL_READ_ONLY_OPTIMAL,
-    READ_ONLY_OPTIMAL,
-    ATTACHMENT_OPTIMAL,
-    PRESENT,
-    SHADING_RATE,
 };
 
 struct AttachmentInfo {
@@ -416,8 +507,8 @@ struct RenderPassInfo {
 };
 
 struct FrameBufferInfo {
-    RenderPass* renderPass{nullptr};
-    std::vector<ImageView*> images{nullptr};
+    RHIRenderPass* renderPass{nullptr};
+    std::vector<RHIImageView*> images{nullptr};
     uint32_t width{0};
     uint32_t height{0};
     uint32_t layers{0};
@@ -455,7 +546,7 @@ enum class PrimitiveType : uint8_t {
     TRIANGLE_STRIP,
 };
 
-enum class CullMode : uint8_t {
+enum class FaceMode : uint8_t {
     NONE,
     FRONT,
     BACK,
@@ -471,7 +562,7 @@ struct RasterizationInfo {
     bool depthClamp{false};
     bool depthBiasEnable{false};
     PolygonMode polygonMode{PolygonMode::FILL};
-    CullMode cullMode{CullMode::NONE};
+    FaceMode cullMode{FaceMode::NONE};
     FrontFace frontFace{FrontFace::COUNTER_CLOCKWISE};
     float depthBiasConstantFactor{0.0f};
     float depthBiasClamp{0.0f};
@@ -604,9 +695,9 @@ struct BlendInfo {
 };
 
 struct GraphicsPipelineInfo {
-    PipelineLayout* pipelineLayout{nullptr};
-    RenderPass* renderPass{nullptr};
-    std::vector<Shader*> shaders;
+    RHIPipelineLayout* pipelineLayout{nullptr};
+    RHIRenderPass* renderPass{nullptr};
+    std::vector<RHIShader*> shaders;
     uint32_t subpassIndex{0};
     uint32_t viewportCount{1};
     VertexLayout vertexLayout;
@@ -633,25 +724,101 @@ enum class BufferUsage : uint32_t {
     TRANSFER_DST = 1 << 6,
 };
 
+enum class BufferFlag : uint32_t {
+    NONE = 0,
+    SPARSE_BINDING = 1 << 0,
+    SPARSE_RESIDENCY = 1 << 1,
+    SPARSE_ALIASED = 1 << 2,
+};
+OPERABLE(BufferFlag)
+
 struct BufferSourceInfo {
     MemoryUsage memUsage{MemoryUsage::DEVICE_ONLY};
+    SharingMode sharingMode{SharingMode::EXCLUSIVE};
+    BufferFlag flag{BufferFlag::NONE};
+    BufferUsage bufferUsage{BufferUsage::UNIFORM};
     const void* data{nullptr};
     uint32_t size{0};
-    BufferUsage bufferUsage{BufferUsage::UNIFORM};
+    std::vector<uint32_t> queueAccess{};
 };
 
 struct BufferInfo {
     MemoryUsage memUsage{MemoryUsage::DEVICE_ONLY};
-    uint32_t size{0};
+    SharingMode sharingMode{SharingMode::EXCLUSIVE};
+    BufferFlag flag{BufferFlag::NONE};
     BufferUsage bufferUsage{BufferUsage::UNIFORM};
+    uint32_t size{0};
+    std::vector<uint32_t> queueAccess{};
+};
+
+struct BufferViewInfo {
+    RHIBuffer* buffer{nullptr};
+    Format format{Format::UNKNOWN};
+    uint32_t offset{0};
+    uint32_t size{0};
 };
 
 enum class IndexType : uint8_t {
     HALF, // most likely 16 bit
     FULL, // most likely 32 bit
 };
-
 struct DeviceInfo {
     // void* hwnd;
 };
+
+enum class CommandBufferType : uint8_t {
+    PRIMARY,
+    SECONDARY,
+};
+
+struct CommandBufferInfo {
+    RHIQueue* queue{nullptr};
+    CommandBufferType type{CommandBufferType::PRIMARY};
+};
+
+struct BufferCopyRegion {
+    uint32_t srcOffset{0};
+    uint32_t dstOffset{0};
+    uint32_t size{0};
+};
+
+struct ImageCopyRegion {
+    AspectMask srcImageAspect{AspectMask::COLOR};
+    Vector3 srcOffset;
+    Vector3 dstOffset;
+    uint32_t srcBaseMip{0};
+    uint32_t srcFirstSlice{0};
+    uint32_t dstBaseMip{0};
+    uint32_t dstFirstSlice{0};
+    uint32_t sliceCount{0};
+    Vector3 extent{};
+};
+
+struct BufferImageCopyRegion {
+    uint32_t bufferSize{0};
+    uint32_t bufferRowLength{0};
+    uint32_t bufferImageHeight{0};
+    AspectMask imageAspect{AspectMask::COLOR};
+    uint32_t baseMip{0};
+    uint32_t firstSlice{0};
+    uint32_t sliceCount{0};
+    Vector3 imageOffset{};
+    Vector3 imageExtent{};
+};
+
+enum class Filter : uint8_t {
+    NEAREST,
+    LINEAR,
+    CUBIC,
+};
+
+struct ClearRect {
+    int32_t x{0};
+    int32_t y{0};
+    uint32_t width{0};
+    uint32_t height{0};
+    uint32_t firstSlice{0};
+    uint32_t sliceCount{0};
+};
+
 } // namespace raum::rhi

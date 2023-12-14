@@ -66,7 +66,14 @@ Buffer::Buffer(const BufferSourceInfo& info, RHIDevice* device) : RHIBuffer(info
     bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     bufferInfo.size = info.size;
     bufferInfo.usage = mapBufferUsage(info.bufferUsage);
-    bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    bufferInfo.sharingMode = sharingMode(info.sharingMode);
+    if (info.flag != BufferFlag::NONE) {
+        bufferInfo.flags = bufferFlag(info.flag);
+    }
+    if (!info.queueAccess.empty()) {
+        bufferInfo.queueFamilyIndexCount = static_cast<uint32_t>(info.queueAccess.size());
+        bufferInfo.pQueueFamilyIndices = info.queueAccess.data();
+    }
 
     VmaAllocationCreateInfo allocaInfo = mapCreateInfo(info.memUsage, true);
 

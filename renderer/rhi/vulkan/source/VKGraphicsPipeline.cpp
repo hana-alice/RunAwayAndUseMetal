@@ -14,7 +14,8 @@ GraphicsPipeline::GraphicsPipeline(const GraphicsPipelineInfo& pipelineInfo, Dev
     pipelineCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
 
     std::vector<VkPipelineShaderStageCreateInfo> shaderStages(pipelineInfo.shaders.size());
-    for (auto* shader : pipelineInfo.shaders) {
+    for (auto* rhiSHader : pipelineInfo.shaders) {
+        auto* shader = static_cast<Shader*>(rhiSHader);
         if (shader->stage() == ShaderStage::VERTEX) {
             VkPipelineShaderStageCreateInfo vertexStage{};
             vertexStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -185,8 +186,8 @@ GraphicsPipeline::GraphicsPipeline(const GraphicsPipelineInfo& pipelineInfo, Dev
     pipelineCreateInfo.subpass = pipelineInfo.subpassIndex;
     pipelineCreateInfo.basePipelineHandle = VK_NULL_HANDLE;
     pipelineCreateInfo.basePipelineIndex = 0;
-    pipelineCreateInfo.layout = pipelineInfo.pipelineLayout->layout();
-    pipelineCreateInfo.renderPass = pipelineInfo.renderPass->renderPass();
+    pipelineCreateInfo.layout = static_cast<PipelineLayout*>(pipelineInfo.pipelineLayout)->layout();
+    pipelineCreateInfo.renderPass = static_cast<RenderPass*>(pipelineInfo.renderPass)->renderPass();
 
     VkResult res = vkCreateGraphicsPipelines(_device->device(), VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &_pipeline);
 }

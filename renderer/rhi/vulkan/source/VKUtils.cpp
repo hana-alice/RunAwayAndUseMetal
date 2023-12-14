@@ -133,23 +133,23 @@ VkVertexInputRate mapRate(InputRate rate) {
     return VK_VERTEX_INPUT_RATE_VERTEX;
 }
 
-VkCullModeFlags cullMode(CullMode mode) {
+VkCullModeFlags cullMode(FaceMode mode) {
     VkCullModeFlags res = VK_CULL_MODE_NONE;
     switch (mode) {
-        case CullMode::NONE:
+        case FaceMode::NONE:
             res = VK_CULL_MODE_NONE;
             break;
-        case CullMode::FRONT:
+        case FaceMode::FRONT:
             res = VK_CULL_MODE_FRONT_BIT;
             break;
-        case CullMode::BACK:
+        case FaceMode::BACK:
             res = VK_CULL_MODE_BACK_BIT;
             break;
-        case CullMode::FRONT_AND_BACK:
+        case FaceMode::FRONT_AND_BACK:
             res = VK_CULL_MODE_FRONT_AND_BACK;
             break;
         default:
-            break;  
+            break;
     }
     return res;
 }
@@ -440,7 +440,6 @@ VkDescriptorType descriptorType(DescriptorType type) {
     return descriptorType;
 }
 
-
 VkShaderStageFlags shaderStageFlags(ShaderStage stage) {
     VkShaderStageFlags res;
     if (test(stage, ShaderStage::VERTEX)) {
@@ -554,7 +553,6 @@ VkImageLayout imageLayout(ImageLayout layout) {
     return res;
 }
 
-
 VkPipelineStageFlags pipelineStageFlags(PipelineStage stage) {
     VkPipelineStageFlags res;
     switch (stage) {
@@ -606,7 +604,7 @@ VkPipelineStageFlags pipelineStageFlags(PipelineStage stage) {
 
 VkAccessFlags accessFlags(AccessFlags flags) {
     VkAccessFlags res = VK_ACCESS_NONE;
-    
+
     if (test(flags, AccessFlags::INDIRECT_COMMAND_READ)) {
         res |= VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
     }
@@ -674,6 +672,186 @@ VkDependencyFlags dependencyFlags(DependencyFlags flags) {
     }
     if (test(flags, DependencyFlags::FEEDBACK_LOOP)) {
         res |= VK_DEPENDENCY_FEEDBACK_LOOP_BIT_EXT;
+    }
+    return res;
+}
+
+VkImageType imageType(ImageType type) {
+    VkImageType res = VK_IMAGE_TYPE_2D;
+    switch (type) {
+        case ImageType::IMAGE_1D:
+            res = VK_IMAGE_TYPE_1D;
+            break;
+        case ImageType::IMAGE_2D:
+            res = VK_IMAGE_TYPE_2D;
+            break;
+        case ImageType::IMAGE_3D:
+            res = VK_IMAGE_TYPE_3D;
+            break;
+    }
+    return res;
+}
+
+VkImageCreateFlags imageFlag(ImageFlag flag) {
+    VkImageCreateFlags res;
+    if (test(flag, ImageFlag::SPARSE_BINDING)) {
+        res |= VK_IMAGE_CREATE_SPARSE_BINDING_BIT;
+    }
+    if (test(flag, ImageFlag::SPARSE_RESIDENCY)) {
+        res |= VK_IMAGE_CREATE_SPARSE_RESIDENCY_BIT;
+    }
+    if (test(flag, ImageFlag::SPARSE_ALIASED)) {
+        res |= VK_IMAGE_CREATE_SPARSE_ALIASED_BIT;
+    }
+    if (test(flag, ImageFlag::MUTABLE_FORMAT)) {
+        res |= VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT;
+    }
+    if (test(flag, ImageFlag::ALIAS)) {
+        res |= VK_IMAGE_CREATE_ALIAS_BIT;
+    }
+    return res;
+}
+
+VkImageUsageFlags imageUsage(ImageUsage usage) {
+    VkImageUsageFlags res;
+    if (test(usage, ImageUsage::SAMPLED)) {
+        res |= VK_IMAGE_USAGE_SAMPLED_BIT;
+    }
+    if (test(usage, ImageUsage::STORAGE)) {
+        res |= VK_IMAGE_USAGE_STORAGE_BIT;
+    }
+    if (test(usage, ImageUsage::TRANSFER_SRC)) {
+        res |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+    }
+    if (test(usage, ImageUsage::TRANSFER_DST)) {
+        res |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+    }
+    if (test(usage, ImageUsage::COLOR_ATTACHMENT)) {
+        res |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+    }
+    if (test(usage, ImageUsage::DEPTH_STENCIL_ATTACHMENT)) {
+        res |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+    }
+    if (test(usage, ImageUsage::TRANSIENT)) {
+        res |= VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT;
+    }
+    if (test(usage, ImageUsage::INPUT_ATTACHMENT)) {
+        res |= VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
+    }
+    if (test(usage, ImageUsage::SHADING_RATE)) {
+        res |= VK_IMAGE_USAGE_SHADING_RATE_IMAGE_BIT_NV;
+    }
+    if (test(usage, ImageUsage::ATTACHMENT_FEEDBACK_LOOP)) {
+        res |= VK_IMAGE_USAGE_ATTACHMENT_FEEDBACK_LOOP_BIT_EXT;
+    }
+    return res;
+}
+
+VkSharingMode sharingMode(SharingMode mode) {
+    VkSharingMode sharingMode;
+    switch (mode) {
+        case SharingMode::CONCURRENT:
+            sharingMode = VK_SHARING_MODE_CONCURRENT;
+            break;
+        case SharingMode::EXCLUSIVE:
+            sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+            break;
+    }
+    return sharingMode;
+}
+
+VkBufferCreateFlags bufferFlag(BufferFlag flag) {
+    VkBufferCreateFlags res;
+    if (test(flag, BufferFlag::SPARSE_BINDING)) {
+        res |= VK_BUFFER_CREATE_SPARSE_BINDING_BIT;
+    }
+    if (test(flag, BufferFlag::SPARSE_RESIDENCY)) {
+        res |= VK_BUFFER_CREATE_SPARSE_RESIDENCY_BIT;
+    }
+    if (test(flag, BufferFlag::SPARSE_ALIASED)) {
+        res |= VK_BUFFER_CREATE_SPARSE_ALIASED_BIT;
+    }
+    return res;
+}
+
+VkImageViewType viewType(ImageViewType viewType) {
+    VkImageViewType res = VK_IMAGE_VIEW_TYPE_2D;
+    switch (viewType) {
+        case ImageViewType::IMAGE_VIEW_1D:
+            res = VK_IMAGE_VIEW_TYPE_1D;
+            break;
+        case ImageViewType::IMAGE_VIEW_2D:
+            res = VK_IMAGE_VIEW_TYPE_2D;
+            break;
+        case ImageViewType::IMAGE_VIEW_3D:
+            res = VK_IMAGE_VIEW_TYPE_3D;
+            break;
+        case ImageViewType::IMAGE_VIEW_CUBE:
+            res = VK_IMAGE_VIEW_TYPE_CUBE;
+            break;
+        case ImageViewType::IMAGE_VIEW_1D_ARRAY:
+            res = VK_IMAGE_VIEW_TYPE_1D_ARRAY;
+            break;
+        case ImageViewType::IMAGE_VIEW_2D_ARRAY:
+            res = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
+            break;
+        case ImageViewType::IMAGE_VIEW_CUBE_ARRAY:
+            res = VK_IMAGE_VIEW_TYPE_CUBE_ARRAY;
+            break;
+    }
+    return res;
+}
+
+VkComponentSwizzle componentSwizzle(ComponentSwizzle component) {
+    VkComponentSwizzle res = VK_COMPONENT_SWIZZLE_IDENTITY;
+    switch (component) {
+        case ComponentSwizzle::IDENTITY:
+            res = VK_COMPONENT_SWIZZLE_IDENTITY;
+            break;
+        case ComponentSwizzle::ZERO:
+            res = VK_COMPONENT_SWIZZLE_ZERO;
+            break;
+        case ComponentSwizzle::ONE:
+            res = VK_COMPONENT_SWIZZLE_ONE;
+            break;
+        case ComponentSwizzle::R:
+            res = VK_COMPONENT_SWIZZLE_R;
+            break;
+        case ComponentSwizzle::G:
+            res = VK_COMPONENT_SWIZZLE_G;
+            break;
+        case ComponentSwizzle::B:
+            res = VK_COMPONENT_SWIZZLE_B;
+            break;
+        case ComponentSwizzle::A:
+            res = VK_COMPONENT_SWIZZLE_A;
+            break;
+    }
+    return res;
+}
+
+VkImageAspectFlags aspectMask(AspectMask mask) {
+    VkImageAspectFlags res = VK_IMAGE_ASPECT_NONE;
+    if (test(mask, AspectMask::COLOR)) {
+        res |= VK_IMAGE_ASPECT_COLOR_BIT;
+    }
+    if (test(mask, AspectMask::DEPTH)) {
+        res |= VK_IMAGE_ASPECT_DEPTH_BIT;
+    }
+    if (test(mask, AspectMask::STENCIL)) {
+        res |= VK_IMAGE_ASPECT_STENCIL_BIT;
+    }
+    if (test(mask, AspectMask::METADATA)) {
+        res |= VK_IMAGE_ASPECT_METADATA_BIT;
+    }
+    if (test(mask, AspectMask::PLANE_0)) {
+        res |= VK_IMAGE_ASPECT_PLANE_0_BIT;
+    }
+    if (test(mask, AspectMask::PLANE_1)) {
+        res |= VK_IMAGE_ASPECT_PLANE_1_BIT;
+    }
+    if (test(mask, AspectMask::PLANE_2)) {
+        res |= VK_IMAGE_ASPECT_PLANE_2_BIT;
     }
     return res;
 }

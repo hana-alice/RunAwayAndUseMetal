@@ -1,18 +1,24 @@
 #pragma once
+#include "VKImageView.h"
 #include "VKDefine.h"
+#include "RHIImageView.h"
 
 namespace raum::rhi {
-class Image;
-class Swapchain;
-class ImageView {
+class Device;
+class ImageView :public RHIImageView {
 public:
-    explicit ImageView(const ImageViewInfo& info, const Image* image);
-    explicit ImageView(const ImageViewInfo& info, const Swapchain* swapchain, uint32_t index);
+    explicit ImageView(const ImageViewInfo& info, RHIDevice* device);
     ImageView(ImageView&& iv) = delete;
     ImageView() = delete;
     ImageView(const ImageView&) = delete;
     ImageView& operator=(const ImageView&) = delete;
 
     ~ImageView();
+
+    VkImageView imageView() const { return _imageView; }
+
+private:
+    VkImageView _imageView;
+    Device* _device{nullptr};
 };
 } // namespace raum::rhi

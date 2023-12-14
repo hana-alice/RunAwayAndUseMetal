@@ -248,6 +248,13 @@ void Device::initDevice() {
     RAUM_CRITICAL_IF(res != VK_SUCCESS, "failed to create logic device.");
 
     vkGetDeviceQueue(_device, queue->_index, 0, &queue->_vkQueue);
+
+    VmaAllocatorCreateInfo allocInfo{};
+    allocInfo.device = _device;
+    allocInfo.physicalDevice = _physicalDevice;
+    allocInfo.instance = _instance;
+    allocInfo.vulkanApiVersion = VK_API_VERSION_1_3;
+    vmaCreateAllocator(&allocInfo, &_allocator);
 }
 
 RHIQueue* Device::getQueue(const QueueInfo& info) {

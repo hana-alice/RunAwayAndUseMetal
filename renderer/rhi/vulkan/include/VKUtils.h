@@ -22,7 +22,7 @@ FormatInfo formatInfo(Format format);
 
 VkVertexInputRate mapRate(InputRate rate);
 
-VkCullModeFlags cullMode(CullMode mode);
+VkCullModeFlags cullMode(FaceMode mode);
 
 VkPolygonMode polygonMode(PolygonMode mode);
 
@@ -58,6 +58,21 @@ VkAccessFlags accessFlags(AccessFlags flags);
 
 VkDependencyFlags dependencyFlags(DependencyFlags flags);
 
+VkImageType imageType(ImageType type);
+
+VkImageCreateFlags imageFlag(ImageFlag flag);
+
+VkImageUsageFlags imageUsage(ImageUsage usage);
+
+VkSharingMode sharingMode(SharingMode mode);
+
+VkBufferCreateFlags bufferFlag(BufferFlag flag);
+
+VkImageViewType viewType(ImageViewType viewType);
+
+VkComponentSwizzle componentSwizzle(ComponentSwizzle component);
+
+VkImageAspectFlags aspectMask(AspectMask mask);
 } // namespace rhi
 
 } // namespace raum
