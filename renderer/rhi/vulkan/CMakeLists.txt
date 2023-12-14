@@ -21,4 +21,5 @@ target_link_libraries(rhi PUBLIC
     GPUOpen::VulkanMemoryAllocator
     ${Vulkan_LIBRARIES}
     core
+    shaderc
 )
