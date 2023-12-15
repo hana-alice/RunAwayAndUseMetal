@@ -856,4 +856,218 @@ VkImageAspectFlags aspectMask(AspectMask mask) {
     return res;
 }
 
+VkCommandBufferLevel commandBufferLevel(CommandBufferType commandBufferLevel) {
+    VkCommandBufferLevel res = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    switch (commandBufferLevel) {
+        case CommandBufferType::PRIMARY:
+            res = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+            break;
+        case CommandBufferType::SECONDARY:
+            res = VK_COMMAND_BUFFER_LEVEL_SECONDARY;
+            break;
+    }
+    return res;
+}
+
+VkStencilFaceFlags stencilFaceFlags(FaceMode faceMode) {
+    VkStencilFaceFlags res = VK_STENCIL_FACE_FRONT_BIT;
+    switch (faceMode) {
+        case FaceMode::FRONT:
+            res = VK_STENCIL_FACE_FRONT_BIT;
+            break;
+        case FaceMode::BACK:
+            res = VK_STENCIL_FACE_BACK_BIT;
+            break;
+        case FaceMode::FRONT_AND_BACK:
+            res = VK_STENCIL_FACE_FRONT_AND_BACK;
+            break;
+    }
+    return res;
+}
+
+VkIndexType indexType(IndexType indexType) {
+    return indexType == IndexType::HALF ? VK_INDEX_TYPE_UINT16 : VK_INDEX_TYPE_UINT32;
+}
+
+namespace {
+enum class FormatType {
+    COLOR_UINT,
+    COLOR_INT,
+    COLOR_FLOAT,
+    COLOR_UNFILTER_FLOAT,
+    DEPTH,
+    STENCIL,
+    DEPTH_STENCIL,
+};
+
+constexpr FormatType formatType(Format format) {
+    switch (format) {
+        case Format::A8_UNORM:
+        case Format::R8_UNORM:
+        case Format::R8_SNORM:
+        case Format::R8_SRGB:
+        case Format::R8G8_UNORM:
+        case Format::R8G8_SNORM:
+        case Format::R8G8_SRGB:
+        case Format::R8G8B8_UNORM:
+        case Format::R8G8B8_SNORM:
+        case Format::B8G8R8_UNORM:
+        case Format::B8G8R8_SNORM:
+        case Format::R8G8B8_SRGB:
+        case Format::B8G8R8_SRGB:
+        case Format::R8G8B8A8_UNORM:
+        case Format::R8G8B8A8_SNORM:
+        case Format::B8G8R8A8_UNORM:
+        case Format::B8G8R8A8_SNORM:
+        case Format::R8G8B8A8_SRGB:
+        case Format::B8G8R8A8_SRGB:
+        case Format::R16_UNORM:
+        case Format::R16_SNORM:
+        case Format::R16G16_UNORM:
+        case Format::R16G16_SNORM:
+        case Format::R16G16B16_UNORM:
+        case Format::R16G16B16_SNORM:
+        case Format::R16G16B16A16_UNORM:
+        case Format::R16G16B16A16_SNORM:
+            return FormatType::COLOR_FLOAT;
+
+        case Format::R8_UINT:
+        case Format::R8G8_UINT:
+        case Format::R8G8B8_UINT:
+        case Format::B8G8R8_UINT:
+        case Format::R8G8B8A8_UINT:
+        case Format::B8G8R8A8_UINT:
+        case Format::R16_UINT:
+        case Format::R16G16_UINT:
+        case Format::R16G16B16_UINT:
+        case Format::R16G16B16A16_UINT:
+        case Format::R32_UINT:
+        case Format::R32G32_SINT:
+        case Format::R32G32B32_UINT:
+        case Format::R32G32B32A32_UINT:
+        case Format::R64_UINT:
+        case Format::R64G64_UINT:
+        case Format::R64G64B64_UINT:
+        case Format::R64G64B64A64_UINT:
+            return FormatType::COLOR_UINT;
+
+        case Format::R8_SINT:
+        case Format::R8G8_SINT:
+        case Format::R8G8B8_SINT:
+        case Format::B8G8R8_SINT:
+        case Format::R8G8B8A8_SINT:
+        case Format::B8G8R8A8_SINT:
+        case Format::R16_SINT:
+        case Format::R16G16_SINT:
+        case Format::R16G16B16_SINT:
+        case Format::R16G16B16A16_SINT:
+        case Format::R32_SINT:
+        case Format::R32G32_UINT:
+        case Format::R32G32B32_SINT:
+        case Format::R32G32B32A32_SINT:
+        case Format::R64_SINT:
+        case Format::R64G64_SINT:
+        case Format::R64G64B64_SINT:
+        case Format::R64G64B64A64_SINT:
+            return FormatType::COLOR_INT;
+
+        case Format::R16_SFLOAT:
+        case Format::R16G16_SFLOAT:
+        case Format::R16G16B16_SFLOAT:
+        case Format::R16G16B16A16_SFLOAT:
+        case Format::R32_SFLOAT:
+        case Format::R32G32_SFLOAT:
+        case Format::R32G32B32_SFLOAT:
+        case Format::R32G32B32A32_SFLOAT:
+        case Format::R64_SFLOAT:
+        case Format::R64G64_SFLOAT:
+        case Format::R64G64B64_SFLOAT:
+        case Format::R64G64B64A64_SFLOAT:
+            return FormatType::COLOR_UNFILTER_FLOAT;
+        case Format::X8_D24_UNORM_PACK32:
+        case Format::D32_SFLOAT:
+            return FormatType::DEPTH;
+        case Format::D16_UNORM_S8_UINT:
+        case Format::D24_UNORM_S8_UINT:
+        case Format::D32_SFLOAT_S8_UINT:
+            return FormatType::DEPTH_STENCIL;
+        case Format::S8_UINT:
+            return FormatType::STENCIL;
+    }
+    return FormatType::COLOR_FLOAT;
+}
+
+} // namespace
+
+void fillClearColors(std::vector<VkClearValue>& clearValues,
+                     ClearColor* colors,
+                     const std::vector<AttachmentInfo>& attachmentInfos) {
+    for (size_t i = 0; i < attachmentInfos.size(); ++i) {
+        switch (formatType(attachmentInfos[i].format)) {
+            case FormatType::COLOR_UINT:
+                memcpy(clearValues[i].color.uint32, &colors[i], sizeof(colors[i].clearColorU));
+                break;
+            case FormatType::COLOR_INT:
+                memcpy(clearValues[i].color.int32, &colors[i], sizeof(colors[i].clearColorI));
+                break;
+            case FormatType::COLOR_FLOAT:
+                memcpy(clearValues[i].color.float32, &colors[i], sizeof(colors[i].clearColorF));
+                break;
+            case FormatType::DEPTH:
+                clearValues[i].depthStencil.depth = colors[i].depth;
+                break;
+            case FormatType::STENCIL:
+                clearValues[i].depthStencil.stencil = colors[i].stencil;
+                break;
+        }
+    }
+}
+
+void fillClearAttachment(std::vector<VkClearAttachment>& clearAttachment,
+                         ClearColor* colors,
+                         uint32_t* attachmentIndices,
+                         uint32_t attachmentNum,
+                         const std::vector<AttachmentInfo>& attachmentInfos) {
+    for (size_t i = 0; i < attachmentNum; ++i) {
+        auto index = attachmentIndices[i];
+        auto& attachment = clearAttachment[index];
+        auto& clearValue = attachment.clearValue;
+        attachment.colorAttachment = index;
+        switch (formatType(attachmentInfos[index].format)) {
+            case FormatType::COLOR_UINT:
+                attachment.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+                memcpy(clearValue.color.uint32, &colors[index], sizeof(colors[index].clearColorU));
+                break;
+            case FormatType::COLOR_INT:
+                attachment.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+                memcpy(clearValue.color.int32, &colors[index], sizeof(colors[index].clearColorI));
+                break;
+            case FormatType::COLOR_FLOAT:
+                attachment.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+                memcpy(clearValue.color.float32, &colors[index], sizeof(colors[index].clearColorF));
+                break;
+            case FormatType::DEPTH:
+                attachment.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+                clearValue.depthStencil.depth = colors[index].depth;
+                break;
+            case FormatType::STENCIL:
+                attachment.aspectMask = VK_IMAGE_ASPECT_STENCIL_BIT;
+                clearValue.depthStencil.stencil = colors[index].stencil;
+                break;
+        }
+    }
+}
+
+void fillClearRect(std::vector<VkClearRect>& clearRects,
+                   ClearRect* rects,
+                   uint32_t count) {
+    for (size_t i = 0; i < count; ++i) {
+        clearRects[i] = VkClearRect{
+            {rects[i].x, rects[i].y, rects[i].width, rects[i].height},
+            rects[i].firstSlice,
+            rects[i].sliceCount,
+        };
+    }
+}
+
 } // namespace raum::rhi

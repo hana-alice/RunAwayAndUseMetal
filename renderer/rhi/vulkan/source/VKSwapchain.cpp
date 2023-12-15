@@ -81,9 +81,12 @@ Swapchain::Swapchain(const SwapchainInfo& info, Device* device)
     VkExtent2D extent{info.width, info.height};
 
     uint32_t imageCount = caps.minImageCount;
-    if (caps.maxImageCount > 0 && caps.maxImageCount >= SwapchainCount) {
-        imageCount = SwapchainCount;
+    constexpr uint32_t preferredSwapchainCount = 3;
+    if (caps.maxImageCount > 0 && caps.maxImageCount >= preferredSwapchainCount) {
+        imageCount = preferredSwapchainCount;
     }
+
+    static_cast<Queue*>(grfxQ)->initPresentQueue(imageCount);
 
     VkSwapchainCreateInfoKHR createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;

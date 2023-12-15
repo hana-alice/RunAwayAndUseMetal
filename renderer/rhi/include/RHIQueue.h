@@ -9,6 +9,8 @@ public:
 
     virtual RHICommandBuffer* makeCommandBuffer() = 0;
     virtual void submit() = 0;
+    virtual void enqueue(RHICommandBuffer*) = 0;
+    //virtual void executeCommandBuffers(RHICommandBuffer* cmdBUffers, uint32_t count) = 0;
 
 protected:
     virtual ~RHIQueue() = 0;

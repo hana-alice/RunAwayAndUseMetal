@@ -13,3 +13,6 @@
 [submodule "dependencies/shaderc"]
 	path = dependencies/shaderc
 	url = https://github.com/google/shaderc.git
+[submodule "dependencies/glm"]
+	path = dependencies/glm
+	url = https://github.com/g-truc/glm.git

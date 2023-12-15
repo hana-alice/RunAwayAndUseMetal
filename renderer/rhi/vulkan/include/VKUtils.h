@@ -73,6 +73,27 @@ VkImageViewType viewType(ImageViewType viewType);
 VkComponentSwizzle componentSwizzle(ComponentSwizzle component);
 
 VkImageAspectFlags aspectMask(AspectMask mask);
+
+VkCommandBufferLevel commandBufferLevel(CommandBufferType commandBufferLevel);
+
+void fillClearColors(std::vector<VkClearValue>& clearValues,
+                     ClearColor* colors,
+                     const std::vector<AttachmentInfo>& attachmentInfos);
+
+void fillClearAttachment(std::vector<VkClearAttachment>& clearAttachment,
+                         ClearColor* colors,
+                         uint32_t* attachmentIndices,
+                         uint32_t attachmentNum,
+                         const std::vector<AttachmentInfo>& attachmentInfos);
+
+void fillClearRect(std::vector<VkClearRect>& clearRects,
+                   ClearRect* rects,
+                   uint32_t count);
+
+VkStencilFaceFlags stencilFaceFlags(FaceMode faceMode);
+
+VkIndexType indexType(IndexType indexType);
+
 } // namespace rhi
 
 } // namespace raum

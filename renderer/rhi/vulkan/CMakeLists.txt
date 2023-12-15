@@ -15,6 +15,7 @@ target_include_directories(rhi PUBLIC
     ${renderer_dir}/rhi/include
     ${Vulkan_INCLUDE_DIR}
     ${dependency_dir}/vma/include
+    ${dependency_dir}/glm/glm
 )
 
 target_link_libraries(rhi PUBLIC 
@@ -22,4 +23,5 @@ target_link_libraries(rhi PUBLIC
     ${Vulkan_LIBRARIES}
     core
     shaderc
+    glm
 )

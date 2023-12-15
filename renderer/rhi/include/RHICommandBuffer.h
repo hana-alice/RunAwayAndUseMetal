@@ -14,16 +14,17 @@ public:
     virtual RHIBlitEncoder* makeBlitEncoder() = 0;
     virtual RHIComputeEncoder* makeComputeEncoder() = 0;
 
-    virtual void executeCommandBuffers(RHICommandBuffer* cmdBUffers, uint32_t count) = 0;
-
     // add to queue to hold place in order
     virtual void enqueue() = 0;
 
     // commit to queue, enqueue automatically if not enqueued
     virtual void commit() = 0;
 
+    // reuse
+    virtual void reset() = 0;
+
 protected:
-    explicit RHICommandBuffer(const CommandBufferInfo& info) {}
+    explicit RHICommandBuffer(const CommandBufferInfo& info, RHIDevice* device) {}
 };
 
 inline RHICommandBuffer::~RHICommandBuffer() {}

@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include "define.h"
+#include "glm.hpp"
 namespace raum::rhi {
 
 #define OPERABLE(T)                                                                                                               \
@@ -27,8 +28,16 @@ class RHIImageView;
 class RHIBuffer;
 class RHIBufferView;
 class RHIQueue;
+class RHIFrameBuffer;
 
-static constexpr uint32_t SwapchainCount{3};
+static constexpr uint32_t FRAMES_IN_FLIGHT{3};
+
+using Vector3I = glm::ivec3;
+using Vector4I = glm::ivec4;
+using Vector3U = glm::uvec3;
+using Vector4U = glm::uvec4;
+using Vector3F = glm::vec3;
+using Vector4F = glm::vec4;
 
 enum class API : unsigned char {
     VULKAN,
@@ -210,12 +219,6 @@ enum class ImageType : uint8_t {
     IMAGE_3D,
 };
 
-struct Vector3 {
-    uint32_t x{0};
-    uint32_t y{0};
-    uint32_t z{0};
-};
-
 enum class ImageUsage : uint32_t {
     SAMPLED = 1 << 0,
     STORAGE = 1 << 1,
@@ -277,7 +280,7 @@ struct ImageInfo {
     uint32_t sliceCount{0};
     uint32_t mipCount{0};
     uint32_t sampleCount{1};
-    Vector3 extent{};
+    Vector3U extent{};
     std::vector<uint32_t> queueAccess{};
 };
 
@@ -784,14 +787,14 @@ struct BufferCopyRegion {
 
 struct ImageCopyRegion {
     AspectMask srcImageAspect{AspectMask::COLOR};
-    Vector3 srcOffset;
-    Vector3 dstOffset;
+    Vector3U srcOffset;
+    Vector3U dstOffset;
     uint32_t srcBaseMip{0};
     uint32_t srcFirstSlice{0};
     uint32_t dstBaseMip{0};
     uint32_t dstFirstSlice{0};
     uint32_t sliceCount{0};
-    Vector3 extent{};
+    Vector3U extent{};
 };
 
 struct BufferImageCopyRegion {
@@ -802,8 +805,8 @@ struct BufferImageCopyRegion {
     uint32_t baseMip{0};
     uint32_t firstSlice{0};
     uint32_t sliceCount{0};
-    Vector3 imageOffset{};
-    Vector3 imageExtent{};
+    Vector3U imageOffset{};
+    Vector3U imageExtent{};
 };
 
 enum class Filter : uint8_t {
@@ -819,6 +822,27 @@ struct ClearRect {
     uint32_t height{0};
     uint32_t firstSlice{0};
     uint32_t sliceCount{0};
+};
+
+enum class ElementType : uint8_t {
+    FLOAT,
+    SINT,
+    UINT,
+};
+
+union ClearColor {
+    float clearColorF[4];
+    uint32_t clearColorU[4];
+    int32_t clearColorI[4];
+    float depth;
+    uint32_t stencil;
+};
+
+struct RenderPassBeginInfo {
+    RHIRenderPass* renderPass{nullptr};
+    RHIFrameBuffer* frameBuffer{nullptr};
+    Rect2D renderArea;
+    ClearColor* clearColors;
 };
 
 } // namespace raum::rhi

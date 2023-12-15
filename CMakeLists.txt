@@ -41,6 +41,10 @@ add_subdirectory(
     ${dependency_dir}/vma
 )
 
+add_subdirectory(
+    ${dependency_dir}/glm
+)
+
 add_subdirectory(core)
 add_subdirectory(framework)
 
