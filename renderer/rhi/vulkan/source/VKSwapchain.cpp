@@ -177,4 +177,8 @@ RHIImageView* Swapchain::swapchainImageView() const {
     return _swapchainImageViews[_imageIndex];
 }
 
+uint32_t Swapchain::imageCount() const {
+    return static_cast<uint32_t>(_swapchainImages.size());
+}
+
 } // namespace raum::rhi

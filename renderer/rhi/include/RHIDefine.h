@@ -511,7 +511,7 @@ struct RenderPassInfo {
 
 struct FrameBufferInfo {
     RHIRenderPass* renderPass{nullptr};
-    std::vector<RHIImageView*> images{nullptr};
+    std::vector<RHIImageView*> images{};
     uint32_t width{0};
     uint32_t height{0};
     uint32_t layers{0};
@@ -579,7 +579,7 @@ struct MultisamplingInfo {
     bool alphaToCoverageEnable{false};
     float minSampleShading{0.0f};
     uint32_t sampleCount{0};
-    uint32_t sampleMask{0};
+    uint32_t sampleMask{0xFFFFFFFF};
 };
 
 enum class CompareOp : uint8_t {
@@ -698,6 +698,7 @@ struct BlendInfo {
 };
 
 struct GraphicsPipelineInfo {
+    PrimitiveType primitiveType{PrimitiveType::TRIANGLE_LIST};
     RHIPipelineLayout* pipelineLayout{nullptr};
     RHIRenderPass* renderPass{nullptr};
     std::vector<RHIShader*> shaders;

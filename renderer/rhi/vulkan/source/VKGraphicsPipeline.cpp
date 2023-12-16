@@ -13,7 +13,7 @@ GraphicsPipeline::GraphicsPipeline(const GraphicsPipelineInfo& pipelineInfo, Dev
     VkGraphicsPipelineCreateInfo pipelineCreateInfo = {};
     pipelineCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
 
-    std::vector<VkPipelineShaderStageCreateInfo> shaderStages(pipelineInfo.shaders.size());
+    std::vector<VkPipelineShaderStageCreateInfo> shaderStages;
     for (auto* rhiSHader : pipelineInfo.shaders) {
         auto* shader = static_cast<Shader*>(rhiSHader);
         if (shader->stage() == ShaderStage::VERTEX) {
@@ -92,12 +92,12 @@ GraphicsPipeline::GraphicsPipeline(const GraphicsPipelineInfo& pipelineInfo, Dev
 
     VkPipelineInputAssemblyStateCreateInfo iaInfo{};
     iaInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-    iaInfo.topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
+    iaInfo.topology = primitiveTopology(pipelineInfo.primitiveType);
     iaInfo.primitiveRestartEnable = VK_FALSE;
     pipelineCreateInfo.pInputAssemblyState = &iaInfo;
 
     VkPipelineViewportStateCreateInfo vpInfo{};
-    vpInfo.flags = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+    vpInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
     vpInfo.viewportCount = pipelineInfo.viewportCount;
     vpInfo.scissorCount = pipelineInfo.viewportCount;
     pipelineCreateInfo.pViewportState = &vpInfo;
@@ -116,16 +116,14 @@ GraphicsPipeline::GraphicsPipeline(const GraphicsPipelineInfo& pipelineInfo, Dev
     pipelineCreateInfo.pRasterizationState = &rsInfo;
 
     const MultisamplingInfo& multisamplingInfo = pipelineInfo.multisamplingInfo;
-    if (multisamplingInfo.enable) {
-        VkPipelineMultisampleStateCreateInfo msInfo{};
-        msInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-        msInfo.alphaToCoverageEnable = multisamplingInfo.alphaToCoverageEnable;
-        msInfo.minSampleShading = multisamplingInfo.minSampleShading;
-        msInfo.pSampleMask = &multisamplingInfo.sampleMask;
-        msInfo.sampleShadingEnable = multisamplingInfo.sampleShadingEnable;
-        msInfo.rasterizationSamples = sampleCount(multisamplingInfo.sampleCount);
-        pipelineCreateInfo.pMultisampleState = &msInfo;
-    }
+    VkPipelineMultisampleStateCreateInfo msInfo{};
+    msInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+    msInfo.alphaToCoverageEnable = multisamplingInfo.alphaToCoverageEnable;
+    msInfo.minSampleShading = multisamplingInfo.minSampleShading;
+    msInfo.pSampleMask = &multisamplingInfo.sampleMask;
+    msInfo.sampleShadingEnable = multisamplingInfo.sampleShadingEnable;
+    msInfo.rasterizationSamples = sampleCount(multisamplingInfo.sampleCount);
+    pipelineCreateInfo.pMultisampleState = &msInfo;
 
     const DepthStencilInfo& depthStencilInfo = pipelineInfo.depthStencilInfo;
     VkPipelineDepthStencilStateCreateInfo dsInfo{};

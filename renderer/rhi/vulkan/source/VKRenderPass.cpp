@@ -30,36 +30,70 @@ RenderPass::RenderPass(const RenderPassInfo& info, RHIDevice* device)
     std::vector<std::vector<VkAttachmentReference>> subpassColors(info.subpasses.size());
     std::vector<std::vector<VkAttachmentReference>> subpassResolves(info.subpasses.size());
     std::vector<std::vector<VkAttachmentReference>> subpassDepthStencil(info.subpasses.size());
-    for (size_t i = 0; i < info.subpasses.size(); ++i) {
-        auto& subpass = subpasses[i];
-        const auto& subpassDesc = info.subpasses[i];
+    if (info.subpasses.empty()) {
+        auto& subpass = subpasses.emplace_back();
         subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
 
-        for (const auto& input : subpassDesc.inputs) {
-            subpassInputs[i].emplace_back(VkAttachmentReference{input.index, imageLayout(input.layout)});
+        for (size_t i = 0; i < info.attachments.size(); ++i) {
+            const auto& attachmentDesc = info.attachments[i];
+            if (isDepthStencil(attachmentDesc.format)) {
+                if (subpassDepthStencil.empty()) {
+                    subpassDepthStencil.emplace_back();
+                }
+                auto& ref = subpassDepthStencil.front().emplace_back();
+                ref.attachment = static_cast<uint32_t>(i);
+                ref.layout = imageLayout(attachmentDesc.finalLayout);
+            } else {
+                if (subpassColors.empty()) {
+                    subpassColors.emplace_back();
+                }
+                auto& ref = subpassColors.front().emplace_back();
+                ref.attachment = static_cast<uint32_t>(i);
+                ref.layout = imageLayout(info.attachments[i].initialLayout);
+            }
         }
-        subpass.inputAttachmentCount = static_cast<uint32_t>(subpassInputs[i].size());
-        subpass.pInputAttachments = subpassInputs[i].data();
-
-        for (const auto& color : subpassDesc.colors) {
-            subpassColors[i].emplace_back(VkAttachmentReference{color.index, imageLayout(color.layout)});
+        auto colorCount = subpassColors.empty() ? 0 : subpassColors.front().size();
+        if (colorCount) {
+            subpass.colorAttachmentCount = static_cast<uint32_t>(colorCount);
+            subpass.pColorAttachments = subpassColors.front().data();
         }
-        subpass.colorAttachmentCount = static_cast<uint32_t>(subpassColors[i].size());
-        subpass.pColorAttachments = subpassColors[i].data();
-
-        for (const auto& ds : subpassDesc.depthStencil) {
-            subpassDepthStencil[i].emplace_back(VkAttachmentReference{ds.index, imageLayout(ds.layout)});
+        auto dsCount = subpassDepthStencil.empty() ? 0 : subpassDepthStencil.size();
+        if (dsCount) {
+            subpass.pDepthStencilAttachment = subpassDepthStencil.front().data();
         }
-        subpass.pDepthStencilAttachment = subpassDepthStencil[i].data();
+    } else {
+        for (size_t i = 0; i < info.subpasses.size(); ++i) {
+            auto& subpass = subpasses[i];
+            const auto& subpassDesc = info.subpasses[i];
+            subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
 
-        for (const auto& resolve : subpassDesc.resolves) {
-            subpassResolves[i].emplace_back(VkAttachmentReference{resolve.index, imageLayout(resolve.layout)});
-        }
-        subpass.pResolveAttachments = subpassResolves[i].data();
+            for (const auto& input : subpassDesc.inputs) {
+                subpassInputs[i].emplace_back(VkAttachmentReference{input.index, imageLayout(input.layout)});
+            }
+            subpass.inputAttachmentCount = static_cast<uint32_t>(subpassInputs[i].size());
+            subpass.pInputAttachments = subpassInputs[i].data();
 
-        subpass.preserveAttachmentCount = static_cast<uint32_t>(subpassDesc.preserves.size());
-        subpass.pPreserveAttachments = subpassDesc.preserves.data();
+            for (const auto& color : subpassDesc.colors) {
+                subpassColors[i].emplace_back(VkAttachmentReference{color.index, imageLayout(color.layout)});
+            }
+            subpass.colorAttachmentCount = static_cast<uint32_t>(subpassColors[i].size());
+            subpass.pColorAttachments = subpassColors[i].data();
+
+            for (const auto& ds : subpassDesc.depthStencil) {
+                subpassDepthStencil[i].emplace_back(VkAttachmentReference{ds.index, imageLayout(ds.layout)});
+            }
+            subpass.pDepthStencilAttachment = subpassDepthStencil[i].data();
+
+            for (const auto& resolve : subpassDesc.resolves) {
+                subpassResolves[i].emplace_back(VkAttachmentReference{resolve.index, imageLayout(resolve.layout)});
+            }
+            subpass.pResolveAttachments = subpassResolves[i].data();
+
+            subpass.preserveAttachmentCount = static_cast<uint32_t>(subpassDesc.preserves.size());
+            subpass.pPreserveAttachments = subpassDesc.preserves.data();
+        } 
     }
+    
     createInfo.subpassCount = static_cast<uint32_t>(subpasses.size());
     createInfo.pSubpasses = subpasses.data();
 

@@ -13,6 +13,8 @@
 #include "utils/log.h"
 #include "VKImage.h"
 #include "VKImageView.h"
+#include "VKFrameBuffer.h"
+#include "VKPipelineLayout.h"
 namespace raum::rhi {
 
 static constexpr bool enableValidationLayer{true};
@@ -312,6 +314,14 @@ RHISampler* Device::getSampler(const SamplerInfo& info) {
 
 RHIRenderPass* Device::createRenderPass(const RenderPassInfo& info) {
     return new RenderPass(info, this);
+}
+
+RHIFrameBuffer* Device::createFrameBuffer(const FrameBufferInfo& info) {
+    return new FrameBuffer(info, this);
+}
+
+RHIPipelineLayout* Device::createPipelineLayout(const PipelineLayoutInfo& info) {
+    return new PipelineLayout(info, this);
 }
 
 Device* loadRHI() {

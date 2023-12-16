@@ -30,6 +30,8 @@ public:
     RHIDescriptorSetLayout *createDescriptorSetLayout(const DescriptorSetLayoutInfo &) override;
     RHIGraphicsPipeline *createGraphicsPipeline(const GraphicsPipelineInfo &) override;
     RHIRenderPass *createRenderPass(const RenderPassInfo &) override;
+    RHIFrameBuffer *createFrameBuffer(const FrameBufferInfo &) override;
+    RHIPipelineLayout *createPipelineLayout(const PipelineLayoutInfo &) override;
 
 private:
     Device();

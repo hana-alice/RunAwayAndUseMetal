@@ -11,7 +11,7 @@ public:
     }
 
 protected:
-    const RenderPassInfo& _info;
+    const RenderPassInfo _info;
     virtual ~RHIRenderPass() = 0;
 };
 

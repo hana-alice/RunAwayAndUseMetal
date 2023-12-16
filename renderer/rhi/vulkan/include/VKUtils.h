@@ -98,6 +98,10 @@ Format mapSwapchainFormat(VkFormat format);
 
 VkCommandBufferUsageFlags commandBufferUsage(CommandBuferUsageFlag flag);
 
+bool isDepthStencil(Format format);
+
+VkPrimitiveTopology primitiveTopology(PrimitiveType primitiveType);
+
 } // namespace rhi
 
 } // namespace raum

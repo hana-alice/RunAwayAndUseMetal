@@ -18,9 +18,6 @@ VmaAllocationCreateInfo mapCreateInfo(MemoryUsage usage, bool map = false) {
     switch (usage) {
         case MemoryUsage::HOST_VISIBLE:
             info.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
-            if (map) {
-                info.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT;
-            }
             break;
         case MemoryUsage::DEVICE_ONLY:
             info.usage = VMA_MEMORY_USAGE_AUTO;
@@ -34,6 +31,9 @@ VmaAllocationCreateInfo mapCreateInfo(MemoryUsage usage, bool map = false) {
             info.usage = VMA_MEMORY_USAGE_GPU_LAZILY_ALLOCATED;
             break;
     };
+    if (map) {
+        info.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT;
+    }
     return info;
 }
 

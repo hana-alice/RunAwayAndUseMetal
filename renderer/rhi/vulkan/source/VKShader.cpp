@@ -37,7 +37,7 @@ Shader::Shader(const ShaderSourceInfo& shaderInfo, RHIDevice* device)
 
     VkShaderModuleCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-    createInfo.codeSize = result.end() - result.begin();
+    createInfo.codeSize = (result.end() - result.begin())*4;
     createInfo.pCode = reinterpret_cast<const uint32_t*>(result.cbegin());
     VkResult res = vkCreateShaderModule(_device->device(), &createInfo, nullptr, &_shaderModule);
 

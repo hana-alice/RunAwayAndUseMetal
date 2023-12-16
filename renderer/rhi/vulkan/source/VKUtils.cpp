@@ -903,6 +903,23 @@ VkCommandBufferUsageFlags commandBufferUsage(CommandBuferUsageFlag flag) {
     return res;
 }
 
+bool isDepthStencil(Format format) {
+    bool res = false;
+    switch (format) {
+        case Format::D16_UNORM:
+        case Format::D16_UNORM_S8_UINT:
+        case Format::D24_UNORM_S8_UINT:
+        case Format::D32_SFLOAT:
+        case Format::D32_SFLOAT_S8_UINT:
+        case Format::X8_D24_UNORM_PACK32:
+        case Format::S8_UINT:
+            res = true;
+        default:
+            break;
+    }
+    return res;
+}
+
 namespace {
 enum class FormatType {
     COLOR_UINT,
@@ -1107,6 +1124,28 @@ Format mapSwapchainFormat(VkFormat format) {
             break;
         default:
             RAUM_ERROR("Unrecorded swapchain color found");
+    }
+    return res;
+}
+
+VkPrimitiveTopology primitiveTopology(PrimitiveType primitiveType) {
+    VkPrimitiveTopology res = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+    switch (primitiveType) {
+        case PrimitiveType::POINT_LIST:
+            res = VK_PRIMITIVE_TOPOLOGY_POINT_LIST;
+            break;
+        case PrimitiveType::LINE_LIST:
+            res = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
+            break;
+        case PrimitiveType::LINE_STRIP:
+            res = VK_PRIMITIVE_TOPOLOGY_LINE_STRIP;
+            break;
+        case PrimitiveType::TRIANGLE_LIST:
+            res = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+            break;
+        case PrimitiveType::TRIANGLE_STRIP:
+            res = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
+            break;
     }
     return res;
 }

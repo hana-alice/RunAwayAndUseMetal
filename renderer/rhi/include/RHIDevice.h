@@ -11,6 +11,7 @@
 #include "RHISampler.h"
 #include "RHIShader.h"
 #include "RHISwapchain.h"
+#include "RHIFrameBuffer.h"
 namespace raum::rhi {
 
 class RHIDevice {
@@ -26,8 +27,10 @@ public:
     virtual RHIShader* createShader(const ShaderSourceInfo&) = 0;
     virtual RHIDescriptorSet* createDescriptorSet(const DescriptorSetInfo&) = 0;
     virtual RHIDescriptorSetLayout* createDescriptorSetLayout(const DescriptorSetLayoutInfo&) = 0;
+    virtual RHIPipelineLayout* createPipelineLayout(const PipelineLayoutInfo&) = 0;
     virtual RHIGraphicsPipeline* createGraphicsPipeline(const GraphicsPipelineInfo&) = 0;
     virtual RHIRenderPass* createRenderPass(const RenderPassInfo&) = 0;
+    virtual RHIFrameBuffer* createFrameBuffer(const FrameBufferInfo&) = 0;
 
 protected:
     virtual ~RHIDevice() = 0;

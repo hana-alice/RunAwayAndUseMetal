@@ -127,7 +127,8 @@ void RenderEncoder::bindIndexBuffer(RHIBuffer* buffer, uint32_t offset, IndexTyp
 void RenderEncoder::bindVertexBuffer(RHIBuffer* buffer, uint32_t index) {
     auto* kBuffer = static_cast<Buffer*>(buffer);
     VkBuffer buff = kBuffer->buffer();
-    vkCmdBindVertexBuffers(_commandBuffer->commandBuffer(), 0, 1, &buff, 0);
+    VkDeviceSize offset = 0;
+    vkCmdBindVertexBuffers(_commandBuffer->commandBuffer(), 0, 1, &buff, &offset);
 }
 
 void RenderEncoder::draw(uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t firstInstance) {

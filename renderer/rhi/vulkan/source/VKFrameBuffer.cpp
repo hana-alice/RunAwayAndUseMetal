@@ -7,6 +7,7 @@ namespace raum::rhi {
 FrameBuffer::FrameBuffer(const FrameBufferInfo& info, RHIDevice* device)
 : RHIFrameBuffer(info, device), _device(static_cast<Device*>(device)) {
     VkFramebufferCreateInfo createInfo{};
+    createInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
     createInfo.width = info.width;
     createInfo.height = info.height;
     createInfo.layers = info.layers;

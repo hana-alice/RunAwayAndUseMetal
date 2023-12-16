@@ -12,6 +12,7 @@ public:
     bool aquire() override;
     void present() override;
     RHIImageView* swapchainImageView() const override;
+    uint32_t imageCount() const override;
 
 private:
     Swapchain(const SwapchainInfo& info, Device* device);
