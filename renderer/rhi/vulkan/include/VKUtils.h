@@ -96,6 +96,8 @@ VkIndexType indexType(IndexType indexType);
 
 Format mapSwapchainFormat(VkFormat format);
 
+VkCommandBufferUsageFlags commandBufferUsage(CommandBuferUsageFlag flag);
+
 } // namespace rhi
 
 } // namespace raum

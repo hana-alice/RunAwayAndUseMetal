@@ -7,9 +7,10 @@ class RHIQueue {
 public:
     explicit RHIQueue(const QueueInfo&, RHIDevice*) {}
 
-    virtual RHICommandBuffer* makeCommandBuffer() = 0;
+    virtual RHICommandBuffer* makeCommandBuffer(const CommandBufferInfo& info) = 0;
     virtual void submit() = 0;
     virtual void enqueue(RHICommandBuffer*) = 0;
+    virtual uint32_t index() const = 0;
     //virtual void executeCommandBuffers(RHICommandBuffer* cmdBUffers, uint32_t count) = 0;
 
 protected:

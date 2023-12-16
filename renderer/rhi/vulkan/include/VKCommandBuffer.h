@@ -1,9 +1,10 @@
 #pragma once
 #include "RHICommandBuffer.h"
 #include "VKDefine.h"
+#include "RHIDevice.h"
 namespace raum::rhi {
 class Device;
-
+class Queue;
 class CommandBuffer : public RHICommandBuffer {
 public:
     enum class CommandBufferStatus : uint8_t {
@@ -14,14 +15,18 @@ public:
         COMITTED,
     };
 
-    explicit CommandBuffer(const CommandBufferInfo& info, RHIDevice* device);
+    explicit CommandBuffer(const CommandBufferInfo& info, RHIQueue* queue, RHIDevice* device);
 
     RHIRenderEncoder* makeRenderEncoder() override;
     RHIBlitEncoder* makeBlitEncoder() override;
     RHIComputeEncoder* makeComputeEncoder() override;
+    void begin(const CommandBufferBeginInfo& info) override;
     void enqueue() override;
     void commit() override;
     void reset() override;
+    void appendImageBarrier(const ImageBarrierInfo& info) override;
+    void appendBufferBarrier(const BufferBarrierInfo& info) override;
+    void applyBarrier(DependencyFlags flags) override;
 
     CommandBufferType type() const { return _info.type; }
 
@@ -33,7 +38,10 @@ private:
     bool _enqueued{false};
     CommandBufferStatus _status{CommandBufferStatus::AVAILABLE};
     Device* _device{nullptr};
+    Queue* _queue{nullptr};
     CommandBufferInfo _info;
+    std::vector<ImageBarrierInfo> _imageBarriers;
+    std::vector<BufferBarrierInfo> _bufferBarriers;
 
     VkCommandBuffer _commandBuffer;
 };

@@ -441,7 +441,7 @@ VkDescriptorType descriptorType(DescriptorType type) {
 }
 
 VkShaderStageFlags shaderStageFlags(ShaderStage stage) {
-    VkShaderStageFlags res;
+    VkShaderStageFlags res{0};
     if (test(stage, ShaderStage::VERTEX)) {
         res = VK_SHADER_STAGE_VERTEX_BIT;
     }
@@ -554,7 +554,7 @@ VkImageLayout imageLayout(ImageLayout layout) {
 }
 
 VkPipelineStageFlags pipelineStageFlags(PipelineStage stage) {
-    VkPipelineStageFlags res;
+    VkPipelineStageFlags res{0};
     switch (stage) {
         case PipelineStage::TOP_OF_PIPE:
             res = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
@@ -660,7 +660,7 @@ VkAccessFlags accessFlags(AccessFlags flags) {
 }
 
 VkDependencyFlags dependencyFlags(DependencyFlags flags) {
-    VkDependencyFlags res;
+    VkDependencyFlags res{0};
     if (test(flags, DependencyFlags::BY_REGION)) {
         res |= VK_DEPENDENCY_BY_REGION_BIT;
     }
@@ -693,7 +693,7 @@ VkImageType imageType(ImageType type) {
 }
 
 VkImageCreateFlags imageFlag(ImageFlag flag) {
-    VkImageCreateFlags res;
+    VkImageCreateFlags res{0};
     if (test(flag, ImageFlag::SPARSE_BINDING)) {
         res |= VK_IMAGE_CREATE_SPARSE_BINDING_BIT;
     }
@@ -713,7 +713,7 @@ VkImageCreateFlags imageFlag(ImageFlag flag) {
 }
 
 VkImageUsageFlags imageUsage(ImageUsage usage) {
-    VkImageUsageFlags res;
+    VkImageUsageFlags res{0};
     if (test(usage, ImageUsage::SAMPLED)) {
         res |= VK_IMAGE_USAGE_SAMPLED_BIT;
     }
@@ -748,7 +748,7 @@ VkImageUsageFlags imageUsage(ImageUsage usage) {
 }
 
 VkSharingMode sharingMode(SharingMode mode) {
-    VkSharingMode sharingMode;
+    VkSharingMode sharingMode{VK_SHARING_MODE_EXCLUSIVE};
     switch (mode) {
         case SharingMode::CONCURRENT:
             sharingMode = VK_SHARING_MODE_CONCURRENT;
@@ -761,7 +761,7 @@ VkSharingMode sharingMode(SharingMode mode) {
 }
 
 VkBufferCreateFlags bufferFlag(BufferFlag flag) {
-    VkBufferCreateFlags res;
+    VkBufferCreateFlags res{0};
     if (test(flag, BufferFlag::SPARSE_BINDING)) {
         res |= VK_BUFFER_CREATE_SPARSE_BINDING_BIT;
     }
@@ -887,6 +887,20 @@ VkStencilFaceFlags stencilFaceFlags(FaceMode faceMode) {
 
 VkIndexType indexType(IndexType indexType) {
     return indexType == IndexType::HALF ? VK_INDEX_TYPE_UINT16 : VK_INDEX_TYPE_UINT32;
+}
+
+VkCommandBufferUsageFlags commandBufferUsage(CommandBuferUsageFlag flag) {
+    VkCommandBufferUsageFlags res{0};
+    if (test(flag, CommandBuferUsageFlag::ONE_TIME_SUBMIT)) {
+        res |= VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    }
+    if (test(flag, CommandBuferUsageFlag::RENDER_PASS_CONTINUE)) {
+        res |= VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT;
+    }
+    if (test(flag, CommandBuferUsageFlag::SIMULTANEOUS_USE)) {
+        res |= VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
+    }
+    return res;
 }
 
 namespace {

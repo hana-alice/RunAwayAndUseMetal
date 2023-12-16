@@ -2,7 +2,7 @@
 #include "RHIDefine.h"
 
 namespace raum::rhi {
-class RHIDevice;
+class RHIQueue;
 class RHIRenderEncoder;
 class RHIBlitEncoder;
 class RHIComputeEncoder;
@@ -14,6 +14,8 @@ public:
     virtual RHIBlitEncoder* makeBlitEncoder() = 0;
     virtual RHIComputeEncoder* makeComputeEncoder() = 0;
 
+    virtual void begin(const CommandBufferBeginInfo&) = 0;
+
     // add to queue to hold place in order
     virtual void enqueue() = 0;
 
@@ -23,8 +25,14 @@ public:
     // reuse
     virtual void reset() = 0;
 
+    virtual void appendImageBarrier(const ImageBarrierInfo&) = 0;
+
+    virtual void appendBufferBarrier(const BufferBarrierInfo&) = 0;
+
+    virtual void applyBarrier(DependencyFlags flags) = 0;
+
 protected:
-    explicit RHICommandBuffer(const CommandBufferInfo& info, RHIDevice* device) {}
+    explicit RHICommandBuffer(const CommandBufferInfo& info, RHIQueue* queue) {}
 };
 
 inline RHICommandBuffer::~RHICommandBuffer() {}

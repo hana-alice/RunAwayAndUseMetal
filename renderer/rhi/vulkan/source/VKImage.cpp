@@ -2,6 +2,7 @@
 #include "VKUtils.h"
 #include "VKDevice.h"
 namespace raum::rhi {
+
 Image::Image(const ImageInfo& info, RHIDevice* device)
 : RHIImage(info, device), _device(static_cast<Device*>(device)) {
     VkImageCreateInfo createInfo{};
@@ -35,8 +36,14 @@ Image::Image(const ImageInfo& info, RHIDevice* device)
     RAUM_ERROR_IF(res != VK_SUCCESS, "Failed to create image.");
 }
 
+Image::Image(const ImageInfo& imgInfo, RHIDevice* device, VkImage image)
+: RHIImage(imgInfo, device), _swapchain(true), _image(image) {
+}
+
 Image::~Image() {
-    vmaDestroyImage(_device->allocator(), _image, _allocation);
+    if (!_swapchain) {
+        vmaDestroyImage(_device->allocator(), _image, _allocation);
+    }
 }
 
 }

@@ -11,6 +11,8 @@
 #include "VKSwapchain.h"
 #include "VKUtils.h"
 #include "utils/log.h"
+#include "VKImage.h"
+#include "VKImageView.h"
 namespace raum::rhi {
 
 static constexpr bool enableValidationLayer{true};
@@ -277,11 +279,11 @@ RHIBuffer* Device::createBuffer(const BufferSourceInfo& info) {
 }
 
 RHIImage* Device::createImage(const ImageInfo& info) {
-    return nullptr;
+    return new Image(info, this);
 }
 
 RHIImageView* Device::createImageView(const ImageViewInfo& info) {
-    return nullptr;
+    return new ImageView(info, this);
 }
 
 RHIDescriptorSet* Device::createDescriptorSet(const DescriptorSetInfo& info) {

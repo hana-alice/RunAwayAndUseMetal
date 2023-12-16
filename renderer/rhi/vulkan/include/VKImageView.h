@@ -14,12 +14,13 @@ public:
     ImageView(const ImageView&) = delete;
     ImageView& operator=(const ImageView&) = delete;
 
+    RHIImage* image() const override { return _info.image; }
+
     ~ImageView();
 
     VkImageView imageView() const { return _imageView; }
 
 private:
-    explicit ImageView(const ImageViewInfo& info, RHIDevice* device, VkImage image);
 
     VkImageView _imageView;
     Device* _device{nullptr};

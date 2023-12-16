@@ -1,9 +1,9 @@
 #include "VKQueue.h"
 #include <optional>
 #include <vector>
+#include "VKCommandBuffer.h"
 #include "VKDevice.h"
 #include "log.h"
-#include "VKCommandBuffer.h"
 namespace raum::rhi {
 Queue::Queue(const QueueInfo& info, Device* device)
 : RHIQueue(info, device), _device(static_cast<Device*>(device)) {
@@ -42,10 +42,9 @@ Queue::~Queue() {
     vkDestroyCommandPool(_device->device(), _commandPool, nullptr);
 }
 
-RHICommandBuffer* Queue::makeCommandBuffer() {
-    return nullptr;
+RHICommandBuffer* Queue::makeCommandBuffer(const CommandBufferInfo& info) {
+    return new CommandBuffer(info, this, _device);
 }
-
 
 void Queue::initPresentQueue(uint32_t presentCount) {
     _presentSemaphores.resize(presentCount);
@@ -74,7 +73,6 @@ void Queue::initCommandQueue() {
     for (auto& fence : _frameFence) {
         VkFenceCreateInfo info{};
         info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-        info.flags = VK_FENCE_CREATE_SIGNALED_BIT;
         vkCreateFence(_device->device(), &info, nullptr, &fence);
     }
 }
@@ -112,6 +110,7 @@ void Queue::submit() {
     vkResetFences(_device->device(), 1, &_frameFence[_currFrameIndex]);
 
     _currFrameIndex = (_currFrameIndex + 1) % FRAMES_IN_FLIGHT;
+    _commandBuffers.clear();
 }
 
 VkSemaphore Queue::presentSemaphore() {

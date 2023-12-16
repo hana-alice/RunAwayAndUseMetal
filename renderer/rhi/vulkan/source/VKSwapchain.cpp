@@ -10,6 +10,7 @@
 #include "VKUtils.h"
 #include "log.h"
 #include "VKImageView.h"
+#include "VKImage.h"
 
 namespace raum::rhi {
 Swapchain::Swapchain(const SwapchainInfo& info, Device* device)
@@ -113,13 +114,24 @@ Swapchain::Swapchain(const SwapchainInfo& info, Device* device)
     RAUM_CRITICAL_IF(res != VK_SUCCESS, "failed to create swapchain");
 
     vkGetSwapchainImagesKHR(device->device(), _swapchain, &imageCount, nullptr);
-    _swapchainImages.resize(imageCount);
-    vkGetSwapchainImagesKHR(device->device(), _swapchain, &imageCount, _swapchainImages.data());
+    std::vector<VkImage> scImage(imageCount);
+    vkGetSwapchainImagesKHR(device->device(), _swapchain, &imageCount, scImage.data());
 
-    for (auto img : _swapchainImages) {
+    for (auto img : scImage) {
+        ImageInfo imageInfo{};
+        imageInfo.type = ImageType::IMAGE_2D;
+        imageInfo.format = mapSwapchainFormat(_preferredFormat);
+        imageInfo.usage = ImageUsage::COLOR_ATTACHMENT | ImageUsage::TRANSFER_DST;
+        imageInfo.intialLayout = ImageLayout::UNDEFINED;
+        imageInfo.sliceCount = 1;
+        imageInfo.mipCount = 1;
+        imageInfo.sampleCount = 1;
+        imageInfo.extent = {info.width, info.height, 1};
+        auto* kImage = _swapchainImages.emplace_back(static_cast<Image*>(new Image(imageInfo, _device, img)));
+
         ImageViewInfo imageViewInfo{};
         imageViewInfo.format = mapSwapchainFormat(_preferredFormat);
-        imageViewInfo.image = nullptr;
+        imageViewInfo.image = kImage;
         imageViewInfo.range = Range{
             AspectMask::COLOR,
             info.width,
@@ -127,7 +139,7 @@ Swapchain::Swapchain(const SwapchainInfo& info, Device* device)
             0, 1, 0, 1,
         };
         imageViewInfo.type = ImageViewType::IMAGE_VIEW_2D;
-        _swapchainImageViews.emplace_back(new ImageView(imageViewInfo, _device, img));
+        _swapchainImageViews.emplace_back(static_cast<ImageView*>(_device->createImageView(imageViewInfo)));
     }
 #else
     #pragma error Run Away

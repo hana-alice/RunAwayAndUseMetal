@@ -8,11 +8,11 @@ class Swapchain;
 class CommandBuffer;
 class Queue : public RHIQueue {
 public:
-    uint32_t index() { return _index; }
+    uint32_t index() const override { return _index; }
 
     VkCommandPool commandPool() { return _commandPool; }
 
-    RHICommandBuffer* makeCommandBuffer() override;
+    RHICommandBuffer* makeCommandBuffer(const CommandBufferInfo&) override;
 
     void submit() override;
 

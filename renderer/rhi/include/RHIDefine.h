@@ -775,7 +775,6 @@ enum class CommandBufferType : uint8_t {
 };
 
 struct CommandBufferInfo {
-    RHIQueue* queue{nullptr};
     CommandBufferType type{CommandBufferType::PRIMARY};
 };
 
@@ -844,5 +843,41 @@ struct RenderPassBeginInfo {
     Rect2D renderArea;
     ClearColor* clearColors;
 };
+
+struct ImageBarrierInfo {
+    RHIImage* image{nullptr};
+    PipelineStage srcStage{PipelineStage::TOP_OF_PIPE};
+    PipelineStage dstStage{PipelineStage::BOTTOM_OF_PIPE};
+    ImageLayout oldLayout{ImageLayout::UNDEFINED};
+    ImageLayout newLayout{ImageLayout::UNDEFINED};
+    AccessFlags srcAccessFlag{AccessFlags::NONE};
+    AccessFlags dstAccessFlag{AccessFlags::NONE};
+    uint32_t srcQueueIndex{0};
+    uint32_t dstQueueIndex{0};
+    Range range;
+};
+
+struct BufferBarrierInfo {
+    RHIBuffer* buffer{nullptr};
+    PipelineStage srcStage{PipelineStage::TOP_OF_PIPE};
+    PipelineStage dstStage{PipelineStage::BOTTOM_OF_PIPE};
+    AccessFlags srcAccessFlag{AccessFlags::NONE};
+    AccessFlags dstAccessFlag{AccessFlags::NONE};
+    uint32_t srcQueueIndex{0};
+    uint32_t dstQueueIndex{0};
+    uint32_t offset{0};
+    uint32_t size{0};
+};
+
+enum class CommandBuferUsageFlag : uint8_t {
+    ONE_TIME_SUBMIT = 1,
+    RENDER_PASS_CONTINUE = 1 << 2,
+    SIMULTANEOUS_USE = 1 << 3,
+};
+
+struct CommandBufferBeginInfo {
+    CommandBuferUsageFlag flags{CommandBuferUsageFlag ::ONE_TIME_SUBMIT};
+};
+OPERABLE(CommandBuferUsageFlag)
 
 } // namespace raum::rhi
