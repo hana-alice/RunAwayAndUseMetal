@@ -163,6 +163,8 @@ void Swapchain::present() {
     presentInfo.pImageIndices = &_imageIndex;
     presentInfo.pResults = nullptr;
     vkQueuePresentKHR(_presentQueue->_vkQueue, &presentInfo);
+
+    _presentQueue->end();
 }
 
 Swapchain::~Swapchain() {

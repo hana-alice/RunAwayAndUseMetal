@@ -27,6 +27,7 @@ private:
 
     void initPresentQueue(uint32_t presentCount);
     void initCommandQueue();
+    void end();
 
     VkQueue _vkQueue;
     VkCommandPool _commandPool;

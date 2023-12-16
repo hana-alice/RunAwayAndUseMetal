@@ -109,8 +109,11 @@ void Queue::submit() {
     vkWaitForFences(_device->device(), 1, &lastFence, VK_TRUE, UINT64_MAX);
     vkResetFences(_device->device(), 1, &_frameFence[_currFrameIndex]);
 
-    _currFrameIndex = (_currFrameIndex + 1) % FRAMES_IN_FLIGHT;
     _commandBuffers.clear();
+}
+
+void Queue::end() {
+    _currFrameIndex = (_currFrameIndex + 1) % FRAMES_IN_FLIGHT;
 }
 
 VkSemaphore Queue::presentSemaphore() {
