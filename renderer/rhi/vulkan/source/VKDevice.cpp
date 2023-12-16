@@ -209,12 +209,13 @@ void Device::initDevice() {
 
     _physicalDevice = rankDevices(devices);
 
-    auto* queue = new Queue(QueueInfo{QueueType::GRAPHICS}, this);
-    _queues.emplace(QueueType::GRAPHICS, queue);
-    queue = new Queue(QueueInfo{QueueType::COMPUTE}, this);
+    // for further use
+    auto* queue = new Queue(QueueInfo{QueueType::COMPUTE}, this);
     _queues.emplace(QueueType::COMPUTE, queue);
     queue = new Queue(QueueInfo{QueueType::TRANSFER}, this);
     _queues.emplace(QueueType::TRANSFER, queue);
+    queue = new Queue(QueueInfo{QueueType::GRAPHICS}, this);
+    _queues.emplace(QueueType::GRAPHICS, queue);
 
     VkDeviceQueueCreateInfo queueInfo{};
     queueInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
@@ -255,6 +256,8 @@ void Device::initDevice() {
     allocInfo.instance = _instance;
     allocInfo.vulkanApiVersion = VK_API_VERSION_1_3;
     vmaCreateAllocator(&allocInfo, &_allocator);
+
+    queue->initCommandQueue();
 }
 
 RHIQueue* Device::getQueue(const QueueInfo& info) {

@@ -59,10 +59,10 @@ void RenderEncoder::bindPipeline(RHIGraphicsPipeline* pipeline) {
 
 void RenderEncoder::setViewport(const Viewport& viewport) {
     VkViewport vp{
-        viewport.rect.x, 
-        viewport.rect.y,
-        viewport.rect.w,
-        viewport.rect.h,
+        static_cast<float>(viewport.rect.x), 
+        static_cast<float>(viewport.rect.y),
+        static_cast<float>(viewport.rect.w),
+        static_cast<float>(viewport.rect.h),
         viewport.minDepth,
         viewport.maxDepth,
     };

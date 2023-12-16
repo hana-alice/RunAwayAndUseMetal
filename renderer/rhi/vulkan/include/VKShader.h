@@ -21,7 +21,6 @@ public:
 
 private:
     VkShaderModule _shaderModule;
-    static shaderc::Compiler shaderCompiler;
 
     Device* _device{nullptr};
     ShaderStage _stage;

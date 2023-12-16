@@ -7,7 +7,9 @@
 #endif
 #include "VKDevice.h"
 #include "VKQueue.h"
+#include "VKUtils.h"
 #include "log.h"
+#include "VKImageView.h"
 
 namespace raum::rhi {
 Swapchain::Swapchain(const SwapchainInfo& info, Device* device)
@@ -24,7 +26,8 @@ Swapchain::Swapchain(const SwapchainInfo& info, Device* device)
     VkBool32 support{false};
 
     auto* grfxQ = device->getQueue({QueueType::GRAPHICS});
-    auto qIndex = static_cast<Queue*>(grfxQ)->index();
+    _presentQueue = static_cast<Queue*>(grfxQ);
+    auto qIndex = _presentQueue->index();
     vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, qIndex, _surface, &support);
 
     RAUM_CRITICAL_IF(!support, "surface presentation not supported");
@@ -86,7 +89,7 @@ Swapchain::Swapchain(const SwapchainInfo& info, Device* device)
         imageCount = preferredSwapchainCount;
     }
 
-    static_cast<Queue*>(grfxQ)->initPresentQueue(imageCount);
+    _presentQueue->initPresentQueue(imageCount);
 
     VkSwapchainCreateInfoKHR createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
@@ -114,32 +117,52 @@ Swapchain::Swapchain(const SwapchainInfo& info, Device* device)
     vkGetSwapchainImagesKHR(device->device(), _swapchain, &imageCount, _swapchainImages.data());
 
     for (auto img : _swapchainImages) {
-        VkImageViewCreateInfo viewInfo{};
-        viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-        viewInfo.image = img;
-        viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-        viewInfo.format = preferred.format;
-        viewInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
-        viewInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-        viewInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
-        viewInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-        viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        viewInfo.subresourceRange.baseMipLevel = 0;
-        viewInfo.subresourceRange.levelCount = 1;
-        viewInfo.subresourceRange.baseArrayLayer = 0;
-        viewInfo.subresourceRange.layerCount = 1;
-        vkCreateImageView(device->device(), &viewInfo, nullptr, &_swapchainImageViews.emplace_back());
+        ImageViewInfo imageViewInfo{};
+        imageViewInfo.format = mapSwapchainFormat(_preferredFormat);
+        imageViewInfo.image = nullptr;
+        imageViewInfo.range = Range{
+            AspectMask::COLOR,
+            info.width,
+            info.height,
+            0, 1, 0, 1,
+        };
+        imageViewInfo.type = ImageViewType::IMAGE_VIEW_2D;
+        _swapchainImageViews.emplace_back(new ImageView(imageViewInfo, _device, img));
     }
 #else
     #pragma error Run Away
 #endif
 }
 
+bool Swapchain::aquire() {
+    VkSemaphore presentSemaphore = _presentQueue->presentSemaphore();
+    return vkAcquireNextImageKHR(_device->device(), _swapchain, UINT64_MAX, presentSemaphore, VK_NULL_HANDLE, &_imageIndex) == VK_SUCCESS;
+}
+
+void Swapchain::present() {
+    VkSemaphore renderSemaphore = _presentQueue->renderSemaphore();
+
+    VkPresentInfoKHR presentInfo{};
+    presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+    presentInfo.waitSemaphoreCount = 1;
+    presentInfo.pWaitSemaphores = &renderSemaphore;
+    presentInfo.swapchainCount = 1;
+    presentInfo.pSwapchains = &_swapchain;
+    presentInfo.pImageIndices = &_imageIndex;
+    presentInfo.pResults = nullptr;
+    vkQueuePresentKHR(_presentQueue->_vkQueue, &presentInfo);
+}
+
 Swapchain::~Swapchain() {
     for (auto imgView : _swapchainImageViews) {
-        vkDestroyImageView(_device->device(), imgView, nullptr);
+        delete imgView;
     }
     vkDestroySwapchainKHR(_device->device(), _swapchain, nullptr);
     vkDestroySurfaceKHR(_device->instance(), _surface, nullptr);
 }
+
+RHIImageView* Swapchain::swapchainImageView() const {
+    return _swapchainImageViews[_imageIndex];
+}
+
 } // namespace raum::rhi

@@ -28,16 +28,16 @@ const std::map<Format, FormatInfo> formatMap = {
     {Format::B8G8R8_UINT, {VK_FORMAT_B8G8R8_UINT, 3, 1}},
     {Format::B8G8R8_SINT, {VK_FORMAT_B8G8R8_SINT, 3, 1}},
     {Format::B8G8R8_SRGB, {VK_FORMAT_B8G8R8_SRGB, 3, 1}},
-    {Format::R8G8B8A8_UNORM, {VK_FORMAT_R8G8_UNORM, 4, 1}},
-    {Format::R8G8B8A8_SNORM, {VK_FORMAT_R8G8_SNORM, 4, 1}},
-    {Format::R8G8B8A8_UINT, {VK_FORMAT_R8G8_UINT, 4, 1}},
-    {Format::R8G8B8A8_SINT, {VK_FORMAT_R8G8_SINT, 4, 1}},
-    {Format::R8G8B8A8_SRGB, {VK_FORMAT_R8G8_SRGB, 4, 1}},
-    {Format::B8G8R8A8_UNORM, {VK_FORMAT_B8G8R8_UNORM, 4, 1}},
-    {Format::B8G8R8A8_SNORM, {VK_FORMAT_B8G8R8_SNORM, 4, 1}},
-    {Format::B8G8R8A8_UINT, {VK_FORMAT_B8G8R8_UINT, 4, 1}},
-    {Format::B8G8R8A8_SINT, {VK_FORMAT_B8G8R8_SINT, 4, 1}},
-    {Format::B8G8R8A8_SRGB, {VK_FORMAT_B8G8R8_SRGB, 4, 1}},
+    {Format::R8G8B8A8_UNORM, {VK_FORMAT_R8G8B8A8_UNORM, 4, 1}},
+    {Format::R8G8B8A8_SNORM, {VK_FORMAT_R8G8B8A8_SNORM, 4, 1}},
+    {Format::R8G8B8A8_UINT, {VK_FORMAT_R8G8B8A8_UINT, 4, 1}},
+    {Format::R8G8B8A8_SINT, {VK_FORMAT_R8G8B8A8_SINT, 4, 1}},
+    {Format::R8G8B8A8_SRGB, {VK_FORMAT_R8G8B8A8_SRGB, 4, 1}},
+    {Format::B8G8R8A8_UNORM, {VK_FORMAT_B8G8R8A8_UNORM, 4, 1}},
+    {Format::B8G8R8A8_SNORM, {VK_FORMAT_B8G8R8A8_SNORM, 4, 1}},
+    {Format::B8G8R8A8_UINT, {VK_FORMAT_B8G8R8A8_UINT, 4, 1}},
+    {Format::B8G8R8A8_SINT, {VK_FORMAT_B8G8R8A8_SINT, 4, 1}},
+    {Format::B8G8R8A8_SRGB, {VK_FORMAT_B8G8R8A8_SRGB, 4, 1}},
     {Format::R16_UNORM, {VK_FORMAT_R16_UNORM, 2, 1}},
     {Format::R16_SNORM, {VK_FORMAT_R16_SNORM, 2, 1}},
     {Format::R16_UINT, {VK_FORMAT_R16_UINT, 2, 1}},
@@ -1068,6 +1068,33 @@ void fillClearRect(std::vector<VkClearRect>& clearRects,
             rects[i].sliceCount,
         };
     }
+}
+
+Format mapSwapchainFormat(VkFormat format) {
+    Format res = Format::B8G8R8A8_SRGB;
+    switch (format) {
+        case VK_FORMAT_R8G8B8A8_UNORM:
+            res = Format::R8G8B8A8_UNORM;
+            break;
+        case VK_FORMAT_R8G8B8A8_SNORM:
+            res = Format::R8G8B8A8_SNORM;
+            break;
+        case VK_FORMAT_R8G8B8A8_SRGB:
+            res = Format::R8G8B8A8_SRGB;
+            break;
+        case VK_FORMAT_B8G8R8A8_UNORM:
+            res = Format::B8G8R8A8_UNORM;
+            break;
+        case VK_FORMAT_B8G8R8A8_SNORM:
+            res = Format::B8G8R8A8_SNORM;
+            break;
+        case VK_FORMAT_B8G8R8A8_SRGB:
+            res = Format::B8G8R8A8_SRGB;
+            break;
+        default:
+            RAUM_ERROR("Unrecorded swapchain color found");
+    }
+    return res;
 }
 
 } // namespace raum::rhi

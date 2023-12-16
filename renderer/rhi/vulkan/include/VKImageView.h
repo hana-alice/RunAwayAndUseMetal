@@ -5,6 +5,7 @@
 
 namespace raum::rhi {
 class Device;
+class Swapchain;
 class ImageView :public RHIImageView {
 public:
     explicit ImageView(const ImageViewInfo& info, RHIDevice* device);
@@ -18,7 +19,11 @@ public:
     VkImageView imageView() const { return _imageView; }
 
 private:
+    explicit ImageView(const ImageViewInfo& info, RHIDevice* device, VkImage image);
+
     VkImageView _imageView;
     Device* _device{nullptr};
+
+    friend class Swapchain;
 };
 } // namespace raum::rhi

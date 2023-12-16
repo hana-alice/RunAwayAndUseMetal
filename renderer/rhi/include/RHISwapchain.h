@@ -2,9 +2,15 @@
 #include "RHIDefine.h"
 namespace raum::rhi {
 class RHIDevice;
+class RHIImageView;
 class RHISwapchain {
 public:
     explicit RHISwapchain(const SwapchainInfo&, RHIDevice*) {}
+
+    virtual bool aquire() = 0;
+    virtual void present() = 0;
+
+    virtual RHIImageView* swapchainImageView() const = 0;
 
 protected:
     virtual ~RHISwapchain() = 0;

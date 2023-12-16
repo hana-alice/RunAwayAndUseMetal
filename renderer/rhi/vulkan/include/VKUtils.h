@@ -94,6 +94,8 @@ VkStencilFaceFlags stencilFaceFlags(FaceMode faceMode);
 
 VkIndexType indexType(IndexType indexType);
 
+Format mapSwapchainFormat(VkFormat format);
+
 } // namespace rhi
 
 } // namespace raum

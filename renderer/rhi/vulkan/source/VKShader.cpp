@@ -3,12 +3,12 @@
 #include "log.h"
 #include "shaderc/shaderc.h"
 namespace raum::rhi {
-shaderc::Compiler Shader::shaderCompiler{};
 Shader::Shader(const ShaderSourceInfo& shaderInfo, RHIDevice* device)
 : RHIShader(shaderInfo, device), _device(static_cast<Device*>(device)) {
     _stage = shaderInfo.stage.stage;
     DEBUG(_source = shaderInfo.stage.source;)
 
+    shaderc::Compiler shaderCompiler{};
     shaderc::CompileOptions options{};
     options.SetTargetEnvironment(shaderc_target_env_vulkan, shaderc_env_version_vulkan_1_3);
     options.SetTargetSpirv(shaderc_spirv_version_1_3);

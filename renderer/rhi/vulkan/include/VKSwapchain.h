@@ -5,8 +5,13 @@
 namespace raum::rhi {
 class Device;
 class ImageView;
+class Queue;
 class Swapchain : public RHISwapchain {
 public:
+    bool aquire() override;
+    void present() override;
+    RHIImageView* swapchainImageView() const override;
+
 private:
     Swapchain(const SwapchainInfo& info, Device* device);
     ~Swapchain();
@@ -14,11 +19,12 @@ private:
     VkSurfaceKHR _surface;
     VkSwapchainKHR _swapchain;
     std::vector<VkImage> _swapchainImages;
-    std::vector<VkImageView> _swapchainImageViews;
-
+    std::vector<ImageView*> _swapchainImageViews;
     VkFormat _preferredFormat;
-
     Device* _device{nullptr};
+    Queue* _presentQueue{nullptr};
+
+    uint32_t _imageIndex{0};
 
     friend class Device;
 };

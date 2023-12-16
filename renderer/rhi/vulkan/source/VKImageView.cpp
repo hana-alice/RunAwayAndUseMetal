@@ -6,6 +6,7 @@ namespace raum::rhi {
 ImageView::ImageView(const ImageViewInfo& info, RHIDevice* device)
     :RHIImageView(info, device), _device(static_cast<Device*>(device)) {
     VkImageViewCreateInfo createInfo{};
+    createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
     createInfo.image = static_cast<Image*>(info.image)->image();
     createInfo.viewType = viewType(info.type);
     createInfo.format = formatInfo(info.format).format;
@@ -13,7 +14,27 @@ ImageView::ImageView(const ImageViewInfo& info, RHIDevice* device)
     createInfo.components.g = componentSwizzle(info.componentMapping.g);
     createInfo.components.b = componentSwizzle(info.componentMapping.b);
     createInfo.components.a = componentSwizzle(info.componentMapping.a);
-    createInfo.subresourceRange.aspectMask = aspectMask(info.aspectMask);
+    createInfo.subresourceRange.aspectMask = aspectMask(info.range.aspect);
+    createInfo.subresourceRange.baseMipLevel = info.range.firstMip;
+    createInfo.subresourceRange.levelCount = info.range.mipCount;
+    createInfo.subresourceRange.baseArrayLayer = info.range.firstSlice;
+    createInfo.subresourceRange.layerCount = info.range.sliceCount;
+
+    vkCreateImageView(_device->device(), &createInfo, nullptr, &_imageView);
+}
+
+ImageView::ImageView(const ImageViewInfo& info, RHIDevice* device, VkImage image)
+: RHIImageView(info, device), _device(static_cast<Device*>(device)) {
+    VkImageViewCreateInfo createInfo{};
+    createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    createInfo.image = image;
+    createInfo.viewType = viewType(info.type);
+    createInfo.format = formatInfo(info.format).format;
+    createInfo.components.r = componentSwizzle(info.componentMapping.r);
+    createInfo.components.g = componentSwizzle(info.componentMapping.g);
+    createInfo.components.b = componentSwizzle(info.componentMapping.b);
+    createInfo.components.a = componentSwizzle(info.componentMapping.a);
+    createInfo.subresourceRange.aspectMask = aspectMask(info.range.aspect);
     createInfo.subresourceRange.baseMipLevel = info.range.firstMip;
     createInfo.subresourceRange.levelCount = info.range.mipCount;
     createInfo.subresourceRange.baseArrayLayer = info.range.firstSlice;

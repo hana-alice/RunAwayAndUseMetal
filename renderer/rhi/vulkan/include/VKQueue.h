@@ -4,7 +4,7 @@
 namespace raum::rhi {
 
 class Device;
-class Swapchain; // vs required: friend class must declared before first seen
+class Swapchain;
 class CommandBuffer;
 class Queue : public RHIQueue {
 public:
@@ -14,17 +14,19 @@ public:
 
     RHICommandBuffer* makeCommandBuffer() override;
 
-    //void executeCommandBuffers(RHICommandBuffer* cmdBUffers, uint32_t count) override;
-
     void submit() override;
 
     void enqueue(RHICommandBuffer* commandBuffer) override;
+
+    VkSemaphore presentSemaphore();
+    VkSemaphore renderSemaphore();
 
     ~Queue();
 private:
     Queue(const QueueInfo& info, Device* device);
 
     void initPresentQueue(uint32_t presentCount);
+    void initCommandQueue();
 
     VkQueue _vkQueue;
     VkCommandPool _commandPool;
@@ -35,7 +37,7 @@ private:
     Device* _device{nullptr};
 
     std::vector<CommandBuffer*> _commandBuffers;
-    std::vector<VkSemaphore> _commandBufferSemaphores;
+    std::vector<VkSemaphore> _renderingSemaphores;
     std::vector<VkSemaphore> _presentSemaphores;
     std::vector<VkFence> _frameFence;
 
