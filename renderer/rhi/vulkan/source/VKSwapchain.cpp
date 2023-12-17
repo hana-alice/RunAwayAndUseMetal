@@ -152,7 +152,7 @@ bool Swapchain::aquire() {
 }
 
 void Swapchain::present() {
-    VkSemaphore renderSemaphore = _presentQueue->renderSemaphore();
+    VkSemaphore renderSemaphore = _presentQueue->popCommandSemaphore();
 
     VkPresentInfoKHR presentInfo{};
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -163,8 +163,6 @@ void Swapchain::present() {
     presentInfo.pImageIndices = &_imageIndex;
     presentInfo.pResults = nullptr;
     vkQueuePresentKHR(_presentQueue->_vkQueue, &presentInfo);
-
-    _presentQueue->end();
 }
 
 Swapchain::~Swapchain() {

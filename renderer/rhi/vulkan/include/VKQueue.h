@@ -19,7 +19,7 @@ public:
     void enqueue(RHICommandBuffer* commandBuffer) override;
 
     VkSemaphore presentSemaphore();
-    VkSemaphore renderSemaphore();
+    VkSemaphore popCommandSemaphore();
 
     ~Queue();
 private:
@@ -27,7 +27,6 @@ private:
 
     void initPresentQueue(uint32_t presentCount);
     void initCommandQueue();
-    void end();
 
     VkQueue _vkQueue;
     VkCommandPool _commandPool;
@@ -38,9 +37,11 @@ private:
     Device* _device{nullptr};
 
     std::vector<CommandBuffer*> _commandBuffers;
-    std::vector<VkSemaphore> _renderingSemaphores;
+    std::vector<VkSemaphore> _commandSemaphores;
     std::vector<VkSemaphore> _presentSemaphores;
     std::vector<VkFence> _frameFence;
+
+    VkSemaphore _currCommandSemaphore;
 
     friend class Device;
     friend class Swapchain;

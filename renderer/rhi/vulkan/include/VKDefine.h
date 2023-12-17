@@ -7,4 +7,5 @@ struct FormatInfo {
     uint32_t size;
     uint32_t macroPixelCount;
 };
+
 } // namespace raum::rhi

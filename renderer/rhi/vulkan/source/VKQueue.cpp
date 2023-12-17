@@ -6,7 +6,9 @@
 #include "log.h"
 namespace raum::rhi {
 Queue::Queue(const QueueInfo& info, Device* device)
-: RHIQueue(info, device), _device(static_cast<Device*>(device)) {
+: RHIQueue(info, device), 
+    _device(static_cast<Device*>(device)), 
+    _currCommandSemaphore(VK_NULL_HANDLE){
     _info = info;
 
     uint32_t queueFamilyCount{0};
@@ -62,8 +64,8 @@ void Queue::initCommandQueue() {
     cmdPoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
     vkCreateCommandPool(_device->device(), &cmdPoolInfo, nullptr, &_commandPool);
 
-    _renderingSemaphores.resize(FRAMES_IN_FLIGHT);
-    for (auto& sem : _renderingSemaphores) {
+    _commandSemaphores.resize(FRAMES_IN_FLIGHT);
+    for (auto& sem : _commandSemaphores) {
         VkSemaphoreCreateInfo info{};
         info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
         vkCreateSemaphore(_device->device(), &info, nullptr, &sem);
@@ -101,7 +103,8 @@ void Queue::submit() {
         info.pWaitDstStageMask = &dstStage;
         info.commandBufferCount = static_cast<uint32_t>(_commandBuffers.size());
         info.signalSemaphoreCount = 1;
-        info.pSignalSemaphores = &_renderingSemaphores[_currFrameIndex];
+        info.pSignalSemaphores = &_commandSemaphores[_currFrameIndex];
+        _currCommandSemaphore = _commandSemaphores[_currFrameIndex];
     }
 
     VkFence lastFence = _frameFence[(_currFrameIndex - 1 + FRAMES_IN_FLIGHT) % FRAMES_IN_FLIGHT];
@@ -109,11 +112,8 @@ void Queue::submit() {
     vkWaitForFences(_device->device(), 1, &lastFence, VK_TRUE, UINT64_MAX);
     vkResetFences(_device->device(), 1, &_frameFence[_currFrameIndex]);
 
-    _commandBuffers.clear();
-}
-
-void Queue::end() {
     _currFrameIndex = (_currFrameIndex + 1) % FRAMES_IN_FLIGHT;
+    _commandBuffers.clear();
 }
 
 VkSemaphore Queue::presentSemaphore() {
@@ -123,10 +123,10 @@ VkSemaphore Queue::presentSemaphore() {
     return _presentSemaphores[_currFrameIndex % swapchainCount];
 }
 
-VkSemaphore Queue::renderSemaphore() {
-    RAUM_CRITICAL_IF(_presentSemaphores.empty(), "Trying to get a render semaphore while queue is not the presentation queue; or swapchain not init");
-
-    return _renderingSemaphores[_currFrameIndex % FRAMES_IN_FLIGHT];
+VkSemaphore Queue::popCommandSemaphore() {
+    VkSemaphore res = _currCommandSemaphore;
+    _currCommandSemaphore = VK_NULL_HANDLE;
+    return res;
 }
 
 } // namespace raum::rhi
