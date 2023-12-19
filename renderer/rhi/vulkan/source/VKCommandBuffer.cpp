@@ -37,7 +37,7 @@ RHIComputeEncoder* CommandBuffer::makeComputeEncoder() {
 }
 
 RHIBlitEncoder* CommandBuffer::makeBlitEncoder() {
-    return nullptr;
+    return new BlitEncoder(this);
 }
 
 void CommandBuffer::begin(const CommandBufferBeginInfo& info) {

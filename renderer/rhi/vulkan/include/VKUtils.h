@@ -90,6 +90,11 @@ void fillClearRect(std::vector<VkClearRect>& clearRects,
                    ClearRect* rects,
                    uint32_t count);
 
+void fillClearColors(std::vector<VkClearColorValue>& clearValues,
+                     ClearColor* colors,
+                     Format format);
+
+
 VkStencilFaceFlags stencilFaceFlags(FaceMode faceMode);
 
 VkIndexType indexType(IndexType indexType);
@@ -101,6 +106,10 @@ VkCommandBufferUsageFlags commandBufferUsage(CommandBuferUsageFlag flag);
 bool isDepthStencil(Format format);
 
 VkPrimitiveTopology primitiveTopology(PrimitiveType primitiveType);
+
+VkFilter mapFilter(Filter filter);
+
+FormatType formatType(Format format);
 
 } // namespace rhi
 

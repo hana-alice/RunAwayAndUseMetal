@@ -2,21 +2,22 @@
 
 #include <cstdlib>
 #include <iostream>
-#include "Model.hpp"
-#include "Triangle.hpp"
-#include "RHIManager.h"
-#include "RHICommandBuffer.h"
-#include "RHIImage.h"
-#include "RHIImageView.h"
-#include "RHIRenderEncoder.h"
-#include "RHIRenderPass.h"
-#include "RHIFrameBuffer.h"
 #include <map>
 #include <string>
+#include "Model.hpp"
+#include "RHIBlitEncoder.h"
 #include "RHIBuffer.h"
-#include "RHIPipelineLayout.h"
+#include "RHICommandBuffer.h"
+#include "RHIFrameBuffer.h"
 #include "RHIGraphicsPipeline.h"
+#include "RHIImage.h"
+#include "RHIImageView.h"
+#include "RHIManager.h"
+#include "RHIPipelineLayout.h"
+#include "RHIRenderEncoder.h"
+#include "RHIRenderPass.h"
 #include "RHIShader.h"
+#include "Triangle.hpp"
 namespace raum {
 using platform::NativeWindow;
 using namespace rhi;
@@ -43,6 +44,17 @@ void main () {
 }
 )";
 
+static float vertices[] = {
+    -0.5f, -0.5f, 0.5f,
+    0.5f, -0.5f, 0.5f,
+    0.0f, 0.5f, 0.5f};
+
+static uint32_t indices[] = {
+    0,
+    1,
+    2,
+};
+
 class Sample {
 public:
     Sample() {
@@ -51,7 +63,7 @@ public:
         _swaphchain = _device->createSwapchain(SwapchainInfo{width, height, SyncType::RELAX, _window->handle()});
         _window->registerPollEvents(std::bind(&Sample::render, this));
         _queue = _device->getQueue(QueueInfo{QueueType::GRAPHICS});
-        
+
         RenderPassInfo rpInfo{};
         AttachmentInfo attachmentInfo{};
         attachmentInfo.loadOp = LoadOp::CLEAR;
@@ -62,26 +74,16 @@ public:
         rpInfo.attachments.emplace_back(attachmentInfo);
         _renderpass = _device->createRenderPass(rpInfo);
 
-        float vertices[] = {
-            -0.5f, -0.5f, 0.5f,
-            0.5f, -0.5f, 0.5f,
-            0.0f, 0.5f, 0.5f
-        };
-        BufferSourceInfo vertInfo{};
-        vertInfo.bufferUsage = BufferUsage::VERTEX;
+        BufferInfo vertInfo{};
+        vertInfo.bufferUsage = BufferUsage::VERTEX | BufferUsage::TRANSFER_DST;
         vertInfo.memUsage = MemoryUsage::DEVICE_ONLY;
         vertInfo.size = sizeof(vertices);
-        vertInfo.data = vertices;
         _vertexBuffer = _device->createBuffer(vertInfo);
 
-        uint16_t indices[] = {
-            0, 1, 2,
-        };
-        BufferSourceInfo indexInfo{};
-        indexInfo.bufferUsage = BufferUsage::INDEX;
+        BufferInfo indexInfo{};
+        indexInfo.bufferUsage = BufferUsage::INDEX | BufferUsage::TRANSFER_DST;
         indexInfo.memUsage = MemoryUsage::DEVICE_ONLY;
         indexInfo.size = sizeof(indices);
-        indexInfo.data = indices;
         _indexBuffer = _device->createBuffer(indexInfo);
 
         ShaderSourceInfo vertShaderInfo{};
@@ -100,7 +102,7 @@ public:
         _pipelineLayout = _device->createPipelineLayout(layoutInfo);
 
         VertexLayout vertLayout{};
-        VertexAttribute attribute{0 , 0, Format::R32G32B32_SFLOAT, 0};
+        VertexAttribute attribute{0, 0, Format::R32G32B32_SFLOAT, 0};
         vertLayout.vertexAttrs.emplace_back(attribute);
         VertexBufferAttribute vertBufferAttribute{0, sizeof(vertices) / 3, InputRate::PER_VERTEX};
         vertLayout.vertexBufferAttrs.emplace_back(vertBufferAttribute);
@@ -118,7 +120,6 @@ public:
         pipelineInfo.colorBlendInfo = blendInfo;
         pipelineInfo.multisamplingInfo = msInfo;
         _pipeline = _device->createGraphicsPipeline(pipelineInfo);
-
     }
 
     ~Sample() {}
@@ -140,6 +141,26 @@ private:
         commandbuffer->reset();
 
         commandbuffer->begin({});
+
+        if (_firstFrame) {
+            std::shared_ptr<RHIBlitEncoder> blitEncoder(commandbuffer->makeBlitEncoder());
+            blitEncoder->updateBuffer(_vertexBuffer, 0, vertices, sizeof(vertices));
+            blitEncoder->updateBuffer(_indexBuffer, 0, indices, sizeof(indices));
+
+            BufferBarrierInfo bufferBarrierInfo{};
+            bufferBarrierInfo.buffer = _vertexBuffer;
+            bufferBarrierInfo.srcStage = PipelineStage::TRANSFER;
+            bufferBarrierInfo.dstStage = PipelineStage::VERTEX_INPUT;
+            bufferBarrierInfo.srcQueueIndex = _queue->index();
+            bufferBarrierInfo.dstQueueIndex = _queue->index();
+            bufferBarrierInfo.size = _vertexBuffer->info().size;
+            commandbuffer->appendBufferBarrier(bufferBarrierInfo);
+
+            bufferBarrierInfo.buffer = _indexBuffer;
+            bufferBarrierInfo.size = _indexBuffer->info().size;
+            commandbuffer->appendBufferBarrier(bufferBarrierInfo);
+            _firstFrame = false;
+        }
 
         ImageBarrierInfo imageBarrierInfo{};
         imageBarrierInfo.image = _swaphchain->swapchainImageView()->image();
@@ -183,7 +204,7 @@ private:
         encoder->setScissor({0, 0, frameBuffer->info().width, frameBuffer->info().height});
         encoder->bindPipeline(_pipeline);
         encoder->bindVertexBuffer(_vertexBuffer, 0);
-        encoder->bindIndexBuffer(_indexBuffer, 0, IndexType::HALF);
+        encoder->bindIndexBuffer(_indexBuffer, 0, IndexType::FULL);
         encoder->draw(3, 1, 0, 0);
         encoder->endRenderPass();
 
@@ -192,6 +213,8 @@ private:
         _queue->submit();
         _swaphchain->present();
     }
+
+    bool _firstFrame{true};
     std::shared_ptr<NativeWindow> _window;
     RHIDevice* _device;
     RHISwapchain* _swaphchain;

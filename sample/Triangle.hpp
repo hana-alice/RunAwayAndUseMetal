@@ -29,18 +29,18 @@ Triangle::Triangle(RHIDevice* device) :_device(device) {
         0, 1, 2,
     };
 
-    BufferSourceInfo vertexInfo{};
-    vertexInfo.bufferUsage = BufferUsage::VERTEX;
-    vertexInfo.data = &vertices[0];
-    vertexInfo.size = sizeof(vertices);
+    //BufferSourceInfo vertexInfo{};
+    //vertexInfo.bufferUsage = BufferUsage::VERTEX;
+    //vertexInfo.data = &vertices[0];
+    //vertexInfo.size = sizeof(vertices);
 
-    BufferSourceInfo indexInfo{};
-    indexInfo.bufferUsage = BufferUsage::INDEX;
-    indexInfo.data = &indices[0];
-    indexInfo.size = sizeof(indices);
+    //BufferSourceInfo indexInfo{};
+    //indexInfo.bufferUsage = BufferUsage::INDEX;
+    //indexInfo.data = &indices[0];
+    //indexInfo.size = sizeof(indices);
 
-    RHIBuffer* vertBuffer = device->createBuffer(vertexInfo);
-    RHIBuffer* indexBuffer = device->createBuffer(indexInfo);
+    //RHIBuffer* vertBuffer = device->createBuffer(vertexInfo);
+    //RHIBuffer* indexBuffer = device->createBuffer(indexInfo);
     // VertexBuffer vb(,);
 }
 Triangle::~Triangle() {

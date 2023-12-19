@@ -132,10 +132,8 @@ Swapchain::Swapchain(const SwapchainInfo& info, Device* device)
         ImageViewInfo imageViewInfo{};
         imageViewInfo.format = mapSwapchainFormat(_preferredFormat);
         imageViewInfo.image = kImage;
-        imageViewInfo.range = Range{
+        imageViewInfo.range = ImageSubresourceRange{
             AspectMask::COLOR,
-            info.width,
-            info.height,
             0, 1, 0, 1,
         };
         imageViewInfo.type = ImageViewType::IMAGE_VIEW_2D;

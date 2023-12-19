@@ -276,10 +276,6 @@ RHIBuffer* Device::createBuffer(const BufferInfo& info) {
     return new Buffer(info, this);
 }
 
-RHIBuffer* Device::createBuffer(const BufferSourceInfo& info) {
-    return new Buffer(info, this);
-}
-
 RHIImage* Device::createImage(const ImageInfo& info) {
     return new Image(info, this);
 }

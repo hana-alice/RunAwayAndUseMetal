@@ -13,7 +13,7 @@ std::underlying_type<MemoryUsage>::type operator&(MemoryUsage lhs, MemoryUsage r
     return static_cast<std::underlying_type<MemoryUsage>::type>(lhs) & static_cast<std::underlying_type<MemoryUsage>::type>(rhs);
 }
 // https://gpuopen-librariesandsdks.github.io/VulkanMemoryAllocator/html/usage_patterns.html
-VmaAllocationCreateInfo mapCreateInfo(MemoryUsage usage, bool map = false) {
+VmaAllocationCreateInfo mapCreateInfo(MemoryUsage usage) {
     VmaAllocationCreateInfo info{};
     switch (usage) {
         case MemoryUsage::HOST_VISIBLE:
@@ -31,37 +31,34 @@ VmaAllocationCreateInfo mapCreateInfo(MemoryUsage usage, bool map = false) {
             info.usage = VMA_MEMORY_USAGE_GPU_LAZILY_ALLOCATED;
             break;
     };
-    if (map) {
-        info.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT;
-    }
     return info;
 }
 
 VkBufferUsageFlags mapBufferUsage(BufferUsage usage) {
-    VkBufferUsageFlags flags;
-    if (usage & BufferUsage::VERTEX) {
+    VkBufferUsageFlags flags{0};
+    if (test(usage, BufferUsage::VERTEX)) {
         flags |= VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
     }
-    if (usage & BufferUsage::INDEX) {
+    if (test(usage, BufferUsage::INDEX)) {
         flags |= VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
     }
-    if (usage & BufferUsage::UNIFORM) {
+    if (test(usage, BufferUsage::UNIFORM)) {
         flags |= VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
     }
-    if (usage & BufferUsage::TRANSFER_SRC) {
+    if (test(usage, BufferUsage::TRANSFER_SRC)) {
         flags |= VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
     }
-    if (usage & BufferUsage::TRANSFER_DST) {
+    if (test(usage, BufferUsage::TRANSFER_DST)) {
         flags |= VK_BUFFER_USAGE_TRANSFER_DST_BIT;
     }
-    if (usage & BufferUsage::INDIRECT) {
+    if (test(usage, BufferUsage::INDIRECT)) {
         flags |= VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT;
     }
     return flags;
 };
 } // namespace
 
-Buffer::Buffer(const BufferSourceInfo& info, RHIDevice* device) : RHIBuffer(info, device), _device(static_cast<Device*>(device)) {
+Buffer::Buffer(const BufferInfo& info, RHIDevice* device) : RHIBuffer(info, device), _device(static_cast<Device*>(device)) {
     VkBufferCreateInfo bufferInfo{};
     bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     bufferInfo.size = info.size;
@@ -75,29 +72,69 @@ Buffer::Buffer(const BufferSourceInfo& info, RHIDevice* device) : RHIBuffer(info
         bufferInfo.pQueueFamilyIndices = info.queueAccess.data();
     }
 
-    VmaAllocationCreateInfo allocaInfo = mapCreateInfo(info.memUsage, true);
+    VmaAllocationCreateInfo allocaInfo = mapCreateInfo(info.memUsage);
 
     VmaAllocator& allocator = _device->allocator();
 
     VkResult res = vmaCreateBuffer(allocator, &bufferInfo, &allocaInfo, &_buffer, &_allocation, nullptr);
-
-    void* mappedData;
-    vmaMapMemory(allocator, _allocation, &mappedData);
-    memcpy(mappedData, info.data, info.size);
-    vmaUnmapMemory(allocator, _allocation);
-    vmaFlushAllocation(allocator, _allocation, 0, info.size);
-    vmaInvalidateAllocation(allocator, _allocation, 0, info.size);
-
     RAUM_ERROR_IF(res != VK_SUCCESS, "Failed to create buffer!");
-}
-Buffer::Buffer(const BufferInfo& info, RHIDevice* device) : RHIBuffer(info, device), _device(static_cast<Device*>(device)) {
 }
 
 Buffer::~Buffer() {
     vmaDestroyBuffer(_device->allocator(), _buffer, _allocation);
 }
 
-void Buffer::update(const void* data, uint32_t size, uint32_t offset) {
+StagingBuffer::StagingBuffer(VmaAllocator allocator) : _allocator(allocator) {
+    auto& chunk = _chunks.emplace_back();
+    chunk.size = CHUNK_SIZE;
+
+    VkBufferCreateInfo bufCreateInfo = {VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
+    bufCreateInfo.size = CHUNK_SIZE;
+    bufCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+
+    VmaAllocationCreateInfo allocCreateInfo = {};
+    allocCreateInfo.usage = VMA_MEMORY_USAGE_AUTO;
+    allocCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT |
+                            VMA_ALLOCATION_CREATE_MAPPED_BIT;
+
+    VmaAllocationInfo allocInfo;
+    vmaCreateBuffer(allocator, &bufCreateInfo, &allocCreateInfo, &chunk.buffer, &chunk.allocation, &allocInfo);
+}
+
+StagingInfo StagingBuffer::alloc(uint32_t size) {
+    auto* curChunk = &_chunks.back();
+    if (size + curChunk->offset > curChunk->size) {
+        curChunk = &_chunks.emplace_back();
+        VkBufferCreateInfo bufCreateInfo = {VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
+        bufCreateInfo.size = CHUNK_SIZE;
+        bufCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+
+        VmaAllocationCreateInfo allocCreateInfo = {};
+        allocCreateInfo.usage = VMA_MEMORY_USAGE_AUTO;
+        allocCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT |
+                                VMA_ALLOCATION_CREATE_MAPPED_BIT;
+
+        VmaAllocationInfo allocInfo;
+        vmaCreateBuffer(_allocator, &bufCreateInfo, &allocCreateInfo, &curChunk->buffer, &curChunk->allocation, &allocInfo);
+
+    }
+    StagingInfo info;
+    info.buffer = curChunk->buffer;
+    info.offset = curChunk->offset;
+    curChunk->offset += size;
+    return info;
+}
+
+void StagingBuffer::reset() {
+    for (auto& chunk : _chunks) {
+        chunk.offset = 0;
+    }
+}
+
+StagingBuffer::~StagingBuffer() {
+    for (auto& chunk : _chunks) {
+        vmaDestroyBuffer(_allocator, chunk.buffer, chunk.allocation);
+    }
 }
 
 } // namespace raum::rhi

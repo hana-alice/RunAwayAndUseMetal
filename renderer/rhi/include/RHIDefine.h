@@ -159,6 +159,16 @@ enum class Format : uint32_t {
     ASTC_6x5_UNORM_BLOCK,
 };
 
+enum class FormatType {
+    COLOR_UINT,
+    COLOR_INT,
+    COLOR_FLOAT,
+    COLOR_UNFILTER_FLOAT,
+    DEPTH,
+    STENCIL,
+    DEPTH_STENCIL,
+};
+
 enum class QueueType : uint8_t {
     GRAPHICS,
     COMPUTE,
@@ -305,6 +315,14 @@ struct Range {
     uint32_t mipCount{0};
 };
 
+struct ImageSubresourceRange{
+    AspectMask aspect{AspectMask::COLOR};
+    uint32_t firstSlice{0};
+    uint32_t sliceCount{0};
+    uint32_t firstMip{0};
+    uint32_t mipCount{0};
+};
+
 enum class ImageViewType : uint8_t {
     IMAGE_VIEW_1D,
     IMAGE_VIEW_2D,
@@ -335,7 +353,7 @@ struct ComponentMapping {
 struct ImageViewInfo {
     ImageViewType type{ImageViewType::IMAGE_VIEW_2D};
     RHIImage* image{nullptr};
-    Range range{};
+    ImageSubresourceRange range{};
     ComponentMapping componentMapping{};
     AspectMask aspectMask{AspectMask::COLOR};
     Format format{Format::UNKNOWN};
@@ -727,6 +745,7 @@ enum class BufferUsage : uint32_t {
     TRANSFER_SRC = 1 << 5,
     TRANSFER_DST = 1 << 6,
 };
+OPERABLE(BufferUsage)
 
 enum class BufferFlag : uint32_t {
     NONE = 0,
@@ -735,16 +754,6 @@ enum class BufferFlag : uint32_t {
     SPARSE_ALIASED = 1 << 2,
 };
 OPERABLE(BufferFlag)
-
-struct BufferSourceInfo {
-    MemoryUsage memUsage{MemoryUsage::DEVICE_ONLY};
-    SharingMode sharingMode{SharingMode::EXCLUSIVE};
-    BufferFlag flag{BufferFlag::NONE};
-    BufferUsage bufferUsage{BufferUsage::UNIFORM};
-    const void* data{nullptr};
-    uint32_t size{0};
-    std::vector<uint32_t> queueAccess{};
-};
 
 struct BufferInfo {
     MemoryUsage memUsage{MemoryUsage::DEVICE_ONLY};
@@ -787,6 +796,34 @@ struct BufferCopyRegion {
 
 struct ImageCopyRegion {
     AspectMask srcImageAspect{AspectMask::COLOR};
+    AspectMask dstImageAspect{AspectMask::COLOR};
+    Vector3U srcOffset;
+    Vector3U dstOffset;
+    Vector3U extent;
+    uint32_t srcBaseMip{0};
+    uint32_t srcFirstSlice{0};
+    uint32_t dstBaseMip{0};
+    uint32_t dstFirstSlice{0};
+    uint32_t sliceCount{0};
+};
+
+struct ImageBlit {
+    AspectMask srcImageAspect{AspectMask::COLOR};
+    AspectMask dstImageAspect{AspectMask::COLOR};
+    Vector3U srcOffset;
+    Vector3U dstOffset;
+    uint32_t srcBaseMip{0};
+    uint32_t srcFirstSlice{0};
+    uint32_t dstBaseMip{0};
+    uint32_t dstFirstSlice{0};
+    uint32_t sliceCount{0};
+    Vector3U srcExtent;
+    Vector3U dstExtent;
+};
+
+struct ImageResolve {
+    AspectMask srcImageAspect{AspectMask::COLOR};
+    AspectMask dstImageAspect{AspectMask::COLOR};
     Vector3U srcOffset;
     Vector3U dstOffset;
     uint32_t srcBaseMip{0};
@@ -799,6 +836,7 @@ struct ImageCopyRegion {
 
 struct BufferImageCopyRegion {
     uint32_t bufferSize{0};
+    uint32_t bufferOffset{0};
     uint32_t bufferRowLength{0};
     uint32_t bufferImageHeight{0};
     AspectMask imageAspect{AspectMask::COLOR};
@@ -855,7 +893,7 @@ struct ImageBarrierInfo {
     AccessFlags dstAccessFlag{AccessFlags::NONE};
     uint32_t srcQueueIndex{0};
     uint32_t dstQueueIndex{0};
-    Range range;
+    ImageSubresourceRange range;
 };
 
 struct BufferBarrierInfo {

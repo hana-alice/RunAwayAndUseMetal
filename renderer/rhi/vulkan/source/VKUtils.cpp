@@ -920,18 +920,7 @@ bool isDepthStencil(Format format) {
     return res;
 }
 
-namespace {
-enum class FormatType {
-    COLOR_UINT,
-    COLOR_INT,
-    COLOR_FLOAT,
-    COLOR_UNFILTER_FLOAT,
-    DEPTH,
-    STENCIL,
-    DEPTH_STENCIL,
-};
-
-constexpr FormatType formatType(Format format) {
+FormatType formatType(Format format) {
     switch (format) {
         case Format::A8_UNORM:
         case Format::R8_UNORM:
@@ -1028,7 +1017,6 @@ constexpr FormatType formatType(Format format) {
     return FormatType::COLOR_FLOAT;
 }
 
-} // namespace
 
 void fillClearColors(std::vector<VkClearValue>& clearValues,
                      ClearColor* colors,
@@ -1101,6 +1089,38 @@ void fillClearRect(std::vector<VkClearRect>& clearRects,
     }
 }
 
+void fillClearColors(std::vector<VkClearColorValue>& clearValues,
+    ClearColor* colors,
+    Format format) {
+    switch (formatType(format)) {
+        case FormatType::COLOR_UINT:
+            for (size_t i = 0; i < clearValues.size(); ++i) {
+                clearValues[i].int32[0] = colors[i].clearColorI[0];
+                clearValues[i].int32[1] = colors[i].clearColorI[1];
+                clearValues[i].int32[2] = colors[i].clearColorI[2];
+                clearValues[i].int32[3] = colors[i].clearColorI[3];
+            }
+            break;
+        case FormatType::COLOR_INT:
+            for (size_t i = 0; i < clearValues.size(); ++i) {
+                clearValues[i].uint32[0] = colors[i].clearColorU[0];
+                clearValues[i].uint32[1] = colors[i].clearColorU[1];
+                clearValues[i].uint32[2] = colors[i].clearColorU[2];
+                clearValues[i].uint32[3] = colors[i].clearColorU[3];
+            }
+            break;
+        case FormatType::COLOR_FLOAT:
+        case FormatType::COLOR_UNFILTER_FLOAT:
+            for (size_t i = 0; i < clearValues.size(); ++i) {
+                clearValues[i].float32[0] = colors[i].clearColorF[0];
+                clearValues[i].float32[1] = colors[i].clearColorF[1];
+                clearValues[i].float32[2] = colors[i].clearColorF[2];
+                clearValues[i].float32[3] = colors[i].clearColorF[3];
+            }
+            break;
+    }
+}
+
 Format mapSwapchainFormat(VkFormat format) {
     Format res = Format::B8G8R8A8_SRGB;
     switch (format) {
@@ -1145,6 +1165,23 @@ VkPrimitiveTopology primitiveTopology(PrimitiveType primitiveType) {
             break;
         case PrimitiveType::TRIANGLE_STRIP:
             res = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
+            break;
+    }
+    return res;
+}
+
+
+VkFilter mapFilter(Filter filter) {
+    VkFilter res = VK_FILTER_NEAREST;
+    switch (filter) {
+        case Filter::NEAREST:
+            res = VK_FILTER_NEAREST;
+            break;
+        case Filter::LINEAR:
+            res = VK_FILTER_LINEAR;
+            break;
+        case Filter::CUBIC:
+            res = VK_FILTER_CUBIC_IMG;
             break;
     }
     return res;

@@ -4,13 +4,13 @@ namespace raum::rhi {
 class RHIDevice;
 class RHIBuffer {
 public:
-    explicit RHIBuffer(const BufferInfo&, RHIDevice*){};
-    explicit RHIBuffer(const BufferSourceInfo&, RHIDevice*){};
+    explicit RHIBuffer(const BufferInfo& info, RHIDevice*) : _info(info){};
 
-    virtual void update(const void* data, uint32_t dataSize, uint32_t bufferOffset) = 0;
+    const BufferInfo& info() const { return _info; }
 
 protected:
     virtual ~RHIBuffer() = 0;
+    const BufferInfo _info;
 };
 
 inline RHIBuffer::~RHIBuffer() {}

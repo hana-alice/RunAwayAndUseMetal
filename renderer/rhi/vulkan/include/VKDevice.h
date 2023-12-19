@@ -20,7 +20,6 @@ public:
     RHISwapchain *createSwapchain(const SwapchainInfo &) override;
     RHIQueue *getQueue(const QueueInfo &) override;
     RHIBuffer *createBuffer(const BufferInfo &) override;
-    RHIBuffer *createBuffer(const BufferSourceInfo &) override;
     RHIImage *createImage(const ImageInfo &) override;
     RHIImageView *createImageView(const ImageViewInfo &) override;
     RHISampler *getSampler(const SamplerInfo &) override;
