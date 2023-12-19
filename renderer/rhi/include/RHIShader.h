@@ -7,8 +7,9 @@ public:
     explicit RHIShader(const ShaderBinaryInfo&, RHIDevice*) {}
     explicit RHIShader(const ShaderSourceInfo&, RHIDevice*) {}
 
-protected:
     virtual ~RHIShader() = 0;
+
+protected:
 };
 
 inline RHIShader::~RHIShader() {}

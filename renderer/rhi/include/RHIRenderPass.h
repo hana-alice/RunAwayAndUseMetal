@@ -10,9 +10,10 @@ public:
         return _info.attachments;
     }
 
+    virtual ~RHIRenderPass() = 0;
+
 protected:
     const RenderPassInfo _info;
-    virtual ~RHIRenderPass() = 0;
 };
 
 inline RHIRenderPass::~RHIRenderPass() {}

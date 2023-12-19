@@ -7,8 +7,9 @@ public:
     explicit RHIImage(const ImageInfo& info, RHIDevice*) : _info(info) {}
     ImageInfo info() const { return _info; }
 
-protected:
     virtual ~RHIImage() = 0;
+
+protected:
     const ImageInfo _info;
 };
 

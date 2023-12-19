@@ -6,8 +6,9 @@ class RHIDescriptorSetLayout {
 public:
     explicit RHIDescriptorSetLayout(const DescriptorSetLayoutInfo&, RHIDevice*){};
 
-protected:
     virtual ~RHIDescriptorSetLayout() = 0;
+
+protected:
 };
 
 inline RHIDescriptorSetLayout::~RHIDescriptorSetLayout() {}

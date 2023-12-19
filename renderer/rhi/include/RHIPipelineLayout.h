@@ -6,8 +6,9 @@ class RHIPipelineLayout {
 public:
     explicit RHIPipelineLayout(const PipelineLayoutInfo&, RHIDevice*) {}
 
-protected:
     virtual ~RHIPipelineLayout() = 0;
+
+protected:
 };
 
 inline RHIPipelineLayout::~RHIPipelineLayout() {}

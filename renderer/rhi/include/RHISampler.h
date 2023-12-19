@@ -7,8 +7,9 @@ class RHISampler {
 public:
     explicit RHISampler(const SamplerInfo& info, RHIDevice*) {}
 
-protected:
     virtual ~RHISampler() = 0;
+
+protected:
 };
 
 inline RHISampler::~RHISampler() {}

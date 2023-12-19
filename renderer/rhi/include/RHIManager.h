@@ -5,5 +5,6 @@
 namespace raum::rhi {
 
 RAUM_API RHIDevice* loadRHI(API api);
+RAUM_API void unloadRHI(RHIDevice*);
 
 } // namespace raum::rhi

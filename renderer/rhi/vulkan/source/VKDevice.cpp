@@ -320,12 +320,21 @@ RHIPipelineLayout* Device::createPipelineLayout(const PipelineLayoutInfo& info) 
     return new PipelineLayout(info, this);
 }
 
-Device* loadRHI() {
+Device* loadVK() {
     return new Device();
 }
 
+void unloadVK(Device* device) {
+    auto d = static_cast<Device*>(device);
+    delete d;
+}
+
 RHIDevice* loadRHI(API api) {
-    return loadRHI();
+    return loadVK();
+}
+
+void unloadRHI(RHIDevice* device) {
+    unloadVK(static_cast<Device*>(device));
 }
 
 } // namespace raum::rhi

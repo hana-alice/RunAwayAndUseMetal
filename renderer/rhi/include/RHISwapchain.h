@@ -13,8 +13,6 @@ public:
     virtual uint32_t imageCount() const = 0;
 
     virtual RHIImageView* swapchainImageView() const = 0;
-
-protected:
     virtual ~RHISwapchain() = 0;
 };
 

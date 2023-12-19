@@ -6,8 +6,9 @@ class RHIDescriptorSet {
 public:
     explicit RHIDescriptorSet(const DescriptorSetInfo&, RHIDevice*) {}
 
-protected:
     virtual ~RHIDescriptorSet() = 0;
+
+protected:
 };
 
 inline RHIDescriptorSet::~RHIDescriptorSet() {}

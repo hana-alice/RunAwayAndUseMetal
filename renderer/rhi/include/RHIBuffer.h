@@ -8,8 +8,9 @@ public:
 
     const BufferInfo& info() const { return _info; }
 
-protected:
     virtual ~RHIBuffer() = 0;
+
+protected:
     const BufferInfo _info;
 };
 

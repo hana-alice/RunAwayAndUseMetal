@@ -86,7 +86,13 @@
         "numeric": "cpp",
         "set": "cpp",
         "shared_mutex": "cpp",
-        "unordered_set": "cpp"
+        "unordered_set": "cpp",
+        "cfenv": "cpp",
+        "csignal": "cpp",
+        "future": "cpp",
+        "scoped_allocator": "cpp",
+        "typeindex": "cpp",
+        "valarray": "cpp"
     },
     "C_Cpp.errorSquiggles": "enabled"
 }

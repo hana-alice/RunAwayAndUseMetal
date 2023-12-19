@@ -6,8 +6,9 @@ class RHIGraphicsPipeline {
 public:
     explicit RHIGraphicsPipeline(const GraphicsPipelineInfo&, RHIDevice*){};
 
-protected:
     virtual ~RHIGraphicsPipeline() = 0;
+
+protected:
 };
 
 inline RHIGraphicsPipeline::~RHIGraphicsPipeline() {}

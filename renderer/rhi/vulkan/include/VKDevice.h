@@ -50,6 +50,7 @@ private:
 
     std::map<QueueType, Queue *> _queues;
 
-    friend Device *loadRHI();
+    friend Device *loadVK();
+    friend void unloadVK(Device *);
 };
 } // namespace raum::rhi
