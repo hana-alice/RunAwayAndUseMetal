@@ -29,6 +29,7 @@ class RHIBuffer;
 class RHIBufferView;
 class RHIQueue;
 class RHIFrameBuffer;
+class RHISampler;
 
 static constexpr uint32_t FRAMES_IN_FLIGHT{3};
 
@@ -220,9 +221,6 @@ struct ShaderBinaryInfo {
     BinaryStage stage;
 };
 
-struct SamplerInfo {
-};
-
 enum class ImageType : uint8_t {
     IMAGE_1D,
     IMAGE_2D,
@@ -406,6 +404,7 @@ struct DescriptorBinding {
     DescriptorType type{DescriptorType::UNIFORM_BUFFER};
     uint32_t count{1};
     ShaderStage visibility;
+    std::vector<RHISampler*> immutableSamplers;
 };
 
 using DescriptorBindings = std::vector<DescriptorBinding>;
@@ -918,5 +917,52 @@ struct CommandBufferBeginInfo {
     CommandBuferUsageFlag flags{CommandBuferUsageFlag ::ONE_TIME_SUBMIT};
 };
 OPERABLE(CommandBuferUsageFlag)
+
+enum class MipmapMode: uint8_t {
+    NEAREST,
+    LINEAR,
+};
+
+enum class SamplerAddressMode : uint8_t {
+    REPEAT,
+    MIRRORED_REPEAT,
+    CLAMP_TO_EDGE,
+    CLAMP_TO_BORDER,
+    MIRROR_CLAMP_TO_EDGE,
+};
+
+enum class BorderColor : uint8_t {
+    FLOAT_TRANSPARENT_BLACK,
+    INT_TRANSPARENT_BLACK,
+    FLOAT_OPAQUE_BLACK,
+    INT_OPAQUE_BLACK,
+    FLOAT_OPAQUE_WHITE,
+    INT_OPAQUE_WHITE,
+};
+
+struct SamplerInfo {
+    bool anisotropyEnable{false};
+    bool compareEnable{false};
+    bool unnormalizedCoordinates{0};
+    Filter magFilter{Filter::NEAREST};
+    Filter minFilter{Filter::NEAREST};
+    MipmapMode mipmapMode{MipmapMode::LINEAR};
+    SamplerAddressMode addressModeU{SamplerAddressMode::REPEAT};
+    SamplerAddressMode addressModeV{SamplerAddressMode::REPEAT};
+    SamplerAddressMode addressModeW{SamplerAddressMode::REPEAT};
+    float mipLodBias{0.0f};
+    float maxAnisotropy{0.0f};
+    CompareOp compareOp{CompareOp::ALWAYS};
+    float minLod;
+    float maxLod;
+    BorderColor borderColor{BorderColor::FLOAT_TRANSPARENT_BLACK};
+};
+
+enum class UpdateFrequency :uint8_t {
+    PER_FRAME = 0,
+    PER_PASS,
+    PER_PHASE,
+    PER_INSTANCE,
+};
 
 } // namespace raum::rhi

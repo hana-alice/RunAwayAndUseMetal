@@ -111,6 +111,12 @@ VkFilter mapFilter(Filter filter);
 
 FormatType formatType(Format format);
 
+VkSamplerMipmapMode samplerMipmapMode(MipmapMode mipmapMode);
+
+VkSamplerAddressMode samplerAddressMode(SamplerAddressMode addressMode);
+
+VkBorderColor borderColor(BorderColor borderColor);
+
 } // namespace rhi
 
 } // namespace raum

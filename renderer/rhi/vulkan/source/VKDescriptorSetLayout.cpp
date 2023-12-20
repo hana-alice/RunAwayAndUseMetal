@@ -1,6 +1,7 @@
 #include "VKDescriptorSetLayout.h"
 #include "VKDevice.h"
 #include "VKUtils.h"
+#include "VKSampler.h"
 namespace raum::rhi {
 DescriptorSetLayout::DescriptorSetLayout(const DescriptorSetLayoutInfo& info, RHIDevice* device)
 : RHIDescriptorSetLayout(info, device), _device(static_cast<Device*>(device)) {
@@ -13,8 +14,13 @@ DescriptorSetLayout::DescriptorSetLayout(const DescriptorSetLayoutInfo& info, RH
         bindings[i].binding = bindingInfo.binding;
         bindings[i].descriptorType = descriptorType(bindingInfo.type);
         bindings[i].descriptorCount = bindingInfo.count;
-        bindings[i].stageFlags = shaderStageFlags(info.descriptorBindings[i].visibility);
-        bindings[i].pImmutableSamplers = nullptr;
+        bindings[i].stageFlags = shaderStageFlags(bindingInfo.visibility);
+        std::vector<VkSampler> samplers(bindingInfo.immutableSamplers.size());
+        for (size_t j = 0; j < bindingInfo.immutableSamplers.size(); j++) {
+            samplers[j] = static_cast<const Sampler*>(bindingInfo.immutableSamplers[j])->sampler();
+        }
+        
+        bindings[i].pImmutableSamplers = samplers.data();
     }
     descLayoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
     descLayoutInfo.pBindings = bindings.data();

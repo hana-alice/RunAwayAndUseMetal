@@ -12,9 +12,8 @@ public:
     virtual void enqueue(RHICommandBuffer*) = 0;
     virtual uint32_t index() const = 0;
 
-    virtual ~RHIQueue() = 0;
-
 protected:
+    virtual ~RHIQueue() = 0;
 };
 
 inline RHIQueue::~RHIQueue() {}

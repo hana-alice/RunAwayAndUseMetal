@@ -49,6 +49,7 @@ private:
     VmaAllocator _allocator;
 
     std::map<QueueType, Queue *> _queues;
+    std::vector<VkDescriptorPool> _descriptorPools;
 
     friend Device *loadVK();
     friend void unloadVK(Device *);

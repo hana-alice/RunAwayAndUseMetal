@@ -1187,4 +1187,59 @@ VkFilter mapFilter(Filter filter) {
     return res;
 }
 
+VkSamplerMipmapMode samplerMipmapMode(MipmapMode mipmapMode) {
+    VkSamplerMipmapMode res = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+    switch (mipmapMode) {
+        case raum::rhi::MipmapMode::NEAREST:
+            res = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+            break;
+        case raum::rhi::MipmapMode::LINEAR:
+            res = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+            break;
+    }
+    return res;
+}
+
+
+VkSamplerAddressMode samplerAddressMode(SamplerAddressMode addressMode) {
+    VkSamplerAddressMode res = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    switch (addressMode) {
+        case SamplerAddressMode::REPEAT:
+            res = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+            break;
+        case SamplerAddressMode::MIRRORED_REPEAT:
+            res = VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
+            break;
+        case SamplerAddressMode::CLAMP_TO_EDGE:
+            res = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+            break;
+        case SamplerAddressMode::CLAMP_TO_BORDER:
+            res = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+            break;
+        case SamplerAddressMode::MIRROR_CLAMP_TO_EDGE:
+            res = VK_SAMPLER_ADDRESS_MODE_MIRROR_CLAMP_TO_EDGE_KHR;
+            break;
+    }
+    return res;
+}
+
+VkBorderColor borderColor(BorderColor borderColor) {
+    VkBorderColor res = VK_BORDER_COLOR_INT_TRANSPARENT_BLACK;
+    switch (borderColor) {
+        case BorderColor::FLOAT_TRANSPARENT_BLACK:
+            res = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
+            break;
+        case BorderColor::INT_TRANSPARENT_BLACK:
+            res = VK_BORDER_COLOR_INT_TRANSPARENT_BLACK;
+            break;
+        case BorderColor::INT_OPAQUE_BLACK:
+            res = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+            break;
+        case BorderColor::INT_OPAQUE_WHITE:
+            res = VK_BORDER_COLOR_INT_OPAQUE_WHITE;
+            break;
+    }
+    return res;
+}
+
 } // namespace raum::rhi

@@ -262,6 +262,11 @@ void Device::initDevice() {
     vmaCreateAllocator(&allocInfo, &_allocator);
 
     queue->initCommandQueue();
+
+    VkDescriptorPoolCreateInfo poolCreateInfo{};
+    poolCreateInfo.maxSets = static_cast<uint8_t>(UpdateFrequency::PER_INSTANCE) + 1;
+    VkDescriptorPoolSize poolSize{};
+    poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 }
 
 RHIQueue* Device::getQueue(const QueueInfo& info) {
