@@ -41,14 +41,17 @@ Queue::Queue(const QueueInfo& info, Device* device)
 }
 
 Queue::~Queue() {
-    for (auto sem : _commandSemaphores) {
-        vkDestroySemaphore(_device->device(), sem, nullptr);
-    }
-    for (auto sem : _presentSemaphores) {
-        vkDestroySemaphore(_device->device(), sem, nullptr);
-    }
-    for (auto fence : _frameFence) {
-        vkDestroyFence(_device->device(), fence, nullptr);
+    if (_vkQueue != VK_NULL_HANDLE) {
+        vkQueueWaitIdle(_vkQueue);
+        for (auto sem : _commandSemaphores) {
+            vkDestroySemaphore(_device->device(), sem, nullptr);
+        }
+        for (auto sem : _presentSemaphores) {
+            vkDestroySemaphore(_device->device(), sem, nullptr);
+        }
+        for (auto fence : _frameFence) {
+            vkDestroyFence(_device->device(), fence, nullptr);
+        }
     }
 }
 

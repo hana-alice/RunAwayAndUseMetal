@@ -24,7 +24,7 @@ private:
     void initPresentQueue(uint32_t presentCount);
     void initCommandQueue();
 
-    VkQueue _vkQueue;
+    VkQueue _vkQueue{VK_NULL_HANDLE};
 
     QueueInfo _info;
     uint32_t _index{0};

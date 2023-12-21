@@ -63,6 +63,7 @@ private:
     bool _firstFrame{true};
     std::shared_ptr<RHIDevice> _device;
     std::shared_ptr<RHISwapchain> _swaphchain;
+    std::shared_ptr<RHICommandPool> _commandPool;
     std::map<RHIImageView*, std::shared_ptr<RHICommandBuffer>> _commandBuffers;
     std::shared_ptr<RHIRenderPass> _renderpass;
     std::map<RHIImageView*, std::shared_ptr<RHIFrameBuffer>> _framebuffers;
@@ -72,7 +73,6 @@ private:
     std::shared_ptr<RHIShader> _fragShader;
     std::shared_ptr<RHIGraphicsPipeline> _pipeline;
     std::shared_ptr<RHIPipelineLayout> _pipelineLayout;
-    std::shared_ptr<RHICommandPool> _commandPool;
 
     RHIQueue* _queue;
 };

@@ -121,16 +121,18 @@ Device::Device() {
 }
 
 Device::~Device() {
-    if (enableValidationLayer) {
-        destroyDebugMessengerExt(_instance, _debugMessenger, nullptr);
-    }
+    vkDeviceWaitIdle(_device);
 
     for (auto [_, q] : _queues) {
         delete q;
     }
-    _queues.clear();
 
     vmaDestroyAllocator(_allocator);
+
+    if (enableValidationLayer) {
+        destroyDebugMessengerExt(_instance, _debugMessenger, nullptr);
+    }
+
     vkDestroyDevice(_device, nullptr);
     vkDestroyInstance(_instance, nullptr);
 }

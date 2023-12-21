@@ -412,8 +412,54 @@ struct DescriptorSetLayoutInfo {
     DescriptorBindings descriptorBindings;
 };
 
+struct BufferBindingView {
+    uint32_t offset{0};
+    uint32_t size{0};
+    RHIBuffer* buffer{nullptr};
+};
+
+struct BufferBinding {
+    uint32_t binding{0};
+    uint32_t arrayElement{0};
+    DescriptorType type{DescriptorType::UNIFORM_BUFFER};
+    std::vector<BufferBindingView> buffers;
+};
+
+struct ImageBindingView {
+    ImageLayout layout{ImageLayout::UNDEFINED};
+    RHIImageView* imageView{nullptr};
+};
+
+struct ImageBinding {
+    uint32_t binding{0};
+    uint32_t arrayElement{0};
+    DescriptorType type{DescriptorType::SAMPLED_IMAGE};
+    std::vector<ImageBindingView> imageViews;
+};
+
+struct SamplerBinding {
+    uint32_t binding{0};
+    uint32_t arrayElement{0};
+    std::vector<RHISampler*> samplers;
+};
+
+struct TexelBufferBinding {
+    uint32_t binding{0};
+    uint32_t arrayElement{0};
+    DescriptorType type{DescriptorType::UNIFORM_TEXEL_BUFFER};
+    std::vector<RHIBufferView*> bufferViews;
+};
+
+struct BindingInfo {
+    std::vector<BufferBinding> bufferBindings;
+    std::vector<ImageBinding> imageBindings;
+    std::vector<SamplerBinding> samplerBindings;
+    std::vector<TexelBufferBinding> texelBufferBindings;
+};
+
 struct DescriptorSetInfo {
     RHIDescriptorSetLayout* layout{nullptr};
+    std::vector<BindingInfo> bindingInfos;
 };
 
 struct PushConstantRange {
