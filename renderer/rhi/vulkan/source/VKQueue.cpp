@@ -50,11 +50,6 @@ Queue::~Queue() {
     for (auto fence : _frameFence) {
         vkDestroyFence(_device->device(), fence, nullptr);
     }
-    vkDestroyCommandPool(_device->device(), _commandPool, nullptr);
-}
-
-RHICommandBuffer* Queue::makeCommandBuffer(const CommandBufferInfo& info) {
-    return new CommandBuffer(info, this, _device);
 }
 
 void Queue::initPresentQueue(uint32_t presentCount) {
@@ -67,12 +62,6 @@ void Queue::initPresentQueue(uint32_t presentCount) {
 }
 
 void Queue::initCommandQueue() {
-    VkCommandPoolCreateInfo cmdPoolInfo{};
-    cmdPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-    cmdPoolInfo.queueFamilyIndex = _index;
-    cmdPoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-    vkCreateCommandPool(_device->device(), &cmdPoolInfo, nullptr, &_commandPool);
-
     _commandSemaphores.resize(FRAMES_IN_FLIGHT);
     for (auto& sem : _commandSemaphores) {
         VkSemaphoreCreateInfo info{};

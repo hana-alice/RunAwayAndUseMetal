@@ -413,6 +413,7 @@ struct DescriptorSetLayoutInfo {
 };
 
 struct DescriptorSetInfo {
+    RHIDescriptorSetLayout* layout{nullptr};
 };
 
 struct PushConstantRange {
@@ -963,6 +964,27 @@ enum class UpdateFrequency :uint8_t {
     PER_PASS,
     PER_PHASE,
     PER_INSTANCE,
+};
+
+enum class CommandType : uint8_t {
+    TRANSIENT = 1,
+    RESET = 1 << 1,
+    PROTECTED = 1 << 2,
+};
+
+struct CommandPoolInfo {
+    //CommandType type{CommandType::RESET};
+    uint32_t queueFamilyIndex{0};
+};
+
+struct DescriptorPoolSize {
+    DescriptorType type;
+    uint32_t descriptorCount{0};
+};
+
+struct DescriptorPoolInfo {
+    uint32_t maxSets{0};
+    std::vector<DescriptorPoolSize> pools;
 };
 
 } // namespace raum::rhi

@@ -25,12 +25,13 @@ public:
     RHISampler *getSampler(const SamplerInfo &) override;
     RHIShader *createShader(const ShaderBinaryInfo &) override;
     RHIShader *createShader(const ShaderSourceInfo &) override;
-    RHIDescriptorSet *createDescriptorSet(const DescriptorSetInfo &) override;
     RHIDescriptorSetLayout *createDescriptorSetLayout(const DescriptorSetLayoutInfo &) override;
     RHIGraphicsPipeline *createGraphicsPipeline(const GraphicsPipelineInfo &) override;
     RHIRenderPass *createRenderPass(const RenderPassInfo &) override;
     RHIFrameBuffer *createFrameBuffer(const FrameBufferInfo &) override;
     RHIPipelineLayout *createPipelineLayout(const PipelineLayoutInfo &) override;
+    RHICommandPool *createCoomandPool(const CommandPoolInfo &);
+    RHIDescriptorPool *createDescriptorPool(const DescriptorPoolInfo &) override;
 
 private:
     Device();

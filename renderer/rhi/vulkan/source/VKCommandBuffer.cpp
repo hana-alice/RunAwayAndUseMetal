@@ -8,24 +8,23 @@
 #include "VKQueue.h"
 #include "VKRenderEncoder.h"
 #include "VKUtils.h"
+#include "VKDescriptorSet.h"
+#include "VKCommandPool.h"
 namespace raum::rhi {
-CommandBuffer::CommandBuffer(const CommandBufferInfo& info, RHIQueue* queue, RHIDevice* device)
-: RHICommandBuffer(info, queue),
+CommandBuffer::CommandBuffer(const CommandBufferInfo& info, CommandPool* commandPool, RHIDevice* device)
+: RHICommandBuffer(info, device),
   _device(static_cast<Device*>(device)),
-  _queue(static_cast<Queue*>(queue)) {
-    auto* kQueue = static_cast<Queue*>(queue);
-    auto commandPool = kQueue->commandPool();
+  _commandPool(commandPool) {
     VkCommandBufferAllocateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
     createInfo.commandBufferCount = 1;
-    createInfo.commandPool = commandPool;
+    createInfo.commandPool = commandPool->commandPool();
     createInfo.level = commandBufferLevel(info.type);
     vkAllocateCommandBuffers(_device->device(), &createInfo, &_commandBuffer);
 }
 
 CommandBuffer::~CommandBuffer() {
-    auto commandPool = static_cast<Queue*>(_queue)->commandPool();
-    vkFreeCommandBuffers(_device->device(), commandPool, 1, &_commandBuffer);
+    vkFreeCommandBuffers(_device->device(), _commandPool->commandPool(), 1, &_commandBuffer);
 }
 
 RHIRenderEncoder* CommandBuffer::makeRenderEncoder() {
@@ -47,14 +46,14 @@ void CommandBuffer::begin(const CommandBufferBeginInfo& info) {
     vkBeginCommandBuffer(_commandBuffer, &beginInfo);
 }
 
-void CommandBuffer::enqueue() {
-    _queue->enqueue(this);
+void CommandBuffer::enqueue(RHIQueue* queue) {
+    queue->enqueue(this);
     _enqueued = true;
 }
 
-void CommandBuffer::commit() {
+void CommandBuffer::commit(RHIQueue* queue) {
     if (!_enqueued) {
-        _queue->enqueue(this);
+        queue->enqueue(this);
     }
     _status = CommandBufferStatus::COMITTED;
     vkEndCommandBuffer(_commandBuffer);

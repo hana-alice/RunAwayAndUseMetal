@@ -1,0 +1,16 @@
+#pragma once
+#include "RHIDefine.h"
+
+namespace raum::rhi {
+
+class RHICommandBuffer;
+class RHIDevice;
+class RHICommandPool {
+public:
+    explicit RHICommandPool(const CommandPoolInfo&, RHIDevice* device) {}
+    virtual ~RHICommandPool() {}
+
+    virtual RHICommandBuffer* makeCommandBuffer(const CommandBufferInfo&) = 0;
+};
+
+} // namespace raum::rhi

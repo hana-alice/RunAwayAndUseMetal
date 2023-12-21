@@ -72,6 +72,7 @@ private:
     std::shared_ptr<RHIShader> _fragShader;
     std::shared_ptr<RHIGraphicsPipeline> _pipeline;
     std::shared_ptr<RHIPipelineLayout> _pipelineLayout;
+    std::shared_ptr<RHICommandPool> _commandPool;
 
     RHIQueue* _queue;
 };
@@ -79,6 +80,10 @@ private:
 Triangle::Triangle(std::shared_ptr<RHIDevice> device, std::shared_ptr<RHISwapchain> swapchain) 
     : _device(device), _swaphchain(swapchain) {
     _queue = _device->getQueue(QueueInfo{QueueType::GRAPHICS});
+
+    CommandPoolInfo cmdPoolInfo{};
+    cmdPoolInfo.queueFamilyIndex = _queue->index();
+    _commandPool = std::shared_ptr<RHICommandPool>(_device->createCoomandPool(cmdPoolInfo));
 
     RenderPassInfo rpInfo{};
     AttachmentInfo attachmentInfo{};
@@ -145,7 +150,7 @@ void Triangle::show() {
     auto* scImageView = _swaphchain->swapchainImageView();
 
     if (_commandBuffers.find(scImageView) == _commandBuffers.end()) {
-        _commandBuffers[scImageView] = std::shared_ptr<RHICommandBuffer>(_queue->makeCommandBuffer({}));
+        _commandBuffers[scImageView] = std::shared_ptr<RHICommandBuffer>(_commandPool->makeCommandBuffer({}));
     }
     auto commandbuffer = _commandBuffers[scImageView];
 
@@ -221,7 +226,7 @@ void Triangle::show() {
     encoder->draw(3, 1, 0, 0);
     encoder->endRenderPass();
 
-    commandbuffer->commit();
+    commandbuffer->commit(_queue);
 
     _queue->submit();
     _swaphchain->present();

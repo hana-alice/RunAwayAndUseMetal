@@ -10,10 +10,6 @@ class Queue : public RHIQueue {
 public:
     uint32_t index() const override { return _index; }
 
-    VkCommandPool commandPool() { return _commandPool; }
-
-    RHICommandBuffer* makeCommandBuffer(const CommandBufferInfo&) override;
-
     void submit() override;
 
     void enqueue(RHICommandBuffer* commandBuffer) override;
@@ -29,7 +25,6 @@ private:
     void initCommandQueue();
 
     VkQueue _vkQueue;
-    VkCommandPool _commandPool;
 
     QueueInfo _info;
     uint32_t _index{0};

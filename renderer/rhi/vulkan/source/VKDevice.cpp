@@ -15,6 +15,8 @@
 #include "VKImageView.h"
 #include "VKFrameBuffer.h"
 #include "VKPipelineLayout.h"
+#include "VKCommandPool.h"
+#include "VKDescriptorPool.h"
 namespace raum::rhi {
 
 static constexpr bool enableValidationLayer{true};
@@ -262,11 +264,6 @@ void Device::initDevice() {
     vmaCreateAllocator(&allocInfo, &_allocator);
 
     queue->initCommandQueue();
-
-    VkDescriptorPoolCreateInfo poolCreateInfo{};
-    poolCreateInfo.maxSets = static_cast<uint8_t>(UpdateFrequency::PER_INSTANCE) + 1;
-    VkDescriptorPoolSize poolSize{};
-    poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 }
 
 RHIQueue* Device::getQueue(const QueueInfo& info) {
@@ -289,8 +286,13 @@ RHIImageView* Device::createImageView(const ImageViewInfo& info) {
     return new ImageView(info, this);
 }
 
-RHIDescriptorSet* Device::createDescriptorSet(const DescriptorSetInfo& info) {
-    return nullptr;
+RHICommandPool* Device::createCoomandPool(const CommandPoolInfo& info) {
+    return new CommandPool(info, this);
+}
+
+
+RHIDescriptorPool* Device::createDescriptorPool(const DescriptorPoolInfo& info) {
+    return new DescriptorPool(info, this);
 }
 
 RHIDescriptorSetLayout* Device::createDescriptorSetLayout(const DescriptorSetLayoutInfo& info) {

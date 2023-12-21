@@ -6,6 +6,7 @@ class RHIQueue;
 class RHIRenderEncoder;
 class RHIBlitEncoder;
 class RHIComputeEncoder;
+class RHIDevice;
 class RHICommandBuffer {
 public:
     virtual ~RHICommandBuffer() = 0;
@@ -17,10 +18,10 @@ public:
     virtual void begin(const CommandBufferBeginInfo&) = 0;
 
     // add to queue to hold place in order
-    virtual void enqueue() = 0;
+    virtual void enqueue(RHIQueue*) = 0;
 
     // commit to queue, enqueue automatically if not enqueued
-    virtual void commit() = 0;
+    virtual void commit(RHIQueue*) = 0;
 
     // reuse
     virtual void reset() = 0;
@@ -32,7 +33,7 @@ public:
     virtual void applyBarrier(DependencyFlags flags) = 0;
 
 protected:
-    explicit RHICommandBuffer(const CommandBufferInfo& info, RHIQueue* queue) {}
+    explicit RHICommandBuffer(const CommandBufferInfo& info, RHIDevice* device) {}
 };
 
 inline RHICommandBuffer::~RHICommandBuffer() {}
