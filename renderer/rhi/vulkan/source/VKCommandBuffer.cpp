@@ -111,6 +111,8 @@ void CommandBuffer::applyBarrier(DependencyFlags flags) {
                          0, nullptr,
                          static_cast<uint32_t>(bufferBarriers.size()), bufferBarriers.data(),
                          static_cast<uint32_t>(imageBarriers.size()), imageBarriers.data());
+    _bufferBarriers.clear();
+    _imageBarriers.clear();
 }
 
 } // namespace raum::rhi

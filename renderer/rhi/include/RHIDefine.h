@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include "define.h"
+#include <functional>
 #include "glm.hpp"
 namespace raum::rhi {
 
@@ -810,6 +811,15 @@ struct BufferInfo {
     std::vector<uint32_t> queueAccess{};
 };
 
+struct BufferSourceInfo {
+    SharingMode sharingMode{SharingMode::EXCLUSIVE};
+    BufferFlag flag{BufferFlag::NONE};
+    BufferUsage bufferUsage{BufferUsage::UNIFORM};
+    uint32_t size{0};
+    std::vector<uint32_t> queueAccess{};
+    void* data{nullptr};
+};
+
 struct BufferViewInfo {
     RHIBuffer* buffer{nullptr};
     Format format{Format::UNKNOWN};
@@ -888,7 +898,7 @@ struct BufferImageCopyRegion {
     AspectMask imageAspect{AspectMask::COLOR};
     uint32_t baseMip{0};
     uint32_t firstSlice{0};
-    uint32_t sliceCount{0};
+    uint32_t sliceCount{1};
     Vector3U imageOffset{};
     Vector3U imageExtent{};
 };
@@ -1003,6 +1013,29 @@ struct SamplerInfo {
     float minLod;
     float maxLod;
     BorderColor borderColor{BorderColor::FLOAT_TRANSPARENT_BLACK};
+};
+inline bool operator==(const SamplerInfo& lhs, const SamplerInfo& rhs) {
+    return lhs.anisotropyEnable == rhs.anisotropyEnable &&
+           lhs.compareEnable == rhs.compareEnable &&
+           lhs.unnormalizedCoordinates == rhs.unnormalizedCoordinates &&
+           lhs.magFilter == rhs.magFilter &&
+           lhs.minFilter == rhs.minFilter &&
+           lhs.mipmapMode == rhs.mipmapMode &&
+           lhs.addressModeU == rhs.addressModeU &&
+           lhs.addressModeV == rhs.addressModeV &&
+           lhs.addressModeW == rhs.addressModeW &&
+           lhs.mipLodBias == rhs.mipLodBias &&
+           lhs.maxAnisotropy == rhs.maxAnisotropy &&
+           lhs.compareOp == rhs.compareOp &&
+           lhs.minLod == rhs.minLod &&
+           lhs.maxLod == rhs.maxLod &&
+           lhs.borderColor == rhs.borderColor;
+}
+
+template<typename T>
+class RHIHash {
+public:
+    size_t operator()(const T& t) const;
 };
 
 enum class UpdateFrequency :uint8_t {

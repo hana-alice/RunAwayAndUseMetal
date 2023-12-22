@@ -14,6 +14,8 @@ private:
 
     VkSampler _sampler;
     Device* _device;
+
+    friend class Device;
 };
 
 

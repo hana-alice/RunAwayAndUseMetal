@@ -20,6 +20,7 @@ class RHIDevice {
 public:
     virtual RHISwapchain* createSwapchain(const SwapchainInfo&) = 0;
     virtual RHIBuffer* createBuffer(const BufferInfo&) = 0;
+    virtual RHIBuffer* createBuffer(const BufferSourceInfo&) = 0;
     virtual RHIImage* createImage(const ImageInfo&) = 0;
     virtual RHIImageView* createImageView(const ImageViewInfo&) = 0;
     virtual RHIShader* createShader(const ShaderBinaryInfo&) = 0;

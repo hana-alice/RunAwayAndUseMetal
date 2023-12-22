@@ -5,6 +5,7 @@
 #include "Triangle.hpp"
 #include "common.h"
 #include "window.h"
+#include "RotatingCube.hpp"
 namespace raum {
 using platform::NativeWindow;
 using namespace rhi;
@@ -23,8 +24,9 @@ public:
         _swapchain = std::shared_ptr<RHISwapchain>(_device->createSwapchain(scInfo));
 
         _samples = {
-            std::make_shared<sample::Triangle>(_device, _swapchain),
+            std::make_shared<sample::RotatingCube>(_device, _swapchain),
         };
+
         for (const auto& s : _samples) {
             _window->registerPollEvents(std::bind(&sample::SampleBase::show, s));
         }

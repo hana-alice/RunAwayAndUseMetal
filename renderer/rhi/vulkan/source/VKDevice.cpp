@@ -123,6 +123,10 @@ Device::Device() {
 Device::~Device() {
     vkDeviceWaitIdle(_device);
 
+    for (auto&[_, sampler] : _samplers) {
+        delete sampler;
+    }
+
     for (auto [_, q] : _queues) {
         delete q;
     }
@@ -280,6 +284,11 @@ RHIBuffer* Device::createBuffer(const BufferInfo& info) {
     return new Buffer(info, this);
 }
 
+RHIBuffer* Device::createBuffer(const BufferSourceInfo& info) {
+    return new Buffer(info, this);
+}
+
+
 RHIImage* Device::createImage(const ImageInfo& info) {
     return new Image(info, this);
 }
@@ -314,7 +323,10 @@ RHIGraphicsPipeline* Device::createGraphicsPipeline(const GraphicsPipelineInfo& 
 }
 
 RHISampler* Device::getSampler(const SamplerInfo& info) {
-    return nullptr;
+    if (_samplers.find(info) == _samplers.end()) {
+        _samplers[info] = new Sampler(info, this);
+    }
+    return _samplers.at(info);
 }
 
 RHIRenderPass* Device::createRenderPass(const RenderPassInfo& info) {

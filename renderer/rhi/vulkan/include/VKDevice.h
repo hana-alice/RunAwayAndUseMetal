@@ -2,6 +2,7 @@
 
 #include <vulkan/vulkan.h>
 #include <map>
+#include <unordered_map>
 #include <memory>
 #include <queue>
 #include "RHIDevice.h"
@@ -10,6 +11,7 @@ namespace raum::rhi {
 class Queue;
 class Swapchain;
 class Buffer;
+class Sampler;
 class Device : public RHIDevice {
 public:
     VkPhysicalDevice physicalDevice() { return _physicalDevice; };
@@ -20,6 +22,7 @@ public:
     RHISwapchain *createSwapchain(const SwapchainInfo &) override;
     RHIQueue *getQueue(const QueueInfo &) override;
     RHIBuffer *createBuffer(const BufferInfo &) override;
+    RHIBuffer *createBuffer(const BufferSourceInfo &) override;
     RHIImage *createImage(const ImageInfo &) override;
     RHIImageView *createImageView(const ImageViewInfo &) override;
     RHISampler *getSampler(const SamplerInfo &) override;
@@ -51,6 +54,7 @@ private:
 
     std::map<QueueType, Queue *> _queues;
     std::vector<VkDescriptorPool> _descriptorPools;
+    std::unordered_map<SamplerInfo, Sampler *, RHIHash<SamplerInfo>> _samplers;
 
     friend Device *loadVK();
     friend void unloadVK(Device *);

@@ -16,7 +16,7 @@ const DescriptorPoolInfo makeDescriptorPoolInfo(const std::vector<RHIDescriptorS
     std::vector<DescriptorPoolSize> poolSize;
     poolSize.reserve(dict.size());
     for (const auto& [type, count] : dict) {
-        poolSize.emplace_back(std::forward_as_tuple(type, count));
+        poolSize.emplace_back(DescriptorPoolSize{type, count});
     }
     info.pools = std::move(poolSize);
     return info;

@@ -18,7 +18,8 @@
 #include "common.h"
 namespace raum::sample {
 
-const std::string vertStr = R"(
+namespace {
+const std::string triVertStr = R"(
 #version 450 core
 
 layout(location = 0) in vec3 aPos;
@@ -28,7 +29,7 @@ void main () {
 }
 )";
 
-const std::string fragStr = R"(
+const std::string triFragStr = R"(
 #version 450 core
 
 layout(location = 0) out vec4 FragColor;
@@ -37,16 +38,18 @@ void main () {
 }
 )";
 
-static float vertices[] = {
+float triVertices[] = {
     -0.5f, -0.5f, 0.5f,
     0.5f, -0.5f, 0.5f,
     0.0f, 0.5f, 0.5f};
 
-static uint32_t indices[] = {
+uint32_t triIndices[] = {
     0,
     1,
     2,
 };
+
+} // namespace
 
 using namespace ::raum::rhi;
 
@@ -77,8 +80,8 @@ private:
     RHIQueue* _queue;
 };
 
-Triangle::Triangle(std::shared_ptr<RHIDevice> device, std::shared_ptr<RHISwapchain> swapchain) 
-    : _device(device), _swaphchain(swapchain) {
+Triangle::Triangle(std::shared_ptr<RHIDevice> device, std::shared_ptr<RHISwapchain> swapchain)
+: _device(device), _swaphchain(swapchain) {
     _queue = _device->getQueue(QueueInfo{QueueType::GRAPHICS});
 
     CommandPoolInfo cmdPoolInfo{};
@@ -98,24 +101,24 @@ Triangle::Triangle(std::shared_ptr<RHIDevice> device, std::shared_ptr<RHISwapcha
     BufferInfo vertInfo{};
     vertInfo.bufferUsage = BufferUsage::VERTEX | BufferUsage::TRANSFER_DST;
     vertInfo.memUsage = MemoryUsage::DEVICE_ONLY;
-    vertInfo.size = sizeof(vertices);
+    vertInfo.size = sizeof(triVertices);
     _vertexBuffer = std::shared_ptr<RHIBuffer>(_device->createBuffer(vertInfo));
 
     BufferInfo indexInfo{};
     indexInfo.bufferUsage = BufferUsage::INDEX | BufferUsage::TRANSFER_DST;
     indexInfo.memUsage = MemoryUsage::DEVICE_ONLY;
-    indexInfo.size = sizeof(indices);
+    indexInfo.size = sizeof(triIndices);
     _indexBuffer = std::shared_ptr<RHIBuffer>(_device->createBuffer(indexInfo));
 
     ShaderSourceInfo vertShaderInfo{};
-    vertShaderInfo.sourcePath = "/vertStr";
-    vertShaderInfo.stage.source = vertStr;
+    vertShaderInfo.sourcePath = "/triVertStr";
+    vertShaderInfo.stage.source = triVertStr;
     vertShaderInfo.stage.stage = ShaderStage::VERTEX;
     _vertShader = std::shared_ptr<RHIShader>(_device->createShader(vertShaderInfo));
 
     ShaderSourceInfo fragShaderInfo{};
-    fragShaderInfo.sourcePath = "/fragStr";
-    fragShaderInfo.stage.source = fragStr;
+    fragShaderInfo.sourcePath = "/triFragStr";
+    fragShaderInfo.stage.source = triFragStr;
     fragShaderInfo.stage.stage = ShaderStage::FRAGMENT;
     _fragShader = std::shared_ptr<RHIShader>(_device->createShader(fragShaderInfo));
 
@@ -125,7 +128,7 @@ Triangle::Triangle(std::shared_ptr<RHIDevice> device, std::shared_ptr<RHISwapcha
     VertexLayout vertLayout{};
     VertexAttribute attribute{0, 0, Format::R32G32B32_SFLOAT, 0};
     vertLayout.vertexAttrs.emplace_back(attribute);
-    VertexBufferAttribute vertBufferAttribute{0, sizeof(vertices) / 3, InputRate::PER_VERTEX};
+    VertexBufferAttribute vertBufferAttribute{0, sizeof(triVertices) / 3, InputRate::PER_VERTEX};
     vertLayout.vertexBufferAttrs.emplace_back(vertBufferAttribute);
 
     BlendInfo blendInfo{};
@@ -160,8 +163,8 @@ void Triangle::show() {
 
     if (_firstFrame) {
         std::shared_ptr<RHIBlitEncoder> blitEncoder(commandbuffer->makeBlitEncoder());
-        blitEncoder->updateBuffer(_vertexBuffer.get(), 0, vertices, sizeof(vertices));
-        blitEncoder->updateBuffer(_indexBuffer.get(), 0, indices, sizeof(indices));
+        blitEncoder->updateBuffer(_vertexBuffer.get(), 0, triVertices, sizeof(triVertices));
+        blitEncoder->updateBuffer(_indexBuffer.get(), 0, triIndices, sizeof(triIndices));
 
         BufferBarrierInfo bufferBarrierInfo{};
         bufferBarrierInfo.buffer = _vertexBuffer.get();
@@ -232,4 +235,4 @@ void Triangle::show() {
     _swaphchain->present();
 };
 
-} // namespace ruam::sample
+} // namespace raum::sample

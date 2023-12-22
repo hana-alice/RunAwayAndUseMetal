@@ -16,3 +16,6 @@
 [submodule "dependencies/glm"]
 	path = dependencies/glm
 	url = https://github.com/g-truc/glm.git
+[submodule "dependencies/stb_image"]
+	path = dependencies/stb_image
+	url = https://github.com/nothings/stb.git

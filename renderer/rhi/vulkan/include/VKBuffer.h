@@ -10,6 +10,7 @@ public:
     Buffer(Buffer&&) = delete;
     Buffer& operator=(const Buffer&) = delete;
     explicit Buffer(const BufferInfo& info, RHIDevice* device);
+    explicit Buffer(const BufferSourceInfo& info, RHIDevice* device);
     ~Buffer() override;
 
     VkBuffer buffer() const { return _buffer; }

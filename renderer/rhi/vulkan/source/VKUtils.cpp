@@ -1242,4 +1242,32 @@ VkBorderColor borderColor(BorderColor borderColor) {
     return res;
 }
 
+// https://stackoverflow.com/questions/19195183/how-to-properly-hash-the-custom-struct
+template <class T>
+inline void hash_combine(std::size_t& s, const T& v) {
+    std::hash<T> h;
+    s ^= h(v) + 0x9e3779b9 + (s << 6) + (s >> 2);
+}
+
+template <>
+size_t RHIHash<SamplerInfo>::operator()(const SamplerInfo& info) const {
+    std::size_t res{0};
+    hash_combine(res, info.anisotropyEnable);
+    hash_combine(res, info.compareEnable);
+    hash_combine(res, info.unnormalizedCoordinates);
+    hash_combine(res, info.magFilter);
+    hash_combine(res, info.minFilter);
+    hash_combine(res, info.mipmapMode);
+    hash_combine(res, info.addressModeU);
+    hash_combine(res, info.addressModeV);
+    hash_combine(res, info.addressModeW);
+    hash_combine(res, info.mipLodBias);
+    hash_combine(res, info.maxAnisotropy);
+    hash_combine(res, info.compareOp);
+    hash_combine(res, info.minLod);
+    hash_combine(res, info.maxLod);
+    hash_combine(res, info.borderColor);
+    return res;
+}   
+
 } // namespace raum::rhi

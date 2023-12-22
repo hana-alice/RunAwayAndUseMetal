@@ -20,6 +20,7 @@ target_include_directories(framework PUBLIC
     ${core_dir}/utils
     ${dependency_dir}/tinyobjloader
     ${dependency_dir}/sdl/include
+    ${dependency_dir}/stb_image
     ${Vulkan_INCLUDE_DIR}
 )
 

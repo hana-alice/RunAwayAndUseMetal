@@ -17,7 +17,7 @@ VmaAllocationCreateInfo mapCreateInfo(MemoryUsage usage) {
     VmaAllocationCreateInfo info{};
     switch (usage) {
         case MemoryUsage::HOST_VISIBLE:
-            info.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+            info.usage = VMA_MEMORY_USAGE_AUTO;
             break;
         case MemoryUsage::DEVICE_ONLY:
             info.usage = VMA_MEMORY_USAGE_AUTO;
@@ -78,6 +78,32 @@ Buffer::Buffer(const BufferInfo& info, RHIDevice* device) : RHIBuffer(info, devi
 
     VkResult res = vmaCreateBuffer(allocator, &bufferInfo, &allocaInfo, &_buffer, &_allocation, nullptr);
     RAUM_ERROR_IF(res != VK_SUCCESS, "Failed to create buffer!");
+}
+
+Buffer::Buffer(const BufferSourceInfo& info, RHIDevice* device) : RHIBuffer(info, device), _device(static_cast<Device*>(device)) {
+    VkBufferCreateInfo bufferInfo{};
+    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bufferInfo.size = info.size;
+    bufferInfo.usage = mapBufferUsage(info.bufferUsage);
+    bufferInfo.sharingMode = sharingMode(info.sharingMode);
+    if (info.flag != BufferFlag::NONE) {
+        bufferInfo.flags = bufferFlag(info.flag);
+    }
+    if (!info.queueAccess.empty()) {
+        bufferInfo.queueFamilyIndexCount = static_cast<uint32_t>(info.queueAccess.size());
+        bufferInfo.pQueueFamilyIndices = info.queueAccess.data();
+    }
+
+    VmaAllocationCreateInfo allocaInfo = mapCreateInfo(MemoryUsage::HOST_VISIBLE);
+    allocaInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT;
+
+    VmaAllocator& allocator = _device->allocator();
+
+    VmaAllocationInfo allocationInfo{};
+    VkResult res = vmaCreateBuffer(allocator, &bufferInfo, &allocaInfo, &_buffer, &_allocation, &allocationInfo);
+    RAUM_ERROR_IF(res != VK_SUCCESS, "Failed to create buffer!");
+
+    memcpy(allocationInfo.pMappedData, info.data, info.size);
 }
 
 Buffer::~Buffer() {
