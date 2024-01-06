@@ -2,10 +2,10 @@
 
 #include <cstdlib>
 #include <iostream>
+#include "RotatingCube.hpp"
 #include "Triangle.hpp"
 #include "common.h"
 #include "window.h"
-#include "RotatingCube.hpp"
 namespace raum {
 using platform::NativeWindow;
 using namespace rhi;
@@ -16,7 +16,6 @@ constexpr uint32_t height = 720u;
 class Sample {
 public:
     Sample() {
-        std::shared_ptr<RHIBlitEncoder> blitEncoder(nullptr);
         _window = std::make_shared<NativeWindow>(width, height);
         _device = std::shared_ptr<RHIDevice>(loadRHI(API::VULKAN), unloadRHI);
 

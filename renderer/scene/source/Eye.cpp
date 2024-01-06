@@ -2,7 +2,7 @@
 
 namespace raum::scene {
 Eye::Eye(const Frustum& frustum, Projection projection)
-:_frustum(frustum), _projection(projection) {
+: _frustum(frustum), _projection(projection) {
     _projectionMat = glm::perspective(frustum.fov, frustum.aspect, frustum.near, frustum.far);
 }
 
@@ -18,13 +18,13 @@ void Eye::setPosition(float x, float y, float z) {
 
 void Eye::setRotation(const Quaternion& quat) {
     _rotation = quat;
-    _attitude = _attitude * (Mat4) _rotation;
+    _attitude = _attitude * (Mat4)_rotation;
 }
 
 void Eye::rotate(const Vec3f& axis, Degree degree) {
     Radian rad{glm::radians(degree.value)};
     _rotation = glm::rotate(_rotation, rad.value, axis);
-    _attitude = _attitude * (Mat4) _rotation;
+    _attitude = _attitude * (Mat4)_rotation;
 }
 
 void Eye::rotate(const Vec3f& axis, Radian radian) {
@@ -64,7 +64,6 @@ const Quaternion& Eye::getRotation() const {
 const Mat4& Eye::attitude() const {
     return _attitude;
 }
-
 
 const Mat4& Eye::projection() const {
     return _projectionMat;

@@ -50,6 +50,8 @@ target_link_libraries(
     rhi
 )
 
+set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+
 file(COPY framework/asset/resources DESTINATION ${CMAKE_BINARY_DIR})
 
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT RAUM_Sample)

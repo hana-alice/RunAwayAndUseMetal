@@ -1,5 +1,6 @@
 #pragma once
 
+#include <filesystem>
 #include <map>
 #include <string>
 #include "ImageLoader.h"
@@ -23,7 +24,6 @@
 #include "common.h"
 #include "glm.hpp"
 #include "glm/gtx/quaternion.hpp"
-#include <filesystem>
 
 namespace raum::sample {
 
@@ -44,7 +44,7 @@ layout(set = 0, binding = 0) uniform Mat {
 
 void main () {
     f_uv = v_uv;
-    gl_Position = projectMat * modelMat * vec4(aPos, 1.0f);
+    gl_Position =  projectMat * modelMat * vec4(aPos.xy, aPos.z, 1.0f);
 }
 
 )";
@@ -152,6 +152,8 @@ RotatingCube::RotatingCube(std::shared_ptr<RHIDevice> device, std::shared_ptr<RH
     auto filepath = curPath / "resources" / "liangfeifan.png";
     auto imgAsset = loader.load(filepath.string());
 
+    std::cout << curPath.string().c_str() << std::endl;
+
     BufferSourceInfo idataInfo{};
     idataInfo.bufferUsage = BufferUsage::TRANSFER_SRC;
     idataInfo.queueAccess = {{_queue->index()}};
@@ -170,6 +172,8 @@ RotatingCube::RotatingCube(std::shared_ptr<RHIDevice> device, std::shared_ptr<RH
     imageInfo.extent.z = 1;
     imageInfo.intialLayout = ImageLayout::UNDEFINED;
     _image = std::shared_ptr<RHIImage>(_device->createImage(imageInfo));
+
+    loader.free(std::move(imgAsset));
 
     ImageViewInfo imgViewInfo{};
     imgViewInfo.aspectMask = AspectMask::COLOR;
@@ -262,6 +266,7 @@ RotatingCube::RotatingCube(std::shared_ptr<RHIDevice> device, std::shared_ptr<RH
     pipelineInfo.shaders.emplace_back(_vertShader.get());
     pipelineInfo.shaders.emplace_back(_fragShader.get());
     pipelineInfo.vertexLayout = vertLayout;
+    pipelineInfo.rasterizationInfo.cullMode = FaceMode::FRONT;
     pipelineInfo.colorBlendInfo = blendInfo;
     pipelineInfo.multisamplingInfo = msInfo;
     _pipeline = std::shared_ptr<RHIGraphicsPipeline>(_device->createGraphicsPipeline(pipelineInfo));
@@ -310,9 +315,8 @@ void RotatingCube::show() {
         std::shared_ptr<RHIBlitEncoder> blitEncoder(commandbuffer->makeBlitEncoder());
         blitEncoder->updateBuffer(_vertexBuffer.get(), 0, rcubeVertices, sizeof(rcubeVertices));
 
-        _udata[0] = glm::rotate(glm::mat4(1.0f), glm::radians(45.0f), glm::vec3(1.0, 0.0, 0.0));
-        _udata[0] = glm::rotate(_udata[0], glm::radians(45.0f), glm::vec3(0.0, 1.0, 0.0));
-        _udata[1] = glm::mat4(1.0f); // glm::perspective(60.0f, width / (float)height, 0.1f, 100.0f);
+        _udata[0] = glm::rotate(glm::mat4(1.0f), glm::radians(0.0f), glm::vec3(1.0, 1.0, 1.0));
+        _udata[1] = glm::perspectiveFovLH_ZO(glm::pi<float>() / 3.f, (float)width, (float)height, 0.1f, 100.0f);
 
         blitEncoder->updateBuffer(_uniformBuffer.get(), 0, &_udata[0], 128);
 
@@ -336,9 +340,21 @@ void RotatingCube::show() {
         region.bufferRowLength = 0;
         region.imageExtent = _image->info().extent;
 
+        ImageBarrierInfo imgBarrierInfo{};
+        imgBarrierInfo.image = _image.get();
+        imgBarrierInfo.dstStage = PipelineStage::TRANSFER;
+        imgBarrierInfo.srcAccessFlag = AccessFlags::NONE;
+        imgBarrierInfo.dstAccessFlag = AccessFlags::TRANSFER_WRITE;
+        imgBarrierInfo.oldLayout = ImageLayout::UNDEFINED;
+        imgBarrierInfo.newLayout = ImageLayout::TRANSFER_DST_OPTIMAL;
+        imgBarrierInfo.srcQueueIndex = _queue->index();
+        imgBarrierInfo.dstQueueIndex = _queue->index();
+        imgBarrierInfo.range = {AspectMask::COLOR, 0, 1, 0, 1};
+        commandbuffer->appendImageBarrier(imgBarrierInfo);
+        commandbuffer->applyBarrier(DependencyFlags::BY_REGION);
+
         blitEncoder->copyBufferToImage(_imgdataBuffer.get(), _image.get(), ImageLayout::TRANSFER_DST_OPTIMAL, &region, 1);
 
-        ImageBarrierInfo imgBarrierInfo{};
         imgBarrierInfo.image = _image.get();
         imgBarrierInfo.srcStage = PipelineStage::TRANSFER;
         imgBarrierInfo.dstStage = PipelineStage::FRAGMENT_SHADER;
@@ -360,11 +376,13 @@ void RotatingCube::show() {
         bufferBarrierInfo.offset = 0;
         bufferBarrierInfo.size = 16;
         commandbuffer->appendBufferBarrier(bufferBarrierInfo);
-        commandbuffer->applyBarrier(DependencyFlags::BY_REGION);
+        commandbuffer->applyBarrier(DependencyFlags::BY_REGION); 
 
         std::shared_ptr<RHIBlitEncoder> blitEncoder(commandbuffer->makeBlitEncoder());
-        _udata[0] = glm::rotate(_udata[0], 0.0002f, glm::vec3(0.0, 0.0, 1.0));
-        blitEncoder->updateBuffer(_uniformBuffer.get(), 0, &_udata[0], 64);
+        _udata[0] = glm::rotate(_udata[0], 0.0002f, glm::vec3(1.0, 1.0, 1.0));
+        auto modelMat = glm::translate(glm::mat4(1.0f), glm::vec3(0.0, 0.0, 2.0));
+        modelMat = modelMat * _udata[0];
+        blitEncoder->updateBuffer(_uniformBuffer.get(), 0, &modelMat[0], 64);
 
         bufferBarrierInfo.srcStage = PipelineStage::TRANSFER;
         bufferBarrierInfo.dstStage = PipelineStage::VERTEX_SHADER;
