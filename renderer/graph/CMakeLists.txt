@@ -2,6 +2,8 @@ file(GLOB_RECURSE graph_h ${CMAKE_CURRENT_LIST_DIR}/include/*.h)
 file(GLOB_RECURSE graph_cpp ${CMAKE_CURRENT_LIST_DIR}/source/*.cpp)
 source_group("Header Files" FILES ${graph_h})
 
+set(CMAKE_CXX_STANDARD 20)
+
 add_library(graph STATIC ${graph_h} ${graph_cpp})
 set(Boost_USE_STATIC_LIBS OFF) 
 set(Boost_USE_MULTITHREADED ON)  
