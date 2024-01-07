@@ -1,0 +1,5 @@
+# add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/glm)
+add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/spdlog)
+add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/shaderc)
+add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/tinyobjloader)
+add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/vma)

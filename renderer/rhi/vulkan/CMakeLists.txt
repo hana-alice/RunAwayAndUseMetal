@@ -23,5 +23,4 @@ target_link_libraries(rhi PUBLIC
     ${Vulkan_LIBRARIES}
     core
     shaderc
-    glm
 )

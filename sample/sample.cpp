@@ -6,6 +6,8 @@
 #include "Triangle.hpp"
 #include "common.h"
 #include "window.h"
+#include "GraphSample.hpp"
+
 namespace raum {
 using platform::NativeWindow;
 using namespace rhi;
@@ -24,6 +26,7 @@ public:
 
         _samples = {
             std::make_shared<sample::RotatingCube>(_device, _swapchain),
+            //std::make_shared<sample::GraphSample>(_device, _swapchain),
         };
 
         for (const auto& s : _samples) {

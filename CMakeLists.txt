@@ -26,17 +26,14 @@ set_target_properties(SDL3-shared PROPERTIES
 )
 
 # 3rd party
-add_subdirectory(${dependency_dir}/spdlog)
-add_subdirectory(${dependency_dir}/shaderc)
-add_subdirectory(${dependency_dir}/tinyobjloader)
-add_subdirectory(${dependency_dir}/vma)
-add_subdirectory(${dependency_dir}/glm)
+include(${dependency_dir}/CMakeLists.txt)
 
 add_subdirectory(core)
 add_subdirectory(framework)
-
 add_subdirectory(renderer/rhi/vulkan)
 add_subdirectory(renderer/scene)
+add_subdirectory(renderer/graph)
+
 
 file(GLOB_RECURSE Sample
     ${CMAKE_CURRENT_SOURCE_DIR}/Sample/*.*
@@ -48,6 +45,11 @@ target_link_libraries(
     RAUM_Sample
     framework
     rhi
+    graph
+)
+
+target_include_directories(RAUM_Sample PUBLIC
+    ${dependency_dir}/glm
 )
 
 set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
