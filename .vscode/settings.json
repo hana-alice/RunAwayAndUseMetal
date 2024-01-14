@@ -92,7 +92,9 @@
         "future": "cpp",
         "scoped_allocator": "cpp",
         "typeindex": "cpp",
-        "valarray": "cpp"
+        "valarray": "cpp",
+        "*.ipp": "cpp",
+        "*.inc": "cpp"
     },
     "C_Cpp.errorSquiggles": "enabled"
 }

@@ -13,14 +13,11 @@ struct Pass {
 namespace boost {
 namespace graph {
 
-/// Use the City name as a key for indexing cities in a graph
 template <>
 struct internal_vertex_name<raum::graph::Pass> {
     typedef multi_index::member<raum::graph::Pass, std::string, &raum::graph::Pass::name> type;
 };
 
-/// Allow the graph to build cities given only their names (filling in
-/// the defaults for fields).
 template <>
 struct internal_vertex_constructor<raum::graph::Pass> {
     typedef vertex_from_name<raum::graph::Pass> type;

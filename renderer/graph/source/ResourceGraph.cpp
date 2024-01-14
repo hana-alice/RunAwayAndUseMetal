@@ -7,6 +7,7 @@
 
 using boost::add_vertex;
 using boost::graph::find_vertex;
+using boost::add_edge;
 using raum::rhi::RHIBuffer;
 using raum::rhi::RHIBufferView;
 using raum::rhi::RHIDevice;
@@ -18,8 +19,26 @@ namespace raum::graph {
 ResourceGraph::ResourceGraph(RHIDevice* device) : _device(device) {
 }
 
-void ResourceGraph::addResource(std::string_view name, const BufferData& data) {
-    std::ignore = add_vertex(name.data(), _graph);
+void ResourceGraph::addBuffer(std::string_view name, const BufferData& data) {
+    const auto& v = add_vertex(name.data(), _graph);
+    _graph[v].resource = data;
+}
+
+void ResourceGraph::addBufferView(std::string_view name, const BufferViewData& data) {
+    const auto& v = add_vertex(name.data(), _graph);
+    _graph[v].resource = data;
+    add_edge(v, data.origin.data(), _graph);
+}
+
+void ResourceGraph::addImage(std::string_view name, const ImageData& data) {
+    const auto& v = add_vertex(name.data(), _graph);
+    _graph[v].resource = data;
+}
+
+void ResourceGraph::addImageView(std::string_view name, const raum::graph::ImageViewData& data) {
+    const auto& v = add_vertex(name.data(), _graph);
+    _graph[v].resource = data;
+    add_edge(v, data.origin.data(), _graph);
 }
 
 void ResourceGraph::mount(std::string_view name) {
@@ -50,7 +69,33 @@ void ResourceGraph::mount(std::string_view name) {
                _graph[v].resource);
 }
 
-void ResourceGraph::unmount(std::string_view name) {
+void ResourceGraph::unmount(std::string_view name, uint64_t life) {
+    const auto& v = *find_vertex(name.data(), _graph);
+    auto& resource = _graph[v];
+    if (resource.life < life) {
+        std::visit(
+            overloaded{
+                [](BufferData& data) {
+                    delete data.buffer;
+                    data.buffer = nullptr;
+                },
+                [](BufferViewData& data) {
+                    delete data.bufferView;
+                    data.bufferView = nullptr;
+                },
+                [](ImageData& data) {
+                    delete data.image;
+                    data.image = nullptr;
+                },
+                [](ImageViewData& data) {
+                    delete data.imageView;
+                    data.imageView = nullptr;
+                },
+                [](auto&) {
+                },
+            },
+            resource.resource);
+    }
 }
 
 } // namespace raum::graph
