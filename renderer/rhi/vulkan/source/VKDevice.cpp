@@ -1,30 +1,31 @@
 #include "VKDevice.h"
 #include "RHIManager.h"
 #include "VKBuffer.h"
+#include "VKCommandPool.h"
+#include "VKDescriptorPool.h"
 #include "VKDescriptorSet.h"
 #include "VKDescriptorSetLayout.h"
+#include "VKFrameBuffer.h"
 #include "VKGraphicsPipeline.h"
+#include "VKImage.h"
+#include "VKImageView.h"
+#include "VKPipelineLayout.h"
 #include "VKQueue.h"
 #include "VKRenderPass.h"
 #include "VKSampler.h"
 #include "VKShader.h"
 #include "VKSwapchain.h"
 #include "VKUtils.h"
+#include "VkBufferView.h"
 #include "utils/log.h"
-#include "VKImage.h"
-#include "VKImageView.h"
-#include "VKFrameBuffer.h"
-#include "VKPipelineLayout.h"
-#include "VKCommandPool.h"
-#include "VKDescriptorPool.h"
 namespace raum::rhi {
 
 static constexpr bool enableValidationLayer{true};
 
 namespace {
-bool checkRequiredLayers(const std::vector<const char*>& requires, const std::vector<VkLayerProperties>& availables) {
+bool checkRequiredLayers(const std::vector<const char*>& reqs, const std::vector<VkLayerProperties>& availables) {
     bool found = false;
-    for (const char* require : requires) {
+    for (const char* require : reqs) {
         for (const auto& layer : availables) {
             if (strcmp(require, layer.layerName) == 0) {
                 found = true;
@@ -35,8 +36,8 @@ bool checkRequiredLayers(const std::vector<const char*>& requires, const std::ve
     return found;
 }
 
-bool checkRequiredExtensions(const std::vector<const char*> requires, const std::vector<VkExtensionProperties>& availables) {
-    for (const char* require : requires) {
+bool checkRequiredExtensions(const std::vector<const char*> reqs, const std::vector<VkExtensionProperties>& availables) {
+    for (const char* require : reqs) {
         bool found = false;
         for (const auto& layer : availables) {
             if (strcmp(require, layer.extensionName) == 0) {
@@ -123,7 +124,7 @@ Device::Device() {
 Device::~Device() {
     vkDeviceWaitIdle(_device);
 
-    for (auto&[_, sampler] : _samplers) {
+    for (auto& [_, sampler] : _samplers) {
         delete sampler;
     }
 
@@ -288,6 +289,9 @@ RHIBuffer* Device::createBuffer(const BufferSourceInfo& info) {
     return new Buffer(info, this);
 }
 
+RHIBufferView* Device::createBufferView(const BufferViewInfo& info) {
+    return new BufferView(info, this);
+}
 
 RHIImage* Device::createImage(const ImageInfo& info) {
     return new Image(info, this);
@@ -300,7 +304,6 @@ RHIImageView* Device::createImageView(const ImageViewInfo& info) {
 RHICommandPool* Device::createCoomandPool(const CommandPoolInfo& info) {
     return new CommandPool(info, this);
 }
-
 
 RHIDescriptorPool* Device::createDescriptorPool(const DescriptorPoolInfo& info) {
     return new DescriptorPool(info, this);

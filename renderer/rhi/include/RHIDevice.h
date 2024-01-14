@@ -1,7 +1,10 @@
 #pragma once
 #include "RHIBuffer.h"
+#include "RHICommandPool.h"
+#include "RHIDescriptorPool.h"
 #include "RHIDescriptorSet.h"
 #include "RHIDescriptorSetLayout.h"
+#include "RHIFrameBuffer.h"
 #include "RHIGraphicsPipeline.h"
 #include "RHIImage.h"
 #include "RHIImageView.h"
@@ -11,9 +14,6 @@
 #include "RHISampler.h"
 #include "RHIShader.h"
 #include "RHISwapchain.h"
-#include "RHIFrameBuffer.h"
-#include "RHIDescriptorPool.h"
-#include "RHICommandPool.h"
 namespace raum::rhi {
 
 class RHIDevice {
@@ -21,6 +21,7 @@ public:
     virtual RHISwapchain* createSwapchain(const SwapchainInfo&) = 0;
     virtual RHIBuffer* createBuffer(const BufferInfo&) = 0;
     virtual RHIBuffer* createBuffer(const BufferSourceInfo&) = 0;
+    virtual RHIBufferView* createBufferView(const BufferViewInfo&) = 0;
     virtual RHIImage* createImage(const ImageInfo&) = 0;
     virtual RHIImageView* createImageView(const ImageViewInfo&) = 0;
     virtual RHIShader* createShader(const ShaderBinaryInfo&) = 0;

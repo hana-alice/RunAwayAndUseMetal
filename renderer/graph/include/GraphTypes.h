@@ -5,8 +5,10 @@
 #include "RHIDefine.h"
 namespace raum::graph {
 
-template<class... Ts>
-struct overloaded : Ts... { using Ts::operator()...; };
+template <class... Ts>
+struct overloaded : Ts... {
+    using Ts::operator()...;
+};
 template <class... Ts>
 overloaded(Ts...) -> overloaded<Ts...>;
 
@@ -33,17 +35,14 @@ struct RenderingResource {
 };
 
 struct RenderPassData {
-    std::string name{};
     std::vector<RenderingResource> resources;
 };
 
 struct SubRenderPassData {
-    std::string name{};
     std::vector<RenderingResource> resources;
 };
 
 struct ComputePassData {
-    std::string name{};
     std::vector<RenderingResource> resources;
 };
 
@@ -54,8 +53,29 @@ struct CopyPair {
 };
 
 struct CopyPassData {
-    std::string name{};
     std::vector<CopyPair> pairs;
+};
+
+struct BufferData {
+    rhi::BufferInfo info{};
+    rhi::RHIBuffer* buffer{nullptr};
+};
+
+struct BufferViewData {
+    std::string origin{};
+    rhi::BufferViewInfo info{};
+    rhi::RHIBufferView* bufferView{nullptr};
+};
+
+struct ImageData {
+    rhi::ImageInfo info{};
+    rhi::RHIImage* image{nullptr};
+};
+
+struct ImageViewData {
+    std::string origin{};
+    rhi::ImageViewInfo info{};
+    rhi::RHIImageView* imageView{nullptr};
 };
 
 } // namespace raum::graph

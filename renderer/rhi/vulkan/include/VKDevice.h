@@ -2,9 +2,9 @@
 
 #include <vulkan/vulkan.h>
 #include <map>
-#include <unordered_map>
 #include <memory>
 #include <queue>
+#include <unordered_map>
 #include "RHIDevice.h"
 #include "vk_mem_alloc.h"
 namespace raum::rhi {
@@ -23,6 +23,7 @@ public:
     RHIQueue *getQueue(const QueueInfo &) override;
     RHIBuffer *createBuffer(const BufferInfo &) override;
     RHIBuffer *createBuffer(const BufferSourceInfo &) override;
+    RHIBufferView *createBufferView(const BufferViewInfo &) override;
     RHIImage *createImage(const ImageInfo &) override;
     RHIImageView *createImageView(const ImageViewInfo &) override;
     RHISampler *getSampler(const SamplerInfo &) override;
