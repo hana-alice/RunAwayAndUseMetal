@@ -52,6 +52,10 @@ target_include_directories(RAUM_Sample PUBLIC
     ${dependency_dir}/glm
 )
 
+set_target_properties(
+    RAUM_Sample PROPERTIES
+    VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/")
+
 set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
 file(COPY framework/asset/resources DESTINATION ${CMAKE_BINARY_DIR})

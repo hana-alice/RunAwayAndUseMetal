@@ -52,7 +52,7 @@ Swapchain::Swapchain(const SwapchainInfo& info, Device* device)
     VkSurfaceFormatKHR preferred = formats[0];
     for (auto format : formats) {
         if (format.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR &&
-            format.colorSpace == VK_FORMAT_B8G8R8_SNORM) {
+            format.format == VK_FORMAT_B8G8R8_SNORM) {
             preferred = format;
             break;
         }

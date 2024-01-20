@@ -2,6 +2,8 @@
 #include "VKDevice.h"
 #include "log.h"
 #include "shaderc/shaderc.h"
+#include "shaderc/shaderc.hpp"
+
 namespace raum::rhi {
 Shader::Shader(const ShaderSourceInfo& shaderInfo, RHIDevice* device)
 : RHIShader(shaderInfo, device), _device(static_cast<Device*>(device)) {

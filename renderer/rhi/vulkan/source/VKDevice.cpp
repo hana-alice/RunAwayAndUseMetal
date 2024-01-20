@@ -46,6 +46,7 @@ bool checkRequiredExtensions(const std::vector<const char*> reqs, const std::vec
             }
         }
     }
+    return false;
 }
 
 static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,

@@ -22,3 +22,6 @@
 [submodule "dependencies/boost"]
 	path = dependencies/boost
 	url = https://github.com/boostorg/boost.git
+[submodule "dependencies/modern_json"]
+	path = dependencies/modern_json
+	url = https://github.com/nlohmann/json.git

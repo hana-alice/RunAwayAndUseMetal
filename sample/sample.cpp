@@ -1,5 +1,3 @@
-#pragma once
-
 #include <cstdlib>
 #include <iostream>
 #include "RotatingCube.hpp"
@@ -25,8 +23,8 @@ public:
         _swapchain = std::shared_ptr<RHISwapchain>(_device->createSwapchain(scInfo));
 
         _samples = {
-            std::make_shared<sample::RotatingCube>(_device, _swapchain),
-            //std::make_shared<sample::GraphSample>(_device, _swapchain),
+//            std::make_shared<sample::RotatingCube>(_device, _swapchain),
+            std::make_shared<sample::GraphSample>(_device, _swapchain),
         };
 
         for (const auto& s : _samples) {

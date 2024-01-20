@@ -4,7 +4,7 @@
 #include "RHIDescriptorSetLayout.h"
 namespace raum::rhi {
 
-const DescriptorPoolInfo makeDescriptorPoolInfo(const std::vector<RHIDescriptorSetLayout*>& layouts) {
+inline const DescriptorPoolInfo makeDescriptorPoolInfo(const std::vector<RHIDescriptorSetLayout*>& layouts) {
     DescriptorPoolInfo info{};
     info.maxSets = static_cast<uint32_t>(layouts.size());
     std::map<DescriptorType, uint32_t> dict;
@@ -21,5 +21,7 @@ const DescriptorPoolInfo makeDescriptorPoolInfo(const std::vector<RHIDescriptorS
     info.pools = std::move(poolSize);
     return info;
 }
+
+
 
 } // namespace raum::rhi

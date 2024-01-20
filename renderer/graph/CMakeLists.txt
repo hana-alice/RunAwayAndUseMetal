@@ -59,6 +59,15 @@ target_include_directories(graph PUBLIC
     ${dependency_dir}/boost/libs/regex/include
     ${dependency_dir}/boost/libs/mp11/include
     ${dependency_dir}/boost/libs/describe/include
+
+    ${dependency_dir}/boost/libs/regex/include
+    ${dependency_dir}/boost/libs/lexical_cast/include
+    ${dependency_dir}/boost/libs/container/include
+    ${dependency_dir}/boost/libs/predef/include
+    ${dependency_dir}/boost/libs/numeric/conversion/include
+
+
+    ${dependency_dir}/modern_json/include/
 )
 
 target_link_libraries(graph PUBLIC 

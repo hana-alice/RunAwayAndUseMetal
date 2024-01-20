@@ -1066,4 +1066,5 @@ struct DescriptorPoolInfo {
     std::vector<DescriptorPoolSize> pools;
 };
 
+
 } // namespace raum::rhi

@@ -38,10 +38,9 @@
 namespace raum {
 
 template <typename T>
-void log(const T& t);
-
-inline void log(const char* msg) {
-    spdlog::log(spdlog::level::info, msg);
+void log(const T& t) {
+    spdlog::log(spdlog::level::info, t);
 }
+
 
 } // namespace raum

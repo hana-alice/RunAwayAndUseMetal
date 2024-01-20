@@ -78,4 +78,27 @@ struct ImageViewData {
     rhi::RHIImageView* imageView{nullptr};
 };
 
+enum class BindingType :uint8_t {
+    BUFFER,
+    IMAGE,
+    SAMPLER,
+    BINDLESS,
+};
+
+struct ShaderBindingDesc {
+    BindingType type{BindingType::BUFFER};
+    uint32_t binding{0};
+    rhi::ShaderStage visibility{rhi::ShaderStage::FRAGMENT};
+    rhi::ImageUsage imageUsage{};
+    rhi::BufferUsage bufferUsage{};
+    uint32_t elementSize{0};
+    uint32_t arrayCount{1};
+};
+
+struct ShaderResource {
+    std::unordered_map<std::string, ShaderBindingDesc, std::less<>> bindings;
+    rhi::RHIPipelineLayout* _layout{nullptr};
+    rhi::RHIShader* _shader{nullptr};
+};
+
 } // namespace raum::graph

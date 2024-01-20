@@ -34,7 +34,7 @@ class RenderPass {
 public:
     RenderPass(RenderPassData& data) : _data(data) {}
     RenderPass(const RenderPass& rhs) : _data(rhs._data) {}
-    RenderPass& operator=(const RenderPass& rhs) { _data = rhs._data; }
+    RenderPass& operator=(const RenderPass& rhs) { _data = rhs._data;  return *this; }
 
     RenderPass(RenderPass&& rhs) = delete;
     ~RenderPass() = default;
@@ -51,7 +51,7 @@ class ComputePass {
 public:
     ComputePass(ComputePassData& data) : _data(data) {}
     ComputePass(const ComputePass& rhs) : _data(rhs._data) {}
-    ComputePass& operator=(const ComputePass& rhs) { _data = rhs._data; }
+    ComputePass& operator=(const ComputePass& rhs) { _data = rhs._data; return *this; }
 
     ComputePass(ComputePass&& rhs) = delete;
     ~ComputePass() = default;
@@ -66,7 +66,7 @@ class CopyPass {
 public:
     CopyPass(CopyPassData& data) : _data(data) {}
     CopyPass(const CopyPass& rhs) : _data(rhs._data) {}
-    CopyPass& operator=(const CopyPass& rhs) { _data = rhs._data; }
+    CopyPass& operator=(const CopyPass& rhs) { _data = rhs._data;  return *this; }
 
     CopyPass(CopyPass&& rhs) = delete;
     ~CopyPass() = default;
