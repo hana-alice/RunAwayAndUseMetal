@@ -97,7 +97,7 @@ struct ShaderBindingDesc {
 
 struct ShaderResource {
     std::unordered_map<std::string, ShaderBindingDesc, std::less<>> bindings;
-    rhi::RHIPipelineLayout* _layout{nullptr};
+    rhi::RHIDescriptorSetLayout* _layout{nullptr};
     rhi::RHIShader* _shader{nullptr};
 };
 
