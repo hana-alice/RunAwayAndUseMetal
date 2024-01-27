@@ -126,7 +126,7 @@ Triangle::Triangle(std::shared_ptr<RHIDevice> device, std::shared_ptr<RHISwapcha
     _pipelineLayout = std::shared_ptr<RHIPipelineLayout>(_device->createPipelineLayout(layoutInfo));
 
     VertexLayout vertLayout{};
-    VertexAttribute attribute{0, 0, Format::R32G32B32_SFLOAT, 0};
+    VertexAttribute attribute{0, 0, Format::RGB32_SFLOAT, 0};
     vertLayout.vertexAttrs.emplace_back(attribute);
     VertexBufferAttribute vertBufferAttribute{0, sizeof(triVertices) / 3, InputRate::PER_VERTEX};
     vertLayout.vertexBufferAttrs.emplace_back(vertBufferAttribute);

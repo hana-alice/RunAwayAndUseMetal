@@ -42,5 +42,11 @@ void log(const T& t) {
     spdlog::log(spdlog::level::info, t);
 }
 
+template <typename T>
+void error(const T& t) {
+    spdlog::log(spdlog::level::err, t);
+}
+
+
 
 } // namespace raum

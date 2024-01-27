@@ -162,7 +162,7 @@ RotatingCube::RotatingCube(std::shared_ptr<RHIDevice> device, std::shared_ptr<RH
     _imgdataBuffer = std::shared_ptr<RHIBuffer>(_device->createBuffer(idataInfo));
 
     ImageInfo imageInfo{};
-    imageInfo.format = Format::R8G8B8A8_UNORM;
+    imageInfo.format = Format::RGBA8_UNORM;
     imageInfo.usage = ImageUsage::SAMPLED | ImageUsage::TRANSFER_DST;
     imageInfo.sliceCount = 1;
     imageInfo.mipCount = 1;
@@ -249,9 +249,9 @@ RotatingCube::RotatingCube(std::shared_ptr<RHIDevice> device, std::shared_ptr<RH
     _pipelineLayout = std::shared_ptr<RHIPipelineLayout>(_device->createPipelineLayout(layoutInfo));
 
     VertexLayout vertLayout{};
-    VertexAttribute pos{0, 0, Format::R32G32B32_SFLOAT, 0};
+    VertexAttribute pos{0, 0, Format::RGB32_SFLOAT, 0};
     vertLayout.vertexAttrs.emplace_back(pos);
-    VertexAttribute uv{1, 0, Format::R32G32_SFLOAT, 3 * sizeof(float)};
+    VertexAttribute uv{1, 0, Format::RG32_SFLOAT, 3 * sizeof(float)};
     vertLayout.vertexAttrs.emplace_back(uv);
     VertexBufferAttribute vertBufferAttribute{0, 5 * sizeof(float), InputRate::PER_VERTEX};
     vertLayout.vertexBufferAttrs.emplace_back(vertBufferAttribute);

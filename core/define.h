@@ -1,6 +1,12 @@
 #pragma once
 #ifndef RAUM_RELEASE
     #define RAUM_DEBUG 1
+static constexpr bool raum_debug{true};
+    #include <source_location>
+    #include "log.h"
+#else
+
+static constexpr bool raum_debug{false};
 #endif
 
 #if defined(_WIN32)
@@ -26,20 +32,31 @@
 #include <stddef.h>
 #include <string>
 
+namespace raum {
 // https://www.reddit.com/r/cpp/comments/phqxiq/transparent_find_is_a_pain_to_get_right/
 struct hash_string {
     using is_transparent = void;
-    size_t operator()(const std::string& v) const
-    {
+    size_t operator()(const std::string& v) const {
         return std::hash<std::string>{}(v);
     }
-    size_t operator()(const char*v) const
-    {
+    size_t operator()(const char* v) const {
         return std::hash<std::string_view>{}(v);
     }
 
-    size_t operator()(const std::string_view &v) const
-    {
+    size_t operator()(const std::string_view& v) const {
         return std::hash<std::string_view>{}(v);
     }
 };
+
+template <typename T>
+void raum_check(bool, const T&) noexcept {}
+
+template <typename T>
+    requires(raum_debug)
+void raum_check(bool exp, const T& msg) noexcept {
+    if (!exp) {
+        log(msg);
+    }
+}
+
+} // namespace raum

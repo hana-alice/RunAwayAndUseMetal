@@ -94,7 +94,25 @@
         "typeindex": "cpp",
         "valarray": "cpp",
         "*.ipp": "cpp",
-        "*.inc": "cpp"
+        "*.inc": "cpp",
+        "barrier": "cpp",
+        "codecvt": "cpp",
+        "complex": "cpp",
+        "csetjmp": "cpp",
+        "cwctype": "cpp",
+        "execution": "cpp",
+        "expected": "cpp",
+        "latch": "cpp",
+        "memory_resource": "cpp",
+        "numbers": "cpp",
+        "print": "cpp",
+        "semaphore": "cpp",
+        "source_location": "cpp",
+        "spanstream": "cpp",
+        "stacktrace": "cpp",
+        "stdfloat": "cpp",
+        "strstream": "cpp",
+        "syncstream": "cpp"
     },
     "C_Cpp.errorSquiggles": "enabled"
 }

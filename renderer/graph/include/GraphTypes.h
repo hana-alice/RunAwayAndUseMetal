@@ -85,18 +85,46 @@ enum class BindingType :uint8_t {
     BINDLESS,
 };
 
+enum class ResourceUsage:uint8_t {
+    UNIFORM,
+    SAMPLED,
+    STORAGE,
+};
+
+struct BufferElement {
+    rhi::DataType type{rhi::DataType::UNKNOWN};
+    uint32_t count{1};
+};
+
+struct BufferBinding {
+    rhi::BufferUsage usage{rhi::BufferUsage::UNIFORM};
+    std::vector<BufferElement> elements;
+    uint32_t count{1};
+};
+
+struct ImageBinding {
+    rhi::ImageUsage usage{rhi::ImageUsage::SAMPLED};
+    rhi::ImageType imageType{rhi::ImageType::IMAGE_2D};
+    rhi::Format format{rhi::Format::RGBA8_UNORM};
+    uint32_t arraySize{1};
+};
+
+struct SamplerBinding {
+    uint32_t count{1};
+    bool immutable{false};
+};
+
 struct ShaderBindingDesc {
     BindingType type{BindingType::BUFFER};
+    rhi::ShaderStage visibility{rhi::ShaderStage::NONE};
     uint32_t binding{0};
-    rhi::ShaderStage visibility{rhi::ShaderStage::FRAGMENT};
-    rhi::ImageUsage imageUsage{};
-    rhi::BufferUsage bufferUsage{};
-    uint32_t elementSize{0};
-    uint32_t arrayCount{1};
+    BufferBinding buffer{};
+    ImageBinding image{};
+    SamplerBinding sampler{};
 };
 
 struct ShaderResource {
-    std::unordered_map<std::string, ShaderBindingDesc, std::less<>> bindings;
+    std::unordered_map<std::string, ShaderBindingDesc, hash_string, std::equal_to<>> bindings;
     rhi::RHIDescriptorSetLayout* _layout{nullptr};
     rhi::RHIShader* _shader{nullptr};
 };

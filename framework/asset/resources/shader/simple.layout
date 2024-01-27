@@ -1,40 +1,41 @@
 {
   "path": "asset/layout/simple",
+
   "vertex": {
-    "binding": [
+    "bindings": [
       {
-        "0": [
+        "slot": 0,
+        "resource": "buffer",
+        "usage": "uniform",
+        "elements": [
           {
-            "0": {
-              "buffer": [
-                {
-                  "mat4" : 1
-                },
-                {
-                  "mat4" : 1
-                }
-              ]
-            }
+            "type": "mat4",
+            "count": 1
+          },
+          {
+            "type": "mat4",
+            "count": 1
           }
-        ]
+        ],
+        "count": 1
       }
     ]
   },
+
   "fragment": {
-    "binding": [
+    "bindings": [
       {
-        "0": [
-          {
-            "1": {
-              "image2D": ["sampled", 1]
-            }
-          },
-          {
-            "2": {
-              "sampler2D": ["filterable", 1]
-            }
-          }
-        ]
+        "slot":"1",
+        "resource" : "image",
+        "type" : "2d",
+        "usage": "sampled",
+        "count": 1
+      },
+      {
+        "slot":"2",
+        "resource" : "sampler",
+        "count": 1,
+        "immutable" : true
       }
     ]
   }

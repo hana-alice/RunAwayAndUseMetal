@@ -1,31 +1,16 @@
 #include "ShaderGraph.h"
 #include "RHIDescriptorSetLayout.h"
 #include "RHIDescriptorPool.h"
-#include "nlohmann/json.hpp"
 #include <fstream>
 #include "boost/regex.hpp"
 #include "boost/lexical_cast.hpp"
-
-#include <iostream>
+#include "RHIDefine.h"
+#include "RHIUtils.h"
+#include "Serialization.h"
 
 using boost::add_vertex;
 using boost::graph::find_vertex;
 using boost::add_edge;
-
-using json = nlohmann::json;
-
-//json type conversions
-namespace {
-//NLOHMANN_JSON_SERIALIZE_ENUM( TaskState, {
-//                                            {TS_INVALID, nullptr},
-//                                            {TS_STOPPED, "stopped"},
-//                                            {TS_RUNNING, "running"},
-//                                            {TS_COMPLETED, "completed"},
-//                                        })
-
-
-}
-
 
 namespace raum::graph {
 
@@ -44,9 +29,8 @@ void parseName(const std::filesystem::path &logicPath, ShaderGraph& sg) {
     }
 }
 
-
 void reflect(const std::string& source, std::map<uint32_t, std::string>& bindingMap) {
-    const char* pattern = R"(\\n\s*layout\(.*?binding\s*=\s(\d+)\).*?(\w+)\s*[{;])";
+    const char* pattern = R"(\s*layout\([^\)]*binding\s*=\s(\d+)\).*?(\w+)\s*[{;])";
     boost::regex reg(pattern);
 
     boost::sregex_iterator it(source.begin(), source.end(), reg);
@@ -81,25 +65,6 @@ std::map<uint32_t, std::string> reflect(std::filesystem::path dir, std::string_v
     return bindingMap;
 }
 
-void parseBindings(const json& data, ShaderResource& resource, std::string_view stageStr, const std::map<uint32_t, std::string>& bindingMap) {
-
-}
-
-void parseLayout(const json& data, ShaderResource& resource, const std::map<uint32_t, std::string>& bindingMap) {
-    const auto& stages = data.items();
-    for(const auto& stage : stages) {
-        if(stage.key() == "path") {
-            continue;
-        }
-
-        const auto& stageDesc = data[stage.key()];
-        for(const auto& desc : stageDesc.items()) {
-            assert(desc.value().is_array());
-            parseBindings(desc.value(), resource, stage.key(), bindingMap);
-        }
-    }
-
-}
 
 ShaderGraph::ShaderGraph(rhi::RHIDevice *device):_device(device) {
     auto v = add_vertex("", _impl);
@@ -109,24 +74,10 @@ ShaderGraph::ShaderGraph(rhi::RHIDevice *device):_device(device) {
 void ShaderGraph::load(const std::filesystem::path &path, std::string_view name) {
     auto layoutPath = (path / name ).concat(".layout");
 
-
     assert(exists(layoutPath));
-    ShaderResourceNode node;
-    std::ifstream f(layoutPath);
-    json data = json::parse(f);
-    data.at("path").get_to(node.name);
 
-
-    // add node
-    auto logicPath = std::filesystem::path(node.name);
-    parseName(logicPath, *this);
-
-    auto bindingMap = reflect(path, name);
-    parseLayout(data, _resources[node.name], bindingMap);
-
-
-
-
+    const auto& bindingMap = reflect(path, name);
+    deserialize(layoutPath, _resources, bindingMap);
 }
 
 rhi::RHIDescriptorSetLayout* getLayout(std::string_view name) {

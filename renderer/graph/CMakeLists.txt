@@ -66,9 +66,27 @@ target_include_directories(graph PUBLIC
     ${dependency_dir}/boost/libs/predef/include
     ${dependency_dir}/boost/libs/numeric/conversion/include
 
+    ${dependency_dir}/boost/libs/json/include
+    ${dependency_dir}/boost/libs/align/include
+    ${dependency_dir}/boost/libs/intrusive/include
+    ${dependency_dir}/boost/libs/system/include
+    ${dependency_dir}/boost/libs/variant2/include
 
-    ${dependency_dir}/modern_json/include/
+    ${dependency_dir}/boost/libs/algorithm/include
 )
+
+if(WIN32)
+    target_include_directories (graph PUBLIC
+        ${dependency_dir}/boost/libs/winapi/include
+    )
+endif()
+
+if(MSVC)
+    target_compile_definitions(graph PRIVATE
+        BOOST_ALL_NO_LIB=1
+        BOOST_JSON_NO_LIB=1
+    )
+endif()
 
 target_link_libraries(graph PUBLIC 
     core
