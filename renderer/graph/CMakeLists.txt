@@ -60,6 +60,8 @@ target_include_directories(graph PUBLIC
     ${dependency_dir}/boost/libs/mp11/include
     ${dependency_dir}/boost/libs/describe/include
 
+    ${dependency_dir}/boost/libs/function_types/include
+
     ${dependency_dir}/boost/libs/regex/include
     ${dependency_dir}/boost/libs/lexical_cast/include
     ${dependency_dir}/boost/libs/container/include

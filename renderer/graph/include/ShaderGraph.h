@@ -38,17 +38,24 @@ class ShaderGraph {
 public:
     ShaderGraph(rhi::RHIDevice* device);
 
+    // load layout/shader from assets
     void load(const std::filesystem::path &path, std::string_view name);
 
-    rhi::RHIDescriptorSetLayout getLayout(std::string_view name);
+    // compile shader and generate descriptorset layout, name can be a parent node which typed by directory,
+    // in this case all children of 'name' will be compiled. [grouped multithreading]
+    void compile(std::string_view name);
+
+    rhi::RHIDescriptorSetLayout* getLayout(std::string_view name);
 
     const ShaderResource& layout(std::string_view name);
 
     ShaderGraphImpl& underlyingGraph() { return _impl; }
 
+    void registerCustomLayout(ShaderResource&& layout, std::string_view name);
+
 private:
     rhi::RHIDevice* _device{nullptr};
-    std::unordered_map<std::string, ShaderResource, hash_string, std::equal_to<>> _resources;
+    ShaderResources _resources;
     ShaderGraphImpl _impl;
 };
 }

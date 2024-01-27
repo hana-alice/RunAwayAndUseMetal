@@ -128,7 +128,7 @@ void deserializeBinding(const object& obj, const rhi::ShaderStage stage, ShaderR
     }
 }
 
-void deserialize(const std::filesystem::path &path, std::unordered_map<std::string, ShaderResource, hash_string, std::equal_to<>>& resources, const std::map<uint32_t, std::string>& bindingMap) {
+const std::filesystem::path deserialize(const std::filesystem::path &path, ShaderResources& resources, const std::map<uint32_t, std::string>& bindingMap) {
     raum_check(std::filesystem::exists(path), "failed to read file!");
     std::ifstream f(path);
     const auto& raw = parse(f);
@@ -153,5 +153,7 @@ void deserialize(const std::filesystem::path &path, std::unordered_map<std::stri
         const auto& comp = data.at("compute");
         deserializeBinding(comp.as_object(), rhi::ShaderStage::COMPUTE, resource, bindingMap);
     }
+
+    return std::filesystem::path(pathID.c_str());
 }
 }

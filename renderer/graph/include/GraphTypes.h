@@ -2,6 +2,7 @@
 #include <string>
 #include <variant>
 #include <vector>
+#include "boost/container/flat_map.hpp"
 #include "RHIDefine.h"
 namespace raum::graph {
 
@@ -125,8 +126,11 @@ struct ShaderBindingDesc {
 
 struct ShaderResource {
     std::unordered_map<std::string, ShaderBindingDesc, hash_string, std::equal_to<>> bindings;
-    rhi::RHIDescriptorSetLayout* _layout{nullptr};
-    rhi::RHIShader* _shader{nullptr};
+    rhi::RHIDescriptorSetLayout* layout{nullptr};
+    boost::container::flat_map<std::string, std::string> shaderSources;
+    boost::container::flat_map<rhi::ShaderStage, rhi::RHIShader*> shaders;
 };
+
+using ShaderResources = std::unordered_map<std::string, ShaderResource, hash_string, std::equal_to<>>;
 
 } // namespace raum::graph
