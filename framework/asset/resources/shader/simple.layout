@@ -25,14 +25,14 @@
   "fragment": {
     "bindings": [
       {
-        "slot":"1",
+        "slot":1,
         "resource" : "image",
         "type" : "2d",
         "usage": "sampled",
         "count": 1
       },
       {
-        "slot":"2",
+        "slot":2,
         "resource" : "sampler",
         "count": 1,
         "immutable" : true

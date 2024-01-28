@@ -38,9 +38,6 @@ class ShaderGraph {
 public:
     ShaderGraph(rhi::RHIDevice* device);
 
-    // load layout/shader from assets
-    void load(const std::filesystem::path &path, std::string_view name);
-
     // compile shader and generate descriptorset layout, name can be a parent node which typed by directory,
     // in this case all children of 'name' will be compiled. [grouped multithreading]
     void compile(std::string_view name);
@@ -49,10 +46,9 @@ public:
 
     const ShaderResource& layout(std::string_view name);
 
-    ShaderGraphImpl& underlyingGraph() { return _impl; }
+    void addCustomLayout(ShaderResource&& layout, std::string_view name);
 
-    void registerCustomLayout(ShaderResource&& layout, std::string_view name);
-
+    void addVertex(const std::filesystem::path &logicPath, ShaderResource&& shaderResource);
 private:
     rhi::RHIDevice* _device{nullptr};
     ShaderResources _resources;

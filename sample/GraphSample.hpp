@@ -4,6 +4,7 @@
 #include "ShaderGraph.h"
 #include "utils.h"
 #include "ResourceGraph.h"
+#include "Serialization.h"
 
 namespace raum::sample {
 class GraphSample : public SampleBase {
@@ -24,8 +25,10 @@ GraphSample::GraphSample(std::shared_ptr<RHIDevice> device, std::shared_ptr<RHIS
     _shaderGraph = std::make_shared<graph::ShaderGraph>(_device.get());
 
     const auto& resourcePath = utils::resourceDirectory();
-    _shaderGraph->load(resourcePath / "shader" , "simple");
+
+    graph::deserialize(resourcePath / "shader" , "simple", *_shaderGraph);
     _shaderGraph->compile("asset");
+
 
 }
 

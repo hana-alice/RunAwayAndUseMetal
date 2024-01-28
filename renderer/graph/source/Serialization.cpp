@@ -3,6 +3,8 @@
 #include <fstream>
 #include "RHIUtils.h"
 #include "boost/algorithm/string.hpp"
+#include "boost/regex.hpp"
+#include "boost/lexical_cast.hpp"
 
 namespace raum::graph {
 
@@ -128,7 +130,7 @@ void deserializeBinding(const object& obj, const rhi::ShaderStage stage, ShaderR
     }
 }
 
-const std::filesystem::path deserialize(const std::filesystem::path &path, ShaderResources& resources, const std::map<uint32_t, std::string>& bindingMap) {
+const std::filesystem::path deserialize(const std::filesystem::path &path, ShaderResource& resource, const std::map<uint32_t, std::string>& bindingMap) {
     raum_check(std::filesystem::exists(path), "failed to read file!");
     std::ifstream f(path);
     const auto& raw = parse(f);
@@ -139,8 +141,6 @@ const std::filesystem::path deserialize(const std::filesystem::path &path, Shade
     }
 
     const auto& pathID = data.at("path").as_string();
-    auto& resource = resources[pathID.c_str()];
-
     if(data.contains("vertex")) {
         const auto& vert = data.at("vertex");
         deserializeBinding(vert.as_object(), rhi::ShaderStage::VERTEX, resource, bindingMap);
@@ -155,5 +155,66 @@ const std::filesystem::path deserialize(const std::filesystem::path &path, Shade
     }
 
     return std::filesystem::path(pathID.c_str());
+}
+
+std::map<std::string, std::string> loadResource(std::filesystem::path dir, std::string_view name) {
+    std::map<std::string, std::string> shaderSrc;
+    for(auto ext : {".vert", ".frag", ".comp", ".mesh", ".task"}) {
+        auto fp = (dir / name).concat(ext);
+        if(exists(fp)) {
+            std::ifstream in(fp);
+            std::stringstream buffer;
+            buffer << in.rdbuf();
+            shaderSrc.emplace(ext, buffer.str());
+        }
+    }
+    return shaderSrc;
+}
+
+void reflect(const std::string& source, std::map<uint32_t, std::string>& bindingMap) {
+    const char* pattern = R"(\s*layout\([^\)]*binding\s*=\s(\d+)\).*?(\w+)\s*[{;])";
+    boost::regex reg(pattern);
+
+    boost::sregex_iterator it(source.begin(), source.end(), reg);
+    boost::sregex_iterator end;
+
+    for (; it != end; ++it) {
+        std::string matchStr((*it)[0].begin(), (*it)[0].end());
+        const char* setPatt = R"(set\s*=\s*0)";
+        boost::regex setReg(setPatt);
+        boost::sregex_iterator setIt(matchStr.begin(), matchStr.end(), setReg);
+        if (setIt == end) continue; // skip if not set 0
+
+        std::string_view bindingStr((*it)[1].begin(), (*it)[1].end());
+        std::string_view nameStr((*it)[2].begin(), (*it)[2].end());
+        auto binding = boost::lexical_cast<uint32_t>(bindingStr);
+        bindingMap.emplace(binding, nameStr);
+    }
+}
+
+std::map<uint32_t, std::string> reflect(const std::map<std::string, std::string>& sources) {
+    std::map<uint32_t, std::string> bindingMap;
+    for(auto source : sources) {
+        reflect(source.second, bindingMap);
+    }
+    return bindingMap;
+}
+
+
+void deserialize(const std::filesystem::path &path, std::string_view name, ShaderGraph& shaderGraph) {
+    auto layoutPath = (path / name ).concat(".layout");
+    assert(exists(layoutPath));
+
+    auto shaderSrc = loadResource(path, name);
+    const auto& bindingMap = reflect(shaderSrc);
+    {
+        ShaderResource resource{};
+        const auto& logicPath = deserialize(layoutPath, resource, bindingMap);
+        for(auto& src : shaderSrc) {
+            resource.shaderSources.emplace(logicPath.string() + src.first, std::move(src.second));
+        }
+        shaderGraph.addVertex(logicPath, std::move(resource));
+    }
+
 }
 }
