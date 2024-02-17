@@ -86,25 +86,19 @@ enum class BindingType :uint8_t {
     BINDLESS,
 };
 
-enum class ResourceUsage:uint8_t {
-    UNIFORM,
-    SAMPLED,
-    STORAGE,
-};
-
 struct BufferElement {
     rhi::DataType type{rhi::DataType::UNKNOWN};
     uint32_t count{1};
 };
 
 struct BufferBinding {
-    rhi::BufferUsage usage{rhi::BufferUsage::UNIFORM};
+    rhi::DescriptorType type{rhi::DescriptorType::UNIFORM_BUFFER};
     std::vector<BufferElement> elements;
     uint32_t count{1};
 };
 
 struct ImageBinding {
-    rhi::ImageUsage usage{rhi::ImageUsage::SAMPLED};
+    rhi::DescriptorType type{rhi::DescriptorType::SAMPLED_IMAGE};
     rhi::ImageType imageType{rhi::ImageType::IMAGE_2D};
     rhi::Format format{rhi::Format::RGBA8_UNORM};
     uint32_t arraySize{1};

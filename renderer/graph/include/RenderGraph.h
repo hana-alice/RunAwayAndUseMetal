@@ -30,6 +30,12 @@ namespace raum::graph {
 
 using RenderGraphImpl = boost::adjacency_list<boost::vecS, boost::vecS, boost::directedS, Pass, boost::no_property>;
 
+class RenderQueue {
+public:
+    RenderQueue();
+
+};
+
 class RenderPass {
 public:
     RenderPass(RenderPassData& data) : _data(data) {}

@@ -92,4 +92,5 @@ endif()
 
 target_link_libraries(graph PUBLIC 
     core
+    scene
 )

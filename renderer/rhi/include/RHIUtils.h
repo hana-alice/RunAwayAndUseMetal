@@ -22,6 +22,19 @@ inline const DescriptorPoolInfo makeDescriptorPoolInfo(const std::vector<RHIDesc
     return info;
 }
 
+template <IndexType SIZE>
+struct NumericIndexType;
+
+template<>
+struct NumericIndexType<IndexType::FULL> { using type = uint32_t; };
+
+template<>
+struct NumericIndexType<IndexType::HALF> { using type = uint16_t; };
+
+using HalfIndexType = NumericIndexType<IndexType::HALF>::type;
+using FullIndexType = NumericIndexType<IndexType::FULL>::type;
+
+
 static constexpr std::array<uint32_t, static_cast<size_t>(DataType::COUNT)> typeSize = {
     0,  // UNKNOWN
     4,  // BOOL

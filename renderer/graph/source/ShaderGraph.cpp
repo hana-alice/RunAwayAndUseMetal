@@ -68,6 +68,11 @@ struct ShaderVisitor: public boost::dfs_visitor<>{
             auto* shader = device->createShader(info);
             resource.shaders.emplace(stage, shader);
         }
+
+        rhi::DescriptorSetLayoutInfo info{};
+        for (const auto& [_, binding] : resource.bindings) {
+            info.descriptorBindings.emplace_back();
+        }
     }
 
     ShaderResources& resources;

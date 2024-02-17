@@ -7,14 +7,14 @@ source_group("Header Files" FILES ${framework_platform_h} ${framework_asset_h})
 
 find_package(Vulkan REQUIRED)
 
-add_library(framework STATIC 
-    ${framework_platform_h} 
+add_library(framework STATIC
+    ${framework_platform_h}
     ${framework_platform_cpp}
-    ${framework_asset_h} 
+    ${framework_asset_h}
     ${framework_asset_cpp}
 )
 
-target_include_directories(framework PUBLIC 
+target_include_directories(framework PUBLIC
     ${CMAKE_CURRENT_LIST_DIR}/platform/windows/include
     ${CMAKE_CURRENT_LIST_DIR}/asset/include
     ${core_dir}/utils
@@ -24,9 +24,11 @@ target_include_directories(framework PUBLIC
     ${Vulkan_INCLUDE_DIR}
 )
 
-target_link_libraries(framework PRIVATE 
-    SDL3::SDL3 
-    tinyobjloader
+target_link_libraries(framework PRIVATE
+    SDL3::SDL3
     core
+    assimp
+    scene
+    graph
 )
 

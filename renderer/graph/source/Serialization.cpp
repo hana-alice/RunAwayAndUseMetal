@@ -10,18 +10,30 @@ namespace raum::graph {
 
 using namespace ::boost::json;
 
+std::unordered_map<std::string_view, rhi::DescriptorType, hash_string, std::equal_to<>> bufferBindingMap = {
+    {"uniform", rhi::DescriptorType::UNIFORM_BUFFER},
+    {"storage", rhi::DescriptorType::STORAGE_BUFFER},
+    {"dynamic_uniform", rhi::DescriptorType::UNIFORM_BUFFER_DYNAMIC},
+    {"dynamic_storage", rhi::DescriptorType::STORAGE_BUFFER_DYNAMIC},
+    {"uniform_texel", rhi::DescriptorType::UNIFORM_TEXEL_BUFFER},
+    {"storage_texel", rhi::DescriptorType::STORAGE_TEXEL_BUFFER},
+};
+
+std::unordered_map<std::string_view, rhi::DescriptorType, hash_string, std::equal_to<>> imageBindingMap = {
+    {"sampled", rhi::DescriptorType::SAMPLED_IMAGE},
+    {"storage", rhi::DescriptorType::STORAGE_IMAGE},
+    {"input", rhi::DescriptorType::INPUT_ATTACHMENT},
+};
+
 BufferBinding tag_invoke( value_to_tag<BufferBinding>, value const& jv ) {
     object const& obj = jv.as_object();
     BufferBinding buffer{};
     const auto& usageStr = obj.at("usage").as_string();
-    auto& usage = buffer.usage;
-    if(usageStr == "uniform") {
-        buffer.usage = rhi::BufferUsage::UNIFORM;
-    } else if(usageStr == "storage") {
-        buffer.usage = rhi::BufferUsage::STORAGE;
-    } else {
-        raum_check(false, "unsupport buffer binding type.");
+    if(!bufferBindingMap.contains(usageStr)) {
+        spdlog::error("{} is not a valid usage.", usageStr.c_str());
+        error("{} is not a valid usage.", 1);
     }
+    buffer.type = bufferBindingMap.at(usageStr);
     buffer.count = obj.at("count").to_number<uint32_t>();
 
     const auto& eleData = obj.at("elements").as_array();
@@ -40,20 +52,11 @@ ImageBinding tag_invoke( value_to_tag<ImageBinding>, value const& jv ) {
     object const& obj = jv.as_object();
     ImageBinding image{};
     const auto& usageStr = obj.at("usage").as_string();
-    auto& usage = image.usage;
-    if(usageStr == "sample") {
-        image.usage = rhi::ImageUsage::SAMPLED;
-    } else if(usageStr == "storage") {
-        image.usage = rhi::ImageUsage::STORAGE;
-    } else if(usageStr == "shading_rate") {
-        image.usage = rhi::ImageUsage::SHADING_RATE;
-    } else if(usageStr == "input_color") {
-        image.usage = rhi::ImageUsage::INPUT_ATTACHMENT | rhi::ImageUsage::COLOR_ATTACHMENT;
-    } else if(usageStr == "input_depth") {
-        image.usage = rhi::ImageUsage::INPUT_ATTACHMENT | rhi::ImageUsage::DEPTH_STENCIL_ATTACHMENT;
-    } else {
-        raum_check(false, "unsupport image binding type.");
+    if(!imageBindingMap.contains(usageStr)) {
+        error("{} is not a valid usage.", usageStr.c_str());
     }
+
+    image.type = imageBindingMap.at(usageStr);
     image.arraySize = obj.at("count").to_number<uint32_t>();
 
     const auto& imageTypeStr = obj.at("type").as_string();

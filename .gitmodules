@@ -25,3 +25,6 @@
 [submodule "dependencies/modern_json"]
 	path = dependencies/modern_json
 	url = https://github.com/nlohmann/json.git
+[submodule "dependencies/assimp"]
+	path = dependencies/assimp
+	url = https://github.com/assimp/assimp.git

@@ -499,7 +499,7 @@ struct AttachmentInfo {
 
 struct AttachmentReference {
     uint8_t index;
-    ImageLayout layout{ImageLayout::READ_ONLY_OPTIMAL};
+    ImageLayout layout{ImageLayout::UNDEFINED};
 };
 
 struct SubpassInfo {
@@ -832,6 +832,7 @@ enum class IndexType : uint8_t {
     HALF, // most likely 16 bit
     FULL, // most likely 32 bit
 };
+
 struct DeviceInfo {
     // void* hwnd;
 };

@@ -48,14 +48,15 @@ struct hash_string {
     }
 };
 
-template <typename T>
-void raum_check(bool, const T&) noexcept {}
+template <typename ...Args>
+    requires(!raum_debug)
+void raum_check(bool, fmt::format_string<Args...> s, Args&&... args) noexcept {}
 
-template <typename T>
+template <typename ...Args>
     requires(raum_debug)
-void raum_check(bool exp, const T& msg) noexcept {
+void raum_check(bool exp, fmt::format_string<Args...> s, Args&&... args) noexcept {
     if (!exp) {
-        log(msg);
+        error(s, std::forward<Args>(args)...);
     }
 }
 
