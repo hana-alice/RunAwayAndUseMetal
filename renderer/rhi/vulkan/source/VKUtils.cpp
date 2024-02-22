@@ -7,7 +7,7 @@ namespace raum::rhi {
 
 const std::map<Format, FormatInfo> formatMap = {
     {Format::UNKNOWN, {VK_FORMAT_UNDEFINED, 0, 0}},
-    {Format::A8_UNORM, {VK_FORMAT_A8_UNORM_KHR, 1, 1}},
+    //{Format::A8_UNORM, {VK_FORMAT_A8_UNORM_KHR, 1, 1}},
     {Format::R8_UNORM, {VK_FORMAT_R8_UNORM, 1, 1}},
     {Format::R8_SNORM, {VK_FORMAT_R8_SNORM, 1, 1}},
     {Format::R8_UINT, {VK_FORMAT_R8_UINT, 1, 1}},

@@ -24,6 +24,10 @@ target_include_directories(framework PUBLIC
     ${Vulkan_INCLUDE_DIR}
 )
 
+if (WIN32)
+  set_target_properties(assimp PROPERTIES COMPILE_FLAGS "/wd4819")
+endif()
+
 target_link_libraries(framework PRIVATE
     SDL3::SDL3
     core
