@@ -1,7 +1,7 @@
 #pragma once
-#include "define.h"
-#include "glm.hpp"
-#include "gtx/quaternion.hpp"
+// #include "define.h"
+#include <glm/glm.hpp>
+#include <glm/gtx/quaternion.hpp>
 
 namespace raum::scene {
 

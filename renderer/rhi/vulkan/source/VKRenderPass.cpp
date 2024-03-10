@@ -1,7 +1,6 @@
 #include "VKRenderPass.h"
 #include "VKDevice.h"
 #include "VKUtils.h"
-#include "log.h"
 namespace raum::rhi {
 
 RenderPass::RenderPass(const RenderPassInfo& info, RHIDevice* device)

@@ -8,9 +8,23 @@
 
 namespace raum::graph {
 
+struct ModelNode {
+    scene::Model& model;
+};
+
+
+struct CameraNode {
+    scene::Camera& camera;
+};
+
+struct LightNode {
+    scene::Light& light;
+};
+
 struct SceneNode {
     std::string name{};
-    std::variant<scene::Model, scene::Light, scene::Camera> sceneNodeData;
+    bool enable{true};
+    std::variant<scene::Model, scene::Camera, scene::Light> sceneNodeData;
 };
 
 }
@@ -44,9 +58,9 @@ public:
     SceneGraph& operator=(const SceneGraph&) = delete;
     SceneGraph(SceneGraph&&) = delete;
 
-    scene::Model& addModel(std::string_view name, std::string_view parent);
-    scene::Camera& addCamera(std::string_view name, std::string_view parent);
-    scene::Light& addLight(std::string_view name, std::string_view parent);
+    ModelNode addModel(std::string_view name, std::string_view parent);
+    CameraNode addCamera(std::string_view name, std::string_view parent);
+    LightNode addLight(std::string_view name, std::string_view parent);
 
     SceneNode& sceneRoot() const;
 

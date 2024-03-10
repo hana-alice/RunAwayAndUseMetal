@@ -1,38 +1,21 @@
 file(GLOB_RECURSE framework_platform_h ${CMAKE_CURRENT_LIST_DIR}/platform/windows/include/*.h)
 file(GLOB_RECURSE framework_platform_cpp ${CMAKE_CURRENT_LIST_DIR}/platform/windows/source/*.cpp)
 
-file(GLOB_RECURSE framework_asset_h ${CMAKE_CURRENT_LIST_DIR}/asset/include/*.h)
-file(GLOB_RECURSE framework_asset_cpp ${CMAKE_CURRENT_LIST_DIR}/asset/source/*.cpp)
-source_group("Header Files" FILES ${framework_platform_h} ${framework_asset_h})
-
-find_package(Vulkan REQUIRED)
+source_group("Header Files" FILES ${framework_platform_h})
 
 add_library(framework STATIC
     ${framework_platform_h}
     ${framework_platform_cpp}
-    ${framework_asset_h}
-    ${framework_asset_cpp}
 )
 
 target_include_directories(framework PUBLIC
     ${CMAKE_CURRENT_LIST_DIR}/platform/windows/include
-    ${CMAKE_CURRENT_LIST_DIR}/asset/include
     ${core_dir}/utils
-    ${dependency_dir}/tinyobjloader
     ${dependency_dir}/sdl/include
-    ${dependency_dir}/stb_image
-    ${Vulkan_INCLUDE_DIR}
 )
-
-if (WIN32)
-  set_target_properties(assimp PROPERTIES COMPILE_FLAGS "/wd4819")
-endif()
 
 target_link_libraries(framework PRIVATE
     SDL3::SDL3
     core
-    assimp
-    scene
-    graph
 )
 

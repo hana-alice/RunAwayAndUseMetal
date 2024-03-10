@@ -1,0 +1,32 @@
+{
+  "name" : "raum",
+  "dependencies" : [ {
+    "name" : "assimp",
+    "version>=" : "5.3.1#4"
+  }, {
+    "name" : "spdlog",
+    "version>=" : "1.13.0"
+  }, {
+    "name" : "glm",
+    "version>=" : "1.0.1#1"
+  }, {
+    "name" : "sdl2",
+    "version>=" : "2.30.0"
+  }, {
+    "name" : "shaderc",
+    "version>=" : "2023.7"
+  }, {
+    "name" : "vulkan-memory-allocator",
+    "version>=" : "3.0.1#4"
+  }, {
+    "name" : "boost-graph",
+    "version>=" : "1.84.0"
+  }, {
+    "name" : "boost-json",
+    "version>=" : "1.84.0"
+  }, {
+    "name" : "stb",
+    "version>=" : "2023-04-11#1"
+  } ],
+  "builtin-baseline" : "ab887c562326c686478284d9076d722c1ec4b48c"
+}

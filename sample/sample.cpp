@@ -1,10 +1,9 @@
 #include <cstdlib>
 #include <iostream>
-#include "RotatingCube.hpp"
-#include "Triangle.hpp"
+// #include "GraphSample.hpp"
+#include "RHIManager.h"
 #include "common.h"
 #include "window.h"
-#include "GraphSample.hpp"
 
 namespace raum {
 using platform::NativeWindow;
@@ -23,8 +22,8 @@ public:
         _swapchain = std::shared_ptr<RHISwapchain>(_device->createSwapchain(scInfo));
 
         _samples = {
-//            std::make_shared<sample::RotatingCube>(_device, _swapchain),
-            std::make_shared<sample::GraphSample>(_device, _swapchain),
+            //            std::make_shared<sample::RotatingCube>(_device, _swapchain),
+            // std::make_shared<sample::GraphSample>(_device, _swapchain),
         };
 
         for (const auto& s : _samples) {
@@ -48,8 +47,14 @@ private:
 
 } // namespace raum
 
-int main() {
-    raum::Sample sample{};
-    sample.show();
-    return 0;
-}
+ //int main() {
+ //    raum::Sample sample{};
+ //    sample.show();
+ //    return 0;
+ //}
+
+ // int WinMain() {
+ //    raum::Sample sample{};
+ //    sample.show();
+ //    return 0;
+ //}

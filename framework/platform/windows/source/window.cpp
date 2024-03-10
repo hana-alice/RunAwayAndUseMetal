@@ -1,12 +1,15 @@
 #include "window.h"
+#include <SDL2/SDL_syswm.h>
 
 namespace platform {
 NativeWindow::NativeWindow(uint32_t w, uint32_t h) {
     SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS);
+    _window = SDL_CreateWindow("raum", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, w, h, SDL_WINDOW_VULKAN);
 
-    _window = SDL_CreateWindow("raum", w, h, SDL_WINDOW_VULKAN);
-
-    _hwnd = SDL_GetProperty(SDL_GetWindowProperties(_window), "SDL.window.win32.hwnd", nullptr);
+    SDL_SysWMinfo wmInfo;
+    SDL_VERSION(&wmInfo.version);
+    SDL_GetWindowWMInfo(_window, &wmInfo);
+    _hwnd = wmInfo.info.win.window;
 }
 
 void NativeWindow::registerPollEvents(TickFunction&& tickFunc) {
@@ -19,7 +22,7 @@ void NativeWindow::mainLoop() {
     while (!quit) {
         SDL_PollEvent(&event);
         switch (event.type) {
-            case SDL_EVENT_QUIT:
+            case SDL_QUIT:
                 quit = true;
                 break;
 

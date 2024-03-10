@@ -1,30 +1,3 @@
-[submodule "dependencies/spdlog"]
-	path = dependencies/spdlog
-	url = https://github.com/gabime/spdlog.git
-[submodule "dependencies/sdl"]
-	path = dependencies/sdl
-	url = https://github.com/libsdl-org/SDL.git
-[submodule "dependencies/tinyobjloader"]
-	path = dependencies/tinyobjloader
-	url = https://github.com/tinyobjloader/tinyobjloader.git
-[submodule "dependencies/vma"]
-	path = dependencies/vma
-	url = https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
-[submodule "dependencies/shaderc"]
-	path = dependencies/shaderc
-	url = https://github.com/google/shaderc.git
-[submodule "dependencies/glm"]
-	path = dependencies/glm
-	url = https://github.com/g-truc/glm.git
-[submodule "dependencies/stb_image"]
-	path = dependencies/stb_image
-	url = https://github.com/nothings/stb.git
-[submodule "dependencies/boost"]
-	path = dependencies/boost
-	url = https://github.com/boostorg/boost.git
-[submodule "dependencies/modern_json"]
-	path = dependencies/modern_json
-	url = https://github.com/nlohmann/json.git
-[submodule "dependencies/assimp"]
-	path = dependencies/assimp
-	url = https://github.com/assimp/assimp.git
+[submodule "vcpkg"]
+	path = vcpkg
+	url = https://github.com/microsoft/vcpkg.git

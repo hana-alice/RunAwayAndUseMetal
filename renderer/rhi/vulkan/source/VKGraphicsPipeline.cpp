@@ -4,7 +4,6 @@
 #include "VKRenderPass.h"
 #include "VKShader.h"
 #include "VKUtils.h"
-#include "log.h"
 namespace raum::rhi {
 GraphicsPipeline::GraphicsPipeline(const GraphicsPipelineInfo& pipelineInfo, Device* device)
 : RHIGraphicsPipeline(pipelineInfo, device), 

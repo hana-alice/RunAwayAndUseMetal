@@ -1,21 +1,20 @@
 #include "VKSwapchain.h"
-#ifdef WINDOWS
+#ifdef RAUM_WINDOWS
 // clang-format off
     #include <windows.h>
     #include <vulkan/vulkan_win32.h>
 // clang-format on
 #endif
 #include "VKDevice.h"
+#include "VKImage.h"
+#include "VKImageView.h"
 #include "VKQueue.h"
 #include "VKUtils.h"
-#include "log.h"
-#include "VKImageView.h"
-#include "VKImage.h"
 
 namespace raum::rhi {
 Swapchain::Swapchain(const SwapchainInfo& info, Device* device)
 : RHISwapchain(info, device), _device(static_cast<Device*>(device)) {
-#ifdef WINDOWS
+#ifdef RAUM_WINDOWS
     VkWin32SurfaceCreateInfoKHR surfaceInfo{};
     surfaceInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
     surfaceInfo.hwnd = (HWND)info.hwnd;
@@ -134,7 +133,10 @@ Swapchain::Swapchain(const SwapchainInfo& info, Device* device)
         imageViewInfo.image = kImage;
         imageViewInfo.range = ImageSubresourceRange{
             AspectMask::COLOR,
-            0, 1, 0, 1,
+            0,
+            1,
+            0,
+            1,
         };
         imageViewInfo.type = ImageViewType::IMAGE_VIEW_2D;
         _swapchainImageViews.emplace_back(static_cast<ImageView*>(_device->createImageView(imageViewInfo)));

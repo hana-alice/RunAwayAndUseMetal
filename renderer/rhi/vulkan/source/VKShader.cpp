@@ -1,6 +1,6 @@
 #include "VKShader.h"
 #include "VKDevice.h"
-#include "log.h"
+#include "VKUtils.h"
 #include "shaderc/shaderc.h"
 #include "shaderc/shaderc.hpp"
 

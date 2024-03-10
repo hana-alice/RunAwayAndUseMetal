@@ -198,7 +198,7 @@ void Device::initInstance() {
 
             instInfo.pNext = (VkDebugUtilsMessengerCreateInfoEXT*)&dbgMsgInfo;
         }
-#ifdef WINDOWS
+#ifdef RAUM_WINDOWS
         requiredExts.emplace_back("VK_KHR_surface");
         requiredExts.emplace_back("VK_KHR_win32_surface");
 #endif

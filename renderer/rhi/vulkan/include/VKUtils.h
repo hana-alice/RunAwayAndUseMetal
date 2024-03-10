@@ -1,7 +1,8 @@
 #pragma once
 #include <vulkan/vulkan.h>
 #include "VKDefine.h"
-#include "log.h"
+#include "utils/log.h"
+
 namespace raum {
 template <>
 inline void log(const std::vector<VkExtensionProperties>& vec) {
@@ -93,7 +94,6 @@ void fillClearRect(std::vector<VkClearRect>& clearRects,
 void fillClearColors(std::vector<VkClearColorValue>& clearValues,
                      ClearColor* colors,
                      Format format);
-
 
 VkStencilFaceFlags stencilFaceFlags(FaceMode faceMode);
 

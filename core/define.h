@@ -3,14 +3,14 @@
     #define RAUM_DEBUG 1
 static constexpr bool raum_debug{true};
     #include <source_location>
-    #include "log.h"
+    #include "utils/log.h"
 #else
 
 static constexpr bool raum_debug{false};
 #endif
 
 #if defined(_WIN32)
-    #define WINDOWS 1
+    #define RAUM_WINDOWS 1
 #endif
 
 #ifdef RAUM_DEBUG
@@ -19,7 +19,7 @@ static constexpr bool raum_debug{false};
     #define DEBUG(exp)
 #endif
 
-#ifdef WINDOWS
+#ifdef RAUM_WINDOWS
     #ifdef RAUM_IMPORT
         #define RAUM_API __declspec(dllimport)
     #else
@@ -48,13 +48,11 @@ struct hash_string {
     }
 };
 
-template <typename ...Args>
-    requires(!raum_debug)
-void raum_check(bool, fmt::format_string<Args...> s, Args&&... args) noexcept {}
+template <typename... Args>
+requires(!raum_debug) void raum_check(bool, fmt::format_string<Args...> s, Args&&... args) noexcept {}
 
-template <typename ...Args>
-    requires(raum_debug)
-void raum_check(bool exp, fmt::format_string<Args...> s, Args&&... args) noexcept {
+template <typename... Args>
+requires(raum_debug) void raum_check(bool exp, fmt::format_string<Args...> s, Args&&... args) noexcept {
     if (!exp) {
         error(s, std::forward<Args>(args)...);
     }

@@ -2,7 +2,7 @@
 #include "VKDevice.h"
 #include "VKRenderPass.h"
 #include "VKImageView.h"
-#include "log.h"
+#include "VKUtils.h"
 namespace raum::rhi {
 FrameBuffer::FrameBuffer(const FrameBufferInfo& info, RHIDevice* device)
 : RHIFrameBuffer(info, device), _device(static_cast<Device*>(device)) {

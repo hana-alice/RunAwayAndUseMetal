@@ -2,7 +2,6 @@
 #include "VKDescriptorSetLayout.h"
 #include "VKDevice.h"
 #include "VKUtils.h"
-#include "log.h"
 namespace raum::rhi {
 
 PipelineLayout::PipelineLayout(const PipelineLayoutInfo& info, RHIDevice* device)

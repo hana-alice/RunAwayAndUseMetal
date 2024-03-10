@@ -1,22 +1,26 @@
 #pragma once
 #include <stdint.h>
 #include <array>
+#include <functional>
 #include <string>
 #include <vector>
 #include "define.h"
-#include <functional>
-#include "glm.hpp"
+#include <glm/glm.hpp>
+
 namespace raum::rhi {
 
-#define OPERABLE(T)                                                                                                               \
-    inline T operator|(T lhs, T rhs) {                                                                                            \
-        return static_cast<T>(static_cast<std::underlying_type<T>::type>(lhs) | static_cast<std::underlying_type<T>::type>(rhs)); \
-    }                                                                                                                             \
-    inline T operator&(T lhs, T rhs) {                                                                                            \
-        return static_cast<T>(static_cast<std::underlying_type<T>::type>(lhs) & static_cast<std::underlying_type<T>::type>(rhs)); \
-    }                                                                                                                             \
-    inline bool test(T lhs, T rhs) {                                                                                              \
-        return static_cast<std::underlying_type<T>::type>(lhs & rhs);                                                             \
+#define OPERABLE(T)                                                                                                                     \
+    inline T operator|(T lhs, T rhs) {                                                                                                  \
+        return static_cast<T>(static_cast<std::underlying_type<T>::type>(lhs) | static_cast<std::underlying_type<T>::type>(rhs));       \
+    }                                                                                                                                   \
+    inline T operator&(T lhs, T rhs) {                                                                                                  \
+        return static_cast<T>(static_cast<std::underlying_type<T>::type>(lhs) & static_cast<std::underlying_type<T>::type>(rhs));       \
+    }                                                                                                                                   \
+    inline T operator|=(T lhs, T rhs) {                                                                                                 \
+        return lhs = static_cast<T>(static_cast<std::underlying_type<T>::type>(lhs) | static_cast<std::underlying_type<T>::type>(rhs)); \
+    }                                                                                                                                   \
+    inline bool test(T lhs, T rhs) {                                                                                                    \
+        return static_cast<std::underlying_type<T>::type>(lhs & rhs);                                                                   \
     }
 
 class RHIShader;
@@ -31,6 +35,25 @@ class RHIBufferView;
 class RHIQueue;
 class RHIFrameBuffer;
 class RHISampler;
+class RHIDevice;
+class RHIGraphicsPipeline;
+class RHIComputePipeline;
+
+using DevicePtr = std::shared_ptr<RHIDevice>;
+using ShaderPtr = std::shared_ptr<RHIShader>;
+using BufferPtr = std::shared_ptr<RHIBuffer>;
+using BufferViewPtr = std::shared_ptr<RHIBufferView>;
+using ImagePtr = std::shared_ptr<RHIImage>;
+using ImageViewPtr = std::shared_ptr<RHIImageView>;
+using RenderPassPtr = std::shared_ptr<RHIRenderPass>;
+using FrameBufferPtr = std::shared_ptr<RHIFrameBuffer>;
+using DescriptorSetPtr = std::shared_ptr<RHIDescriptorSet>;
+using DescriptorSetLayoutPtr = std::shared_ptr<RHIDescriptorSetLayout>;
+using QueuePtr = std::shared_ptr<RHIQueue>;
+using GraphicsPipelinePtr = std::shared_ptr<RHIGraphicsPipeline>;
+using ComputePipelinePtr = std::shared_ptr<RHIComputePipeline>;
+using PipelineLayoutPtr = std::shared_ptr<RHIPipelineLayout>;
+using SamplerPtr = std::shared_ptr<RHISampler>;
 
 static constexpr uint32_t FRAMES_IN_FLIGHT{3};
 
@@ -287,8 +310,8 @@ struct ImageInfo {
     ImageFlag imageFlag{ImageFlag::NONE};
     ImageLayout intialLayout{ImageLayout::UNDEFINED};
     Format format{Format::UNKNOWN};
-    uint32_t sliceCount{0};
-    uint32_t mipCount{0};
+    uint32_t sliceCount{1};
+    uint32_t mipCount{1};
     uint32_t sampleCount{1};
     Vector3U extent{};
     std::vector<uint32_t> queueAccess{};
@@ -315,7 +338,7 @@ struct Range {
     uint32_t mipCount{0};
 };
 
-struct ImageSubresourceRange{
+struct ImageSubresourceRange {
     AspectMask aspect{AspectMask::COLOR};
     uint32_t firstSlice{0};
     uint32_t sliceCount{0};
@@ -977,7 +1000,7 @@ struct CommandBufferBeginInfo {
 };
 OPERABLE(CommandBuferUsageFlag)
 
-enum class MipmapMode: uint8_t {
+enum class MipmapMode : uint8_t {
     NEAREST,
     LINEAR,
 };
@@ -1034,13 +1057,13 @@ inline bool operator==(const SamplerInfo& lhs, const SamplerInfo& rhs) {
            lhs.borderColor == rhs.borderColor;
 }
 
-template<typename T>
+template <typename T>
 class RHIHash {
 public:
     size_t operator()(const T& t) const;
 };
 
-enum class UpdateFrequency :uint8_t {
+enum class UpdateFrequency : uint8_t {
     PER_FRAME = 0,
     PER_PASS,
     PER_PHASE,
@@ -1054,7 +1077,7 @@ enum class CommandType : uint8_t {
 };
 
 struct CommandPoolInfo {
-    //CommandType type{CommandType::RESET};
+    // CommandType type{CommandType::RESET};
     uint32_t queueFamilyIndex{0};
 };
 
