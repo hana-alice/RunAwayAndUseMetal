@@ -35,15 +35,14 @@ add_library(raum_core
     ${raum_core_cpp}
 )
 target_include_directories(raum_core PUBLIC
-    ${CMAKE_CURRENT_LIST_DIR}/core/utils
-    ${CMAKE_CURRENT_LIST_DIR}/core
+    ./
 )
 target_link_libraries(raum_core PUBLIC
     spdlog::spdlog
 )
 
 # framework
-find_package(SDL2 CONFIG REQUIRED)
+find_package(Qt6 REQUIRED COMPONENTS Widgets)
 file(GLOB_RECURSE raum_framework_platform_h ${CMAKE_CURRENT_LIST_DIR}/framework/platform/windows/include/*.h)
 file(GLOB_RECURSE raum_framework_platform_cpp ${CMAKE_CURRENT_LIST_DIR}/framework/platform/windows/source/*.cpp)
 source_group("Header Files" FILES ${raum_framework_platform_h})
@@ -56,7 +55,8 @@ target_include_directories(raum_framework PUBLIC
     ${CMAKE_CURRENT_LIST_DIR}/framework/platform/windows/include/
 )
 target_link_libraries(raum_framework PUBLIC
-    SDL2::SDL2
+    Qt6::Widgets
+    raum_core
 )
 
 # renderer
@@ -117,7 +117,7 @@ add_executable(raum_sample
 )
 # if(WIN32)
 #     set_target_properties(raum_sample
-#     PROPERTIES
+#     PROPERTIES 
 #         LINK_FLAGS_DEBUG "/SUBSYSTEM:WINDOWS /ENTRY:mainCRTStartup"
 #         LINK_FLAGS_RELEASE "/SUBSYSTEM:WINDOWS /ENTRY:mainCRTStartup"
 #         LINK_FLAGS_RELWITHDEBINFO "/SUBSYSTEM:WINDOWS /ENTRY:mainCRTStartup"

@@ -4,7 +4,7 @@
 #include <functional>
 #include <string>
 #include <vector>
-#include "define.h"
+#include "core/define.h"
 #include <glm/glm.hpp>
 
 namespace raum::rhi {
@@ -214,7 +214,7 @@ struct SwapchainInfo {
     uint32_t width{0};
     uint32_t height{0};
     SyncType type;
-    void* hwnd;
+    uintptr_t hwnd;
 };
 
 enum class ShaderStage : uint32_t {

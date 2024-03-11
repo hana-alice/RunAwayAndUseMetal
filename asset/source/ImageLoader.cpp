@@ -2,7 +2,7 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
-namespace raum::framework::asset {
+namespace raum::asset {
 
 ImageAsset& ImageAsset::operator=(ImageAsset&& rhs) {
     data = rhs.data;

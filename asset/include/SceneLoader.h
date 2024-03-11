@@ -4,7 +4,7 @@
 #include "SceneGraph.h"
 #include "RHIDevice.h"
 
-namespace raum::framework::asset {
+namespace raum::asset {
 
 enum class ShaderAttribute: uint8_t {
     NONE = 0,

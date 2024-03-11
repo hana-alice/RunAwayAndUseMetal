@@ -10,9 +10,6 @@
     "name" : "glm",
     "version>=" : "1.0.1#1"
   }, {
-    "name" : "sdl2",
-    "version>=" : "2.30.0"
-  }, {
     "name" : "shaderc",
     "version>=" : "2023.7"
   }, {
@@ -27,6 +24,9 @@
   }, {
     "name" : "stb",
     "version>=" : "2023-04-11#1"
+  }, {
+    "name" : "qtbase",
+    "version>=" : "6.6.1#10"
   } ],
   "builtin-baseline" : "ab887c562326c686478284d9076d722c1ec4b48c"
 }

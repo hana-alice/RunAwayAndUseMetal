@@ -5,9 +5,9 @@
 #include "assimp/Importer.hpp"
 #include "assimp/postprocess.h"
 #include "assimp/scene.h"
-#include "define.h"
+#include "core/define.h"
 
-namespace raum::framework::asset {
+namespace raum::asset {
 
 namespace {
 void loadMesh(const aiScene* scene, const aiNode* node, std::vector<MeshData>& meshes) {

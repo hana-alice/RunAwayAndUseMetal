@@ -1,43 +1,34 @@
 #include "window.h"
-#include <SDL2/SDL_syswm.h>
 
-namespace platform {
-NativeWindow::NativeWindow(uint32_t w, uint32_t h) {
-    SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS);
-    _window = SDL_CreateWindow("raum", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, w, h, SDL_WINDOW_VULKAN);
-
-    SDL_SysWMinfo wmInfo;
-    SDL_VERSION(&wmInfo.version);
-    SDL_GetWindowWMInfo(_window, &wmInfo);
-    _hwnd = wmInfo.info.win.window;
+namespace raum::platform {
+NativeWindow::NativeWindow(int argc, char** argv, uint32_t w, uint32_t h) {
+    _app = new QApplication(argc, argv);
+    _window = new QMainWindow(nullptr, Qt::Window);
+    _window->addToolBar("raum");
+    _window->resize(w,h);
+    _hwnd = _window->winId();
 }
 
 void NativeWindow::registerPollEvents(TickFunction&& tickFunc) {
     _tickFunc.emplace_back(std::forward<TickFunction>(tickFunc));
 }
 
-void NativeWindow::mainLoop() {
-    bool quit{false};
-    SDL_Event event;
-    while (!quit) {
-        SDL_PollEvent(&event);
-        switch (event.type) {
-            case SDL_QUIT:
-                quit = true;
-                break;
+Size NativeWindow::pixelSize() {
+    float ratio = _app->devicePixelRatio();
+    return Size{
+        static_cast<uint32_t>(_window->width() * ratio),
+        static_cast<uint32_t>(_window->height() * ratio)
+    };
+}
 
-            default:
-                break;
-        }
-        for (const auto& tick : _tickFunc) {
-            tick();
-        }
-    }
+void NativeWindow::mainLoop() {
+    _window->show();
+    _app->exec();
 }
 
 NativeWindow::~NativeWindow() {
-    SDL_DestroyWindow(_window);
-    SDL_Quit();
+    _app->quit();
+    delete _window;
 }
 
 } // namespace platform

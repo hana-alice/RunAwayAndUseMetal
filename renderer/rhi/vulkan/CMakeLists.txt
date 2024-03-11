@@ -15,7 +15,6 @@ add_library(raum_rhi STATIC ${rhi_abstract_h} ${backend_vk_h} ${backend_vk_cpp})
 
 target_include_directories(raum_rhi PUBLIC 
     ${CMAKE_CURRENT_LIST_DIR}/include
-    ${core_dir}
     ${renderer_dir}/rhi/include
     ${Vulkan_INCLUDE_DIR}
 )
@@ -25,4 +24,5 @@ target_link_libraries(raum_rhi PUBLIC
     GPUOpen::VulkanMemoryAllocator
     unofficial::shaderc::shaderc
     glm::glm
+    raum_core
 )

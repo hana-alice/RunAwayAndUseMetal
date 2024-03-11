@@ -1,6 +1,6 @@
 #include "Loader.h"
 #include <filesystem>
-#include "utils/log.h"
-namespace raum::framework::asset {
+#include "core/utils/log.h"
+namespace raum::asset {
 
 } // namespace raum::framework::asset

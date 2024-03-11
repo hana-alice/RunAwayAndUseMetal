@@ -2,7 +2,7 @@
 #include <stdint.h>
 #include <string>
 
-namespace raum::framework::asset {
+namespace raum::asset {
 
 struct ImageAsset {
     uint8_t* data{nullptr};

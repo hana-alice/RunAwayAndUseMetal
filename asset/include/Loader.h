@@ -1,5 +1,5 @@
 #pragma once
-namespace raum::framework::asset {
+namespace raum::asset {
 
 class Loader {
 };

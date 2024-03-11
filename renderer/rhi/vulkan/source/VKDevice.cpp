@@ -17,7 +17,7 @@
 #include "VKSwapchain.h"
 #include "VKUtils.h"
 #include "VkBufferView.h"
-#include "utils/log.h"
+#include "core/utils/log.h"
 namespace raum::rhi {
 
 static constexpr bool enableValidationLayer{true};

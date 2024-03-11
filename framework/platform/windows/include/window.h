@@ -1,25 +1,30 @@
 #pragma once
-#include <SDL2/SDL.h>
+#include <QMainWindow.h>
 #include <functional>
 #include <vector>
+#include <QApplication>
+#include "core/data.h"
 
-namespace platform {
+namespace raum::platform {
 using TickFunction = std::function<void(void)>;
 
 class NativeWindow {
 public:
-    NativeWindow(uint32_t width, uint32_t height);
+    NativeWindow(int argc, char** argv, uint32_t width, uint32_t height);
     ~NativeWindow();
 
-    void* handle() { return _hwnd; }
+    uintptr_t handle() { return _hwnd; }
     void registerPollEvents(TickFunction&& tickFunc);
 
     void mainLoop();
 
+    Size pixelSize();
+
 private:
-    SDL_Window* _window{nullptr};
-    void* _hwnd;
+    QMainWindow* _window{nullptr};
+    uintptr_t _hwnd;
 
     std::vector<TickFunction> _tickFunc;
+    QApplication* _app{nullptr};
 };
 } // namespace platform
