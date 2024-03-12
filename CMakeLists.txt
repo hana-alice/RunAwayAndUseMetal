@@ -22,6 +22,10 @@ set(renderer_dir ${CMAKE_CURRENT_SOURCE_DIR}/renderer CACHE INTERNAL "renderer_d
 
 # core
 find_package(spdlog CONFIG REQUIRED)
+
+add_definitions(-DGLM_ENABLE_EXPERIMENTAL)
+find_package(glm CONFIG REQUIRED)
+
 file(GLOB_RECURSE raum_utils_h ${CMAKE_CURRENT_LIST_DIR}/core/utils/*.h)
 source_group("Header Files" FILES ${raum_utils_h})
 file(GLOB_RECURSE raum_utils_cpp ${CMAKE_CURRENT_LIST_DIR}/core/utils/*.cpp)
@@ -47,7 +51,6 @@ file(GLOB_RECURSE raum_framework_platform_h ${CMAKE_CURRENT_LIST_DIR}/framework/
 file(GLOB_RECURSE raum_framework_platform_cpp ${CMAKE_CURRENT_LIST_DIR}/framework/platform/windows/source/*.cpp)
 source_group("Header Files" FILES ${raum_framework_platform_h})
 
-
 add_library(raum_framework
     ${raum_framework_platform_cpp}
 )
@@ -69,9 +72,6 @@ file(GLOB_RECURSE raum_scene_cpp ${CMAKE_CURRENT_LIST_DIR}/renderer/scene/source
 source_group("Header Files" FILES ${raum_scene_h})
 
 # renderer-rhi
-
-add_definitions(-DGLM_ENABLE_EXPERIMENTAL)
-find_package(glm CONFIG REQUIRED)
 add_subdirectory(renderer/rhi/vulkan)
 
 find_package(Boost REQUIRED COMPONENTS graph json)
@@ -92,6 +92,7 @@ target_link_libraries(raum_renderer PUBLIC
 
 #asset
 find_package(stb REQUIRED)
+find_package(assimp CONFIG REQUIRED)
 file(GLOB_RECURSE raum_asset_h ${CMAKE_CURRENT_LIST_DIR}/asset/include/*.h)
 file(GLOB_RECURSE raum_asset_cpp ${CMAKE_CURRENT_LIST_DIR}/asset/source/*.cpp)
 source_group("Header Files" FILES ${raum_asset_h})
@@ -106,6 +107,7 @@ target_include_directories(raum_asset PUBLIC
 target_link_libraries(raum_asset PUBLIC
     raum_core
     raum_renderer
+        assimp::assimp
 )
 
 file(GLOB_RECURSE Sample

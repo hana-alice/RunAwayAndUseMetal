@@ -44,12 +44,12 @@ enum class TextureType : uint32_t {
 };
 
 struct MeshData {
-    rhi::IndexType indexType{rhi::IndexType::HALF};
     uint32_t materialIndex{0};
     std::vector<uint8_t> indices;
     std::vector<float> data;
     std::vector<rhi::VertexBufferAttribute> bufferAttributes;
     std::vector<rhi::VertexAttribute> attributes;
+    rhi::IndexType indexType{rhi::IndexType::HALF};
     ShaderAttribute shaderAttrs{ShaderAttribute::NONE};
 };
 
@@ -75,10 +75,9 @@ public:
 
     ~SceneLoader() = default;
 
-    void load(const std::filesystem::path& filePath);
+    void loadFlat(const std::filesystem::path& filePath);
 
 private:
-//    std::vector
     ModelData _data;
     rhi::DevicePtr _device;
 };

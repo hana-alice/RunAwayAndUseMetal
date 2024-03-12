@@ -350,8 +350,7 @@ Device* loadVK() {
 }
 
 void unloadVK(Device* device) {
-    auto d = static_cast<Device*>(device);
-    delete d;
+    delete device;
 }
 
 RHIDevice* loadRHI(API api) {

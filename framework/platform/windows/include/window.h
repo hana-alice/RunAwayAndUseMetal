@@ -27,4 +27,7 @@ private:
     std::vector<TickFunction> _tickFunc;
     QApplication* _app{nullptr};
 };
+
+using NativeWindowPtr = std::shared_ptr<NativeWindow>;
+
 } // namespace platform

@@ -5,7 +5,7 @@
 #include <string>
 #include <vector>
 #include "core/define.h"
-#include <glm/glm.hpp>
+#include "core/math.h"
 
 namespace raum::rhi {
 
@@ -38,8 +38,10 @@ class RHISampler;
 class RHIDevice;
 class RHIGraphicsPipeline;
 class RHIComputePipeline;
+class RHISwapchain;
 
 using DevicePtr = std::shared_ptr<RHIDevice>;
+using SwapchainPtr = std::shared_ptr<RHISwapchain>;
 using ShaderPtr = std::shared_ptr<RHIShader>;
 using BufferPtr = std::shared_ptr<RHIBuffer>;
 using BufferViewPtr = std::shared_ptr<RHIBufferView>;
@@ -56,13 +58,6 @@ using PipelineLayoutPtr = std::shared_ptr<RHIPipelineLayout>;
 using SamplerPtr = std::shared_ptr<RHISampler>;
 
 static constexpr uint32_t FRAMES_IN_FLIGHT{3};
-
-using Vector3I = glm::ivec3;
-using Vector4I = glm::ivec4;
-using Vector3U = glm::uvec3;
-using Vector4U = glm::uvec4;
-using Vector3F = glm::vec3;
-using Vector4F = glm::vec4;
 
 enum class API : unsigned char {
     VULKAN,
@@ -313,7 +308,7 @@ struct ImageInfo {
     uint32_t sliceCount{1};
     uint32_t mipCount{1};
     uint32_t sampleCount{1};
-    Vector3U extent{};
+    Vec3u extent{};
     std::vector<uint32_t> queueAccess{};
 };
 
@@ -878,9 +873,9 @@ struct BufferCopyRegion {
 struct ImageCopyRegion {
     AspectMask srcImageAspect{AspectMask::COLOR};
     AspectMask dstImageAspect{AspectMask::COLOR};
-    Vector3U srcOffset;
-    Vector3U dstOffset;
-    Vector3U extent;
+    Vec3u srcOffset;
+    Vec3u dstOffset;
+    Vec3u extent;
     uint32_t srcBaseMip{0};
     uint32_t srcFirstSlice{0};
     uint32_t dstBaseMip{0};
@@ -891,28 +886,28 @@ struct ImageCopyRegion {
 struct ImageBlit {
     AspectMask srcImageAspect{AspectMask::COLOR};
     AspectMask dstImageAspect{AspectMask::COLOR};
-    Vector3U srcOffset;
-    Vector3U dstOffset;
+    Vec3u srcOffset;
+    Vec3u dstOffset;
     uint32_t srcBaseMip{0};
     uint32_t srcFirstSlice{0};
     uint32_t dstBaseMip{0};
     uint32_t dstFirstSlice{0};
     uint32_t sliceCount{0};
-    Vector3U srcExtent;
-    Vector3U dstExtent;
+    Vec3u srcExtent;
+    Vec3u dstExtent;
 };
 
 struct ImageResolve {
     AspectMask srcImageAspect{AspectMask::COLOR};
     AspectMask dstImageAspect{AspectMask::COLOR};
-    Vector3U srcOffset;
-    Vector3U dstOffset;
+    Vec3u srcOffset;
+    Vec3u dstOffset;
     uint32_t srcBaseMip{0};
     uint32_t srcFirstSlice{0};
     uint32_t dstBaseMip{0};
     uint32_t dstFirstSlice{0};
     uint32_t sliceCount{0};
-    Vector3U extent{};
+    Vec3u extent{};
 };
 
 struct BufferImageCopyRegion {
@@ -924,8 +919,8 @@ struct BufferImageCopyRegion {
     uint32_t baseMip{0};
     uint32_t firstSlice{0};
     uint32_t sliceCount{1};
-    Vector3U imageOffset{};
-    Vector3U imageExtent{};
+    Vec3u imageOffset{};
+    Vec3u imageExtent{};
 };
 
 enum class Filter : uint8_t {

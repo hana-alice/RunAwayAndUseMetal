@@ -14,6 +14,7 @@ void loadMesh(const aiScene* scene, const aiNode* node, std::vector<MeshData>& m
     for (size_t i = 0; i < node->mNumMeshes; ++i) {
         uint32_t location{0};
         const auto* mesh = scene->mMeshes[node->mMeshes[i]];
+//        mesh->mAABB;
 
         auto& meshData = meshes.emplace_back();
         meshData.materialIndex = mesh->mMaterialIndex;
@@ -137,9 +138,9 @@ void loadMesh(const aiScene* scene, const aiNode* node, std::vector<MeshData>& m
                 const auto& face = mesh->mFaces[j];
                 for (size_t k = 0; k < face.mNumIndices; ++k) {
                     if (meshData.indexType == rhi::IndexType::FULL) {
-                        reinterpret_cast<rhi::FullIndexType*>(indexData)[++count] = face.mIndices[k];
+                        reinterpret_cast<rhi::FullIndexType*>(indexData)[count++] = face.mIndices[k];
                     } else {
-                        reinterpret_cast<rhi::HalfIndexType*>(indexData)[++count] = face.mIndices[k];
+                        reinterpret_cast<rhi::HalfIndexType*>(indexData)[count++] = face.mIndices[k];
                     }
                 }
             }
@@ -230,7 +231,7 @@ void loadMaterial(const aiScene* scene,
 SceneLoader::SceneLoader(rhi::DevicePtr device) : _device(device) {
 }
 
-void SceneLoader::load(const std::filesystem::path& filePath) {
+void SceneLoader::loadFlat(const std::filesystem::path& filePath) {
     raum_check(exists(filePath), "{} not exists!", filePath.string());
 
     Assimp::Importer importer;

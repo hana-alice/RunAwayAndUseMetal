@@ -10,7 +10,8 @@ std::filesystem::path resourceDirectory() {
     if(s_resourcePath.has_value()) {
         return s_resourcePath.value();
     } else {
-        return std::filesystem::current_path() / "resources";
+        // Debug/Release
+        return std::filesystem::current_path() / ".." /"resources";
     }
 }
 

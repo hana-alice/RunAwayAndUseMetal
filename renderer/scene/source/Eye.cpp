@@ -3,7 +3,7 @@
 namespace raum::scene {
 Eye::Eye(const Frustum& frustum, Projection projection)
 : _frustum(frustum), _projection(projection) {
-    _projectionMat = glm::perspective(frustum.fov, frustum.aspect, frustum.near, frustum.far);
+    _projectionMat = glm::perspective(glm::radians(frustum.fov), frustum.aspect, frustum.near, frustum.far);
 }
 
 void Eye::setPosition(const Vec3f& pos) {

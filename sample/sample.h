@@ -1,6 +1,6 @@
 #include <cstdlib>
 #include <iostream>
-// #include "GraphSample.hpp"
+#include "GraphSample.h"
 #include "RHIManager.h"
 #include "common.h"
 #include "window.h"
@@ -22,8 +22,8 @@ public:
         _swapchain = std::shared_ptr<rhi::RHISwapchain>(_device->createSwapchain(scInfo));
 
         _samples = {
-            //            std::make_shared<sample::RotatingCube>(_device, _swapchain),
-            // std::make_shared<sample::GraphSample>(_device, _swapchain),
+//            std::make_shared<sample::RotatingCube>(_device, _swapchain),
+            std::make_shared<sample::GraphSample>(_device, _swapchain),
         };
 
         for (const auto& s : _samples) {
@@ -39,9 +39,9 @@ public:
     }
 
 private:
-    std::shared_ptr<NativeWindow> _window;
-    std::shared_ptr<rhi::RHIDevice> _device;
-    std::shared_ptr<rhi::RHISwapchain> _swapchain;
+    platform::NativeWindowPtr _window;
+    rhi::DevicePtr _device;
+    rhi::SwapchainPtr _swapchain;
     std::vector<std::shared_ptr<sample::SampleBase>> _samples;
 };
 
