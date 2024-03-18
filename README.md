@@ -4,4 +4,4 @@ https://vulkan-tutorial.com/Introduction
 
 
 TODO:
- - [] Multi Device Queue
+ - [ ] Multi Device Queue
