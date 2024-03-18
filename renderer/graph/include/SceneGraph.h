@@ -59,7 +59,7 @@ public:
     SceneGraph(SceneGraph&&) = delete;
 
     ModelNode addModel(std::string_view name, std::string_view parent);
-    CameraNode addCamera(std::string_view name, std::string_view parent);
+    CameraNode addCamera(std::string_view name, std::string_view parent, const scene::Frustum& frustum, scene::Projection proj);
     LightNode addLight(std::string_view name, std::string_view parent);
 
     SceneNode& sceneRoot() const;

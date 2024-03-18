@@ -2,11 +2,13 @@
 #include <boost/graph/adjacency_list.hpp>
 #include <variant>
 #include "GraphTypes.h"
+#include "Camera.h"
+#include "Scene.h"
 
 namespace raum::graph {
 struct Pass {
     std::string name{};
-    std::variant<RenderPassData, SubRenderPassData, ComputePassData, CopyPassData> pass;
+    std::variant<RenderPassData, SubRenderPassData, ComputePassData, CopyPassData, RenderQueueData> data;
 };
 } // namespace raum::graph
 
@@ -32,25 +34,40 @@ using RenderGraphImpl = boost::adjacency_list<boost::vecS, boost::vecS, boost::d
 
 class RenderQueue {
 public:
-    RenderQueue();
+    RenderQueue() = delete;
+    RenderQueue(RenderGraphImpl ::vertex_descriptor id, RenderGraphImpl& graph):_id(id), _graph(graph) {};
 
+    RenderQueue& addCamera(scene::Camera* camera);
+//    RenderQueue& addQuad();
+    RenderQueue& addScene(scene::Scene* scene);
+    RenderQueue& setViewport(int32_t x, int32_t y, uint32_t w, uint32_t h, float minDepth, float maxDepth);
+
+private:
+    RenderGraphImpl::vertex_descriptor _id{0};
+    RenderGraphImpl& _graph;
 };
 
 class RenderPass {
 public:
-    RenderPass(RenderPassData& data) : _data(data) {}
-    RenderPass(const RenderPass& rhs) : _data(rhs._data) {}
-    RenderPass& operator=(const RenderPass& rhs) { _data = rhs._data;  return *this; }
-
+    RenderPass(RenderGraphImpl::vertex_descriptor id, RenderGraphImpl& graph):_id(id), _graph(graph) {}
+    RenderPass(const RenderPass& rhs) : _id(rhs._id), _graph(rhs._graph) {}
+    RenderPass& operator=(const RenderPass& rhs) {
+        _id = rhs._id;
+        _graph = rhs._graph;
+        return *this;
+    }
     RenderPass(RenderPass&& rhs) = delete;
     ~RenderPass() = default;
 
     RenderPass& addColor(std::string_view name);
     RenderPass& addDepthStencil(std::string_view name);
-    RenderPass& addShadingRate(std::string_view name); 
+    RenderPass& addShadingRate(std::string_view name);
+
+    RenderQueue addQueue();
 
 private:
-    RenderPassData& _data;
+    RenderGraphImpl::vertex_descriptor _id{0};
+    RenderGraphImpl& _graph;
 };
 
 class ComputePass {
@@ -96,6 +113,7 @@ public:
     ComputePass addComputePass(std::string_view name);
     CopyPass addCopyPass(std::string_view name);
 
+    using VertexType = RenderGraphImpl::vertex_descriptor;
 private:
     RenderGraphImpl _graph;
 };

@@ -5,6 +5,16 @@
 
 namespace raum::scene {
 
+class Renderobject {
+public:
+    Renderobject();
+    virtual ~Renderobject() {}
+
+private:
+    uint64_t objectID{0};
+};
+
+
 struct Degree {
     float value{0.0};
 };

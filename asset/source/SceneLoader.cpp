@@ -10,16 +10,30 @@
 namespace raum::asset {
 
 namespace {
-void loadMesh(const aiScene* scene, const aiNode* node, std::vector<MeshData>& meshes) {
+
+void expand(scene::AABB& aabb, const aiAABB& src) {
+    aabb.minBound.x = std::min(aabb.minBound.x, src.mMin.x);
+    aabb.minBound.y = std::min(aabb.minBound.y, src.mMin.y);
+    aabb.minBound.z = std::min(aabb.minBound.z, src.mMin.z);
+    aabb.maxBound.x = std::max(aabb.maxBound.x, src.mMax.x);
+    aabb.maxBound.y = std::max(aabb.maxBound.y, src.mMax.y);
+    aabb.maxBound.z = std::max(aabb.maxBound.z, src.mMax.z);
+}
+
+void loadMesh(const aiScene* scene, const aiNode* node, std::vector<scene::Mesh>& meshes, scene::AABB& aabb, rhi::DevicePtr device) {
     for (size_t i = 0; i < node->mNumMeshes; ++i) {
         uint32_t location{0};
         const auto* mesh = scene->mMeshes[node->mMeshes[i]];
+        expand(aabb, mesh->mAABB);
 //        mesh->mAABB;
 
-        auto& meshData = meshes.emplace_back();
-        meshData.materialIndex = mesh->mMaterialIndex;
+        auto& newMesh = meshes.emplace_back();
+        newMesh.materialID = mesh->mMaterialIndex;
 
-        auto& meshBuffer = meshData.data;
+        auto& meshData = newMesh.data;
+
+        std::vector<float> rawData;
+        auto& meshVert = rawData;
         uint32_t stride{0};
         // pos
         stride += 3;
@@ -29,7 +43,7 @@ void loadMesh(const aiScene* scene, const aiNode* node, std::vector<MeshData>& m
             rhi::Format::RGB32_SFLOAT,
         });
 
-        meshData.shaderAttrs = ShaderAttribute::POSITION;
+        meshData.shaderAttrs = scene::ShaderAttribute::POSITION;
 
         const aiVector3D* normal{nullptr};
         if (mesh->HasNormals()) {
@@ -40,7 +54,7 @@ void loadMesh(const aiScene* scene, const aiNode* node, std::vector<MeshData>& m
                 0,
                 rhi::Format::RGB32_SFLOAT,
             });
-            meshData.shaderAttrs |= ShaderAttribute::NORMAL;
+            meshData.shaderAttrs |= scene::ShaderAttribute::NORMAL;
         }
         if (mesh->HasTextureCoords(0)) {
             stride += 2;
@@ -49,7 +63,7 @@ void loadMesh(const aiScene* scene, const aiNode* node, std::vector<MeshData>& m
                 0,
                 rhi::Format::RG32_SFLOAT,
             });
-            meshData.shaderAttrs |= ShaderAttribute::UV;
+            meshData.shaderAttrs |= scene::ShaderAttribute::UV;
         }
         if (mesh->HasTangentsAndBitangents()) {
             stride += 3 + 3;
@@ -63,7 +77,7 @@ void loadMesh(const aiScene* scene, const aiNode* node, std::vector<MeshData>& m
                 0,
                 rhi::Format::RGB32_SFLOAT,
             });
-            meshData.shaderAttrs |= ShaderAttribute::BI_TANGENT;
+            meshData.shaderAttrs |= scene::ShaderAttribute::BI_TANGENT;
         }
         const aiColor4D* color{nullptr};
         if (mesh->HasVertexColors(0)) {
@@ -75,11 +89,11 @@ void loadMesh(const aiScene* scene, const aiNode* node, std::vector<MeshData>& m
                 rhi::Format::RGBA32_SFLOAT,
             });
         }
-        meshBuffer.resize(stride * mesh->mNumVertices);
+        meshVert.resize(stride * mesh->mNumVertices);
 
         for (size_t j = 0; j < mesh->mNumVertices; ++j) {
             uint32_t accStride{3};
-            auto* vertData = meshBuffer.data() + j * stride;
+            auto* vertData = meshVert.data() + j * stride;
 
             const auto& vertex = mesh->mVertices[j];
             vertData[0] = vertex.x;
@@ -120,44 +134,60 @@ void loadMesh(const aiScene* scene, const aiNode* node, std::vector<MeshData>& m
         }
 
         if (mesh->HasFaces()) {
+            std::vector<uint8_t> indices;
             uint32_t indexNum{0};
             indexNum = std::accumulate(mesh->mFaces, mesh->mFaces + mesh->mNumFaces, indexNum, [](uint32_t curr, const aiFace& face) {
                 return curr + face.mNumIndices;
             });
 
             if (indexNum >= std::numeric_limits<rhi::HalfIndexType>::max()) {
-                meshData.indexType = rhi::IndexType::FULL;
-                meshData.indices.resize(indexNum * 4);
+                meshData.indexBuffer.type = rhi::IndexType::FULL;
+                indices.resize(indexNum * 4);
             } else {
-                meshData.indices.resize(indexNum * 2);
+                indices.resize(indexNum * 2);
             }
-            auto* indexData = meshData.indices.data();
+            auto* indexData = indices.data();
 
             uint32_t count{0};
             for (size_t j = 0; j < mesh->mNumFaces; ++j) {
                 const auto& face = mesh->mFaces[j];
                 for (size_t k = 0; k < face.mNumIndices; ++k) {
-                    if (meshData.indexType == rhi::IndexType::FULL) {
+                    if (meshData.indexBuffer.type == rhi::IndexType::FULL) {
                         reinterpret_cast<rhi::FullIndexType*>(indexData)[count++] = face.mIndices[k];
                     } else {
                         reinterpret_cast<rhi::HalfIndexType*>(indexData)[count++] = face.mIndices[k];
                     }
                 }
             }
+
+            rhi::BufferInfo bufferInfo{
+                .memUsage = rhi::MemoryUsage::DEVICE_ONLY,
+                .bufferUsage = rhi::BufferUsage::INDEX,
+                .size = static_cast<uint32_t>(indices.size()),
+            };
+            meshData.indexBuffer.buffer = device->createBuffer(bufferInfo);
         }
-        auto& bufferAttribute = meshData.bufferAttributes.emplace_back();
+        auto& bufferAttribute = meshData.bufferAttribute;
         bufferAttribute.binding = 0;
         bufferAttribute.rate = rhi::InputRate::PER_VERTEX;
         bufferAttribute.stride = stride;
+
+        rhi::BufferInfo bufferInfo {
+            .memUsage = rhi::MemoryUsage::DEVICE_ONLY,
+            .bufferUsage = rhi::BufferUsage::VERTEX,
+            .size = static_cast<uint32_t>(meshVert.size()),
+        };
+
+        meshData.vertexBuffer.buffer = device->createBuffer(bufferInfo);
     }
 
     for (size_t i = 0; i < node->mNumChildren; ++i) {
-        loadMesh(scene, node->mChildren[i], meshes);
+        loadMesh(scene, node->mChildren[i], meshes, aabb, device);
     }
 }
 
 void loadMaterial(const aiScene* scene,
-                  std::vector<MaterialData>& mats,
+                  std::vector<scene::MaterialData>& mats,
                   std::filesystem::path file,
                   rhi::DevicePtr& device) {
     for (size_t i = 0; i < scene->mNumMaterials; ++i) {
@@ -170,7 +200,7 @@ void loadMaterial(const aiScene* scene,
         auto entry = file.parent_path();
         aiString texturePath;
         constexpr uint32_t enumOffset = 1;
-        static_assert(static_cast<uint32_t>(TextureType::AMBIENT_OCCLUSION) == (aiTextureType_AMBIENT_OCCLUSION - 1));
+        static_assert(static_cast<uint32_t>(scene::TextureType::AMBIENT_OCCLUSION) == (aiTextureType_AMBIENT_OCCLUSION - 1));
         for (size_t i = 0; i < static_cast<uint32_t>(aiTextureType_AMBIENT_OCCLUSION); ++i) {
             auto texType = static_cast<aiTextureType>(aiTextureType_DIFFUSE + i);
             if (material->GetTextureCount(texType) > 0) {
@@ -246,7 +276,7 @@ void SceneLoader::loadFlat(const std::filesystem::path& filePath) {
 
     raum_check(scene, "failed to load file {}", filePath.string());
 
-    loadMesh(scene, scene->mRootNode, _data.meshes);
+    loadMesh(scene, scene->mRootNode, _data.meshes, _data.aabb, _device);
 
     loadMaterial(scene, _data.materials, filePath, _device);
 }

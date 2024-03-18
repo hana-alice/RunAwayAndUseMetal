@@ -47,10 +47,13 @@ public:
 
     void addBuffer(std::string_view name, const BufferData& data);
     void addBufferView(std::string_view name, const BufferViewData& data);
-    void addImage(std::string_view name, const ImageData& data);
+    void addImage(std::string_view name, const rhi::ImageInfo& data);
+    void addImage(std::string_view name, rhi::ImageUsage, uint32_t width, uint32_t height, rhi::Format format);
     void addImageView(std::string_view name, const ImageViewData& data);
     void mount(std::string_view name);
     void unmount(std::string_view name, uint64_t life);
+
+    bool contains(std::string_view name);
 
 private:
     rhi::RHIDevice* _device{nullptr};

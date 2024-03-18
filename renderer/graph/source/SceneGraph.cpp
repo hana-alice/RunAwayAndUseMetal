@@ -14,9 +14,9 @@ ModelNode SceneGraph::addModel(std::string_view name, std::string_view parent) {
     return ModelNode{model};
 }
 
-CameraNode SceneGraph::addCamera(std::string_view name, std::string_view parent) {
+CameraNode SceneGraph::addCamera(std::string_view name, std::string_view parent, const scene::Frustum& frustum, scene::Projection proj) {
     auto id = add_vertex(std::string{name}, _graph);
-    _graph[id].sceneNodeData = scene::Camera();
+    _graph[id].sceneNodeData = scene::Camera(frustum, proj);
     auto camera = std::get<scene::Camera>(_graph[id].sceneNodeData);
     return CameraNode{camera};
 }

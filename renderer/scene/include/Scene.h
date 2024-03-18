@@ -2,15 +2,13 @@
 #include <stdint.h>
 #include <vector>
 #include "RHIDefine.h"
+#include "Model.h"
 namespace raum::scene {
-static uint64_t object_id{0};
-class Renderobject {
+class Scene {
 public:
-    Renderobject() : objectID(++object_id) {}
-    virtual ~Renderobject() {}
+    Scene() {};
 
-private:
-    uint64_t objectID{0};
+    std::vector<Model> models;
 };
 
 } // namespace raum::scene

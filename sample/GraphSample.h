@@ -1,6 +1,7 @@
 #pragma once
 #include "RenderGraph.h"
 #include "ResourceGraph.h"
+#include "Graphs.h"
 #include "SceneLoader.h"
 #include "Serialization.h"
 #include "ShaderGraph.h"
@@ -22,6 +23,10 @@ private:
     std::shared_ptr<graph::ResourceGraph> _resourceGraph;
 
     std::shared_ptr<scene::Camera> _cam;
+    std::shared_ptr<scene::Scene> _scene;
+
+    const std::string _forwardRT = "forwardRT";
+    const std::string _forwardDS = "forwardDS";
 };
 
 GraphSample::GraphSample(rhi::DevicePtr device, rhi::SwapchainPtr swapchain)
@@ -34,17 +39,54 @@ GraphSample::GraphSample(rhi::DevicePtr device, rhi::SwapchainPtr swapchain)
     _shaderGraph->compile("asset");
 
     asset::SceneLoader loader(device);
-    loader.load(resourcePath / "models" / "sponza-gltf-pbr" / "sponza.glb");
+    loader.loadFlat(resourcePath / "models" / "sponza-gltf-pbr" / "sponza.glb");
+    const auto &aabb = loader.modelData().aabb;
+    auto far = std::abs(aabb.maxBound.z);
 
     const auto& imageInfo = swapchain->swapchainImageView()->image()->info();
     auto width = imageInfo.extent.x;
     auto height = imageInfo.extent.y;
-    scene::Frustum frustum{45.0f, width / (float)height, 0.1, 1000.0};
+    scene::Frustum frustum{45.0f, width / (float)height, 0.1, 2 * far};
     _cam = std::make_shared<scene::Camera>(frustum, scene::Projection::PERSPECTIVE);
+    auto& eye = _cam->eye();
+    eye.setPosition(0.0f, 1.0f, far * 0.5f);
+    eye.lookAt({}, {0.0f, 1.0f, 0.0f});
+
+    _scene = std::make_shared<scene::Scene>();
+    _scene->models.emplace_back(loader.modelData());
+
+    _renderGraph = std::make_shared<graph::RenderGraph>();
+
+    _resourceGraph = std::make_shared<graph::ResourceGraph>(_device.get());
+    if(!_resourceGraph->contains(_forwardRT)) {
+        _resourceGraph->addImage(_forwardRT, rhi::ImageUsage::COLOR_ATTACHMENT, width, height, rhi::Format::BGRA8_UNORM);
+    }
+    if(!_resourceGraph->contains(_forwardDS)) {
+        _resourceGraph->addImage(_forwardDS, rhi::ImageUsage::DEPTH_STENCIL_ATTACHMENT, width, height, rhi::Format::D24_UNORM_S8_UINT);
+    }
 }
 
 void GraphSample::show() {
+    _resourceGraph->mount(_forwardRT);
+    _resourceGraph->mount(_forwardDS);
 
+    auto renderPass = _renderGraph->addRenderPass("forward");
+    renderPass.addColor(_forwardRT)
+        .addDepthStencil(_forwardDS);
+    auto queue = renderPass.addQueue();
+
+    const auto& imageInfo = _swapchain->swapchainImageView()->image()->info();
+    auto width = imageInfo.extent.x;
+    auto height = imageInfo.extent.y;
+    queue.setViewport(0, 0, width, height, 0.0f, 1.0f)
+        .addCamera(_cam.get())
+        .addScene(_scene.get());
+
+
+
+//
+//    _resourceGraph->unmount(_forwardRT);
+//    _resourceGraph->unmount(_forwardDS);
 }
 
 } // namespace raum::sample

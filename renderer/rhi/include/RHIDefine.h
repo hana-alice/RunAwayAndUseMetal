@@ -616,7 +616,7 @@ struct Rect2D {
 struct Viewport {
     Rect2D rect{};
     float minDepth{0.0f};
-    float maxDepth{0.0f};
+    float maxDepth{1.0f};
 };
 
 enum class PolygonMode : uint8_t {
@@ -1117,4 +1117,15 @@ enum class DataType : uint32_t {
     COUNT,
 };
 
-} // namespace raum::rhi
+struct VertexBuffer {
+    uint32_t offset{0};
+    RHIBuffer* buffer{nullptr};
+};
+
+struct IndexBuffer {
+    uint32_t offset{0};
+    IndexType type{IndexType::FULL};
+    RHIBuffer* buffer{nullptr};
+};
+
+}; // namespace raum::rhi

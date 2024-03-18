@@ -4,6 +4,8 @@
 #include <vector>
 #include "boost/container/flat_map.hpp"
 #include "RHIDefine.h"
+#include "Camera.h"
+#include "Scene.h"
 namespace raum::graph {
 
 template <class... Ts>
@@ -41,6 +43,12 @@ struct RenderPassData {
 
 struct SubRenderPassData {
     std::vector<RenderingResource> resources;
+};
+
+struct RenderQueueData {
+    scene::Camera* camera{nullptr};
+    rhi::Viewport viewport{};
+    scene::Scene* scene{nullptr};
 };
 
 struct ComputePassData {
@@ -126,5 +134,11 @@ struct ShaderResource {
 };
 
 using ShaderResources = std::unordered_map<std::string, ShaderResource, hash_string, std::equal_to<>>;
+
+enum class RenderQueueFlags: uint32_t {
+    NONE = 0,
+    OPAQUE = 1,
+    TRANSPARENT = 1 << 1,
+};
 
 } // namespace raum::graph
