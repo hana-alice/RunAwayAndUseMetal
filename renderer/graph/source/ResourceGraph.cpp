@@ -21,18 +21,18 @@ ResourceGraph::ResourceGraph(RHIDevice* device) : _device(device) {
 
 void ResourceGraph::addBuffer(std::string_view name, const BufferData& data) {
     const auto& v = add_vertex(name.data(), _graph);
-    _graph[v].resource = data;
+    _graph[v].data = data;
 }
 
 void ResourceGraph::addBufferView(std::string_view name, const BufferViewData& data) {
     const auto& v = add_vertex(name.data(), _graph);
-    _graph[v].resource = data;
+    _graph[v].data = data;
     add_edge(v, data.origin.data(), _graph);
 }
 
 void ResourceGraph::addImage(std::string_view name, const rhi::ImageInfo& info) {
     const auto& v = add_vertex(name.data(), _graph);
-    _graph[v].resource = ImageData{info};
+    _graph[v].data = ImageData{info};
 }
 
 void ResourceGraph::addImage(std::string_view name, rhi::ImageUsage usage, uint32_t width, uint32_t height, rhi::Format format) {
@@ -45,12 +45,12 @@ void ResourceGraph::addImage(std::string_view name, rhi::ImageUsage usage, uint3
         .mipCount = 1,
         .extent = {width, height, 1},
     };
-    _graph[v].resource = ImageData{info};
+    _graph[v].data = ImageData{info};
 }
 
 void ResourceGraph::addImageView(std::string_view name, const raum::graph::ImageViewData& data) {
     const auto& v = add_vertex(name.data(), _graph);
-    _graph[v].resource = data;
+    _graph[v].data = data;
     add_edge(v, data.origin.data(), _graph);
 }
 
@@ -64,7 +64,7 @@ void ResourceGraph::mount(std::string_view name) {
                    },
                    [&](BufferViewData& data) {
                        const auto& v = *find_vertex(data.origin.data(), _graph);
-                       const auto& originData = std::get<BufferData>(_graph[v].resource);
+                       const auto& originData = std::get<BufferData>(_graph[v].data);
                        data.info.buffer = originData.buffer;
                        data.bufferView = _device->createBufferView(data.info);
                    },
@@ -73,13 +73,13 @@ void ResourceGraph::mount(std::string_view name) {
                    },
                    [&](ImageViewData& data) {
                        const auto& v = *find_vertex(data.origin.data(), _graph);
-                       const auto& originData = std::get<ImageData>(_graph[v].resource);
+                       const auto& originData = std::get<ImageData>(_graph[v].data);
                        data.info.image = originData.image;
                        data.imageView = _device->createImageView(data.info);
                    },
                    [](auto&) {
                    }},
-               _graph[v].resource);
+               _graph[v].data);
 }
 
 void ResourceGraph::unmount(std::string_view name, uint64_t life) {
@@ -107,12 +107,17 @@ void ResourceGraph::unmount(std::string_view name, uint64_t life) {
                 [](auto&) {
                 },
             },
-            resource.resource);
+            resource.data);
     }
 }
 
 bool ResourceGraph::contains(std::string_view name) {
     return find_vertex(name.data(), _graph).has_value();
+}
+
+const Resource& ResourceGraph::get(std::string_view name) const {
+    auto v = *find_vertex(name.data(), _graph);
+    return _graph[v];
 }
 
 } // namespace raum::graph

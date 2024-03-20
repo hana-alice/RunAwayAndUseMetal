@@ -12,7 +12,7 @@ namespace raum::graph {
 struct Resource {
     std::string name{};
     uint64_t life{0};
-    std::variant<BufferData, BufferViewData, ImageData, ImageViewData> resource;
+    std::variant<BufferData, BufferViewData, ImageData, ImageViewData> data;
 };
 } // namespace raum::graph
 
@@ -54,6 +54,7 @@ public:
     void unmount(std::string_view name, uint64_t life);
 
     bool contains(std::string_view name);
+    const Resource& get(std::string_view name) const;
 
 private:
     rhi::RHIDevice* _device{nullptr};
