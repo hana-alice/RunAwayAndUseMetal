@@ -58,4 +58,20 @@ requires(raum_debug) void raum_check(bool exp, fmt::format_string<Args...> s, Ar
     }
 }
 
+template <typename... Args>
+void raum_expect(bool exp, fmt::format_string<Args...> s, Args&&... args) {
+    raum_check(exp, s, args...);
+}
+
+template <typename... Args>
+void raum_unreachable() {
+    constexpr auto fmtStr = R"(
+--------------------------- UNREACHABLE ---------------------------
+file:{}
+line:{}
+function:{}
+)";
+    raum_check(false, fmtStr, std::source_location().file_name(), std::source_location().line(), std::source_location().function_name());
+}
+
 } // namespace raum

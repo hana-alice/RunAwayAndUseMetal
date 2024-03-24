@@ -38,17 +38,19 @@ struct RenderingResource {
 };
 
 struct RenderPassData {
-    std::vector<RenderingResource> resources;
+    std::vector<RenderingResource> attachments;
 };
 
 struct SubRenderPassData {
-    std::vector<RenderingResource> resources;
+    std::vector<RenderingResource> attachments;
 };
 
 struct RenderQueueData {
     scene::Camera* camera{nullptr};
-    rhi::Viewport viewport{};
     scene::Scene* scene{nullptr};
+    rhi::Viewport viewport{};
+    std::string phase{};
+    std::vector<RenderingResource> resources;
 };
 
 struct ComputePassData {

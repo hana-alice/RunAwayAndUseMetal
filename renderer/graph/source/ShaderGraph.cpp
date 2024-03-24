@@ -108,4 +108,8 @@ void ShaderGraph::addCustomLayout(ShaderResource&& layout, std::string_view name
     _resources.emplace(name, std::forward<ShaderResource>(layout));
 }
 
+const ShaderResource& ShaderGraph::layout(std::string_view name) const {
+    return _resources.at(name.data());
+}
+
 }

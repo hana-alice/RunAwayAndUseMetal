@@ -144,6 +144,7 @@ void loadMesh(const aiScene* scene, const aiNode* node, std::vector<scene::Mesh>
                 meshData.indexBuffer.type = rhi::IndexType::FULL;
                 indices.resize(indexNum * 4);
             } else {
+                meshData.indexBuffer.type = rhi::IndexType::HALF;
                 indices.resize(indexNum * 2);
             }
             auto* indexData = indices.data();

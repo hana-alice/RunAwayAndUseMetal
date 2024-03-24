@@ -73,7 +73,7 @@ void GraphSample::show() {
     auto renderPass = _renderGraph->addRenderPass("forward");
     renderPass.addColor(_forwardRT)
         .addDepthStencil(_forwardDS);
-    auto queue = renderPass.addQueue();
+    auto queue = renderPass.addQueue("");
 
     const auto& imageInfo = _swapchain->swapchainImageView()->image()->info();
     auto width = imageInfo.extent.x;

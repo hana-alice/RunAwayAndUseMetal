@@ -9,10 +9,19 @@ class RHIDevice;
 
 namespace raum::graph {
 
+enum class ResourceResidency : uint8_t {
+    DONT_CARE,
+    PERSISTENT,
+    EXTERNAL,
+    SWAPCHAIN,
+};
+
 struct Resource {
     std::string name{};
-    uint64_t life{0};
+    ResourceResidency residency{ResourceResidency::DONT_CARE};
+    rhi::AccessFlags access{rhi::AccessFlags::NONE};
     std::variant<BufferData, BufferViewData, ImageData, ImageViewData> data;
+    uint64_t life{0};
 };
 } // namespace raum::graph
 
@@ -55,6 +64,7 @@ public:
 
     bool contains(std::string_view name);
     const Resource& get(std::string_view name) const;
+    Resource& get(std::string_view name);
 
 private:
     rhi::RHIDevice* _device{nullptr};

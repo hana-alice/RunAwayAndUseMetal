@@ -279,7 +279,7 @@ OPERABLE(ImageFlag)
 enum class ImageLayout : uint8_t {
     UNDEFINED,
     GENERAL,
-    COLOR_ATTACHMENT_OPTIMAL,
+    COLOR_ATTACHMENT_OPTIMAL,/**/
     DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
     DEPTH_STENCIL_READ_ONLY_OPTIMAL,
     SHADER_READ_ONLY_OPTIMAL,
@@ -528,22 +528,23 @@ struct SubpassInfo {
     std::vector<AttachmentReference> depthStencil; // expect only one
 };
 
-enum class PipelineStage : uint8_t {
-    TOP_OF_PIPE,
-    DRAW_INDIRECT,
-    VERTEX_INPUT,
-    VERTEX_SHADER,
-    FRAGMENT_SHADER,
-    EARLY_FRAGMENT_TESTS,
-    LATE_FRAGMENT_TESTS,
-    COLOR_ATTACHMENT_OUTPUT,
-    COMPUTE_SHADER,
-    TRANSFER,
-    BOTTOM_OF_PIPE,
-    HOST,
-    TASK_SHADER,
-    MESH_SHADER,
+enum class PipelineStage : uint32_t {
+    TOP_OF_PIPE = 1,
+    DRAW_INDIRECT = 1 << 1,
+    VERTEX_INPUT = 1 << 2,
+    VERTEX_SHADER = 1 << 3,
+    FRAGMENT_SHADER = 1 << 4,
+    EARLY_FRAGMENT_TESTS = 1 << 5,
+    LATE_FRAGMENT_TESTS = 1 << 6,
+    COLOR_ATTACHMENT_OUTPUT = 1 << 7,
+    COMPUTE_SHADER = 1 << 8,
+    TRANSFER = 1 << 9,
+    BOTTOM_OF_PIPE = 1 << 10,
+    HOST = 1 << 11,
+    TASK_SHADER = 1 << 12,
+    MESH_SHADER = 1 << 13,
 };
+OPERABLE(PipelineStage);
 
 enum class AccessFlags : uint32_t {
     NONE = 0,
@@ -553,19 +554,20 @@ enum class AccessFlags : uint32_t {
     UNIFORM_READ = 1 << 3,
     INPUT_ATTACHMENT_READ = 1 << 4,
     SHADER_READ = 1 << 5,
-    SHADER_WRITE = 1 << 6,
-    COLOR_ATTACHMENT_READ = 1 << 7,
-    COLOR_ATTACHMENT_WRITE = 1 << 8,
-    DEPTH_STENCIL_ATTACHMENT_READ = 1 << 9,
-    DEPTH_STENCIL_ATTACHMENT_WRITE = 1 << 10,
-    TRANSFER_READ = 1 << 11,
-    TRANSFER_WRITE = 1 << 12,
-    HOST_READ = 1 << 13,
-    HOST_WRITE = 1 << 14,
-    MEMORY_READ = 1 << 15,
-    MEMORY_WRITE = 1 << 16,
+    COLOR_ATTACHMENT_READ = 1 << 6,
+    DEPTH_STENCIL_ATTACHMENT_READ = 1 << 7,
+    TRANSFER_READ = 1 << 8,
+    HOST_READ = 1 << 9,
+    MEMORY_READ = 1 << 10,
+    SHADING_RATE_ATTACHMENT_READ = 1 << 11,
 
-    SHADING_RATE_ATTACHMENT_READ = 1 << 23,
+    SHADER_WRITE = 1 << 16,
+    COLOR_ATTACHMENT_WRITE = 1 << 17,
+    DEPTH_STENCIL_ATTACHMENT_WRITE = 1 << 18,
+    TRANSFER_WRITE = 1 << 19,
+    HOST_WRITE = 1 << 20,
+    MEMORY_WRITE = 1 << 21,
+
 };
 OPERABLE(AccessFlags)
 

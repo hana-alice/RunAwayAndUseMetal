@@ -10,7 +10,7 @@ ConstructorInitializerIndentWidth:    0
 IncludeBlocks:                        Preserve
 IndentPPDirectives:                   BeforeHash
 IndentWidth:                          4
-SpacesBeforeTrailingComments:         1
+SpacesBeforeTrailingComments:         1 
 
 ObjCBlockIndentWidth:                 4
 ObjCSpaceAfterProperty:               true

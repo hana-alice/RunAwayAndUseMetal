@@ -44,7 +44,7 @@ public:
 
     rhi::RHIDescriptorSetLayout* getLayout(std::string_view name);
 
-    const ShaderResource& layout(std::string_view name);
+    const ShaderResource& layout(std::string_view name) const;
 
     void addCustomLayout(ShaderResource&& layout, std::string_view name);
 

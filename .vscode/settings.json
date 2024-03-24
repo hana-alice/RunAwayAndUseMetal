@@ -112,7 +112,13 @@
         "stacktrace": "cpp",
         "stdfloat": "cpp",
         "strstream": "cpp",
-        "syncstream": "cpp"
+        "syncstream": "cpp",
+        "*.tcc": "cpp",
+        "cuchar": "cpp",
+        "netfwd": "cpp",
+        "string_view": "cpp",
+        "rope": "cpp",
+        "slist": "cpp"
     },
     "C_Cpp.errorSquiggles": "enabled",
     "cmake.configureSettings": {

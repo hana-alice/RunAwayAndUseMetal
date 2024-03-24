@@ -27,15 +27,19 @@ add_definitions(-DGLM_ENABLE_EXPERIMENTAL)
 find_package(glm CONFIG REQUIRED)
 
 file(GLOB_RECURSE raum_utils_h ${CMAKE_CURRENT_LIST_DIR}/core/utils/*.h)
-source_group("Header Files" FILES ${raum_utils_h})
+source_group("raum_utils_h" FILES ${raum_utils_h})
 file(GLOB_RECURSE raum_utils_cpp ${CMAKE_CURRENT_LIST_DIR}/core/utils/*.cpp)
+source_group("raum_utils_cpp" FILES ${raum_utils_cpp})
 
 file(GLOB_RECURSE raum_core_h ${CMAKE_CURRENT_LIST_DIR}/core/*.h)
-source_group("Header Files" FILES ${raum_core_h})
+source_group("raum_core_h" FILES ${raum_core_h})
 file(GLOB_RECURSE raum_core_cpp ${CMAKE_CURRENT_LIST_DIR}/core/*.cpp)
+source_group("raum_core_cpp" FILES ${raum_core_cpp})
 
 add_library(raum_core
+    ${raum_utils_h}
     ${raum_utils_cpp}
+    ${raum_core_h}
     ${raum_core_cpp}
 )
 target_include_directories(raum_core PUBLIC
@@ -49,9 +53,11 @@ target_link_libraries(raum_core PUBLIC
 find_package(Qt6 REQUIRED COMPONENTS Widgets)
 file(GLOB_RECURSE raum_framework_platform_h ${CMAKE_CURRENT_LIST_DIR}/framework/platform/windows/include/*.h)
 file(GLOB_RECURSE raum_framework_platform_cpp ${CMAKE_CURRENT_LIST_DIR}/framework/platform/windows/source/*.cpp)
-source_group("Header Files" FILES ${raum_framework_platform_h})
+source_group("raum_framework_platform_h" FILES ${raum_framework_platform_h})
+source_group("raum_framework_platform_cpp" FILES ${raum_framework_platform_cpp})
 
 add_library(raum_framework
+    ${raum_framework_platform_h}
     ${raum_framework_platform_cpp}
 )
 target_include_directories(raum_framework PUBLIC
@@ -65,11 +71,13 @@ target_link_libraries(raum_framework PUBLIC
 # renderer
 file(GLOB_RECURSE raum_graph_h ${CMAKE_CURRENT_LIST_DIR}/renderer/graph/include/*.h)
 file(GLOB_RECURSE raum_graph_cpp ${CMAKE_CURRENT_LIST_DIR}/renderer/graph/source/*.cpp)
-source_group("Header Files" FILES ${raum_graph_h})
+source_group("raum_graph_h" FILES ${raum_graph_h})
+source_group("raum_graph_cpp" FILES ${raum_graph_cpp})
 
 file(GLOB_RECURSE raum_scene_h ${CMAKE_CURRENT_LIST_DIR}/renderer/scene/include/*.h)
 file(GLOB_RECURSE raum_scene_cpp ${CMAKE_CURRENT_LIST_DIR}/renderer/scene/source/*.cpp)
-source_group("Header Files" FILES ${raum_scene_h})
+source_group("raum_scene_h" FILES ${raum_scene_h})
+source_group("raum_scene_cpp" FILES ${raum_scene_cpp})
 
 # renderer-rhi
 add_subdirectory(renderer/rhi/vulkan)
@@ -77,7 +85,9 @@ add_subdirectory(renderer/rhi/vulkan)
 find_package(Boost REQUIRED COMPONENTS graph json)
 
 add_library(raum_renderer
+    ${raum_graph_h}
     ${raum_graph_cpp}
+    ${raum_scene_h}
     ${raum_scene_cpp}
 )
 target_include_directories(raum_renderer PUBLIC
@@ -95,9 +105,11 @@ find_package(stb REQUIRED)
 find_package(assimp CONFIG REQUIRED)
 file(GLOB_RECURSE raum_asset_h ${CMAKE_CURRENT_LIST_DIR}/asset/include/*.h)
 file(GLOB_RECURSE raum_asset_cpp ${CMAKE_CURRENT_LIST_DIR}/asset/source/*.cpp)
-source_group("Header Files" FILES ${raum_asset_h})
+source_group("raum_asset_h" FILES ${raum_asset_h})
+source_group("raum_asset_cpp" FILES ${raum_asset_cpp})
 
 add_library(raum_asset
+    ${raum_asset_h}
     ${raum_asset_cpp}
 )
 target_include_directories(raum_asset PUBLIC

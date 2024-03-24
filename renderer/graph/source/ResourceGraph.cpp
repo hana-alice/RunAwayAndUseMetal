@@ -120,4 +120,10 @@ const Resource& ResourceGraph::get(std::string_view name) const {
     return _graph[v];
 }
 
+Resource& ResourceGraph::get(std::string_view name) {
+    auto v = *find_vertex(name.data(), _graph);
+    return _graph[v];
+}
+
+
 } // namespace raum::graph

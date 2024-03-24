@@ -1,20 +1,20 @@
 #include "RenderGraph.h"
-#include "RHIImage.h"
 #include "RHIBuffer.h"
-#include "RHIImageView.h"
 #include "RHIBufferView.h"
+#include "RHIImage.h"
+#include "RHIImageView.h"
 
 using boost::add_vertex;
 using boost::get;
-using boost::vertices;
-using boost::vertex;
 using boost::out_degree;
+using boost::vertex;
+using boost::vertices;
 
 namespace raum::graph {
 RenderPass RenderGraph::addRenderPass(std::string_view name) {
     auto id = add_vertex(std::string{name}, _graph);
     _graph[id].data = RenderPassData{};
-    return RenderPass{id,  _graph};
+    return RenderPass{id, _graph};
 }
 
 ComputePass RenderGraph::addComputePass(std::string_view name) {
@@ -31,34 +31,34 @@ CopyPass RenderGraph::addCopyPass(std::string_view name) {
 
 RenderPass& RenderPass::addColor(std::string_view name) {
     auto& data = std::get<RenderPassData>(_graph[_id].data);
-    data.resources.emplace_back(std::string{name}, "", Access::WRITE, ResourceType::COLOR);
+    data.attachments.emplace_back(std::string{name}, "", Access::WRITE, ResourceType::COLOR);
     return *this;
 }
 
 RenderPass& RenderPass::addDepthStencil(std::string_view name) {
     auto& data = std::get<RenderPassData>(_graph[_id].data);
-    data.resources.emplace_back(std::string{name}, "", Access::WRITE, ResourceType::DEPTH_STENCIL);
+    data.attachments.emplace_back(std::string{name}, "", Access::WRITE, ResourceType::DEPTH_STENCIL);
     return *this;
 }
 
 RenderPass& RenderPass::addShadingRate(std::string_view name) {
     auto& data = std::get<RenderPassData>(_graph[_id].data);
-    data.resources.emplace_back(std::string{name}, "", Access::WRITE, ResourceType::SHADING_RATE);
+    data.attachments.emplace_back(std::string{name}, "", Access::WRITE, ResourceType::SHADING_RATE);
     return *this;
 }
 
-RenderQueue RenderPass::addQueue() {
+RenderQueue RenderPass::addQueue(std::string_view name) {
     auto outs = out_degree(_id, _graph);
-    auto id = add_vertex(_graph[_id].name + "_" + std::to_string(outs), _graph);
+    auto id = add_vertex(_graph[_id].name.append("_").append(name), _graph);
     _graph[id].data = RenderQueueData{};
     return RenderQueue{id, _graph};
 }
 
-//RenderQueue& RenderQueue::addQuad() {
-//    auto& data = std::get<RenderQueueData>(_graph[_id].data);
+// RenderQueue& RenderQueue::addQuad() {
+//     auto& data = std::get<RenderQueueData>(_graph[_id].data);
 //
-//    return *this;
-//}
+//     return *this;
+// }
 
 RenderQueue& RenderQueue::addScene(scene::Scene* scene) {
     auto& data = std::get<RenderQueueData>(_graph[_id].data);
@@ -73,7 +73,7 @@ RenderQueue& RenderQueue::addCamera(scene::Camera* camera) {
 }
 
 RenderQueue& RenderQueue::setViewport(int32_t x, int32_t y, uint32_t w, uint32_t h, float minDepth, float maxDepth) {
-    auto& data = std::get<RenderQueueData>(_graph[_id].data);
+    auto& data = std::get<RenderQueueDatacd vck>(_graph[_id].data);
     data.viewport = {{x, y, w, h}, minDepth, maxDepth};
     return *this;
 }
@@ -87,6 +87,5 @@ CopyPass& CopyPass::addPair(const CopyPair& pair) {
     _data.pairs.emplace_back(pair);
     return *this;
 }
-
 
 } // namespace raum::graph

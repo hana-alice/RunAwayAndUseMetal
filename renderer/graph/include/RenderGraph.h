@@ -1,9 +1,10 @@
 #pragma once
 #include <boost/graph/adjacency_list.hpp>
 #include <variant>
-#include "GraphTypes.h"
 #include "Camera.h"
+#include "GraphTypes.h"
 #include "Scene.h"
+
 
 namespace raum::graph {
 struct Pass {
@@ -35,10 +36,10 @@ using RenderGraphImpl = boost::adjacency_list<boost::vecS, boost::vecS, boost::d
 class RenderQueue {
 public:
     RenderQueue() = delete;
-    RenderQueue(RenderGraphImpl ::vertex_descriptor id, RenderGraphImpl& graph):_id(id), _graph(graph) {};
+    RenderQueue(RenderGraphImpl ::vertex_descriptor id, RenderGraphImpl& graph) : _id(id), _graph(graph){};
 
     RenderQueue& addCamera(scene::Camera* camera);
-//    RenderQueue& addQuad();
+    //    RenderQueue& addQuad();
     RenderQueue& addScene(scene::Scene* scene);
     RenderQueue& setViewport(int32_t x, int32_t y, uint32_t w, uint32_t h, float minDepth, float maxDepth);
 
@@ -49,7 +50,7 @@ private:
 
 class RenderPass {
 public:
-    RenderPass(RenderGraphImpl::vertex_descriptor id, RenderGraphImpl& graph):_id(id), _graph(graph) {}
+    RenderPass(RenderGraphImpl::vertex_descriptor id, RenderGraphImpl& graph) : _id(id), _graph(graph) {}
     RenderPass(const RenderPass& rhs) : _id(rhs._id), _graph(rhs._graph) {}
     RenderPass& operator=(const RenderPass& rhs) {
         _id = rhs._id;
@@ -63,7 +64,7 @@ public:
     RenderPass& addDepthStencil(std::string_view name);
     RenderPass& addShadingRate(std::string_view name);
 
-    RenderQueue addQueue();
+    RenderQueue addQueue(std::string_view name);
 
 private:
     RenderGraphImpl::vertex_descriptor _id{0};
@@ -74,7 +75,10 @@ class ComputePass {
 public:
     ComputePass(ComputePassData& data) : _data(data) {}
     ComputePass(const ComputePass& rhs) : _data(rhs._data) {}
-    ComputePass& operator=(const ComputePass& rhs) { _data = rhs._data; return *this; }
+    ComputePass& operator=(const ComputePass& rhs) {
+        _data = rhs._data;
+        return *this;
+    }
 
     ComputePass(ComputePass&& rhs) = delete;
     ~ComputePass() = default;
@@ -89,7 +93,10 @@ class CopyPass {
 public:
     CopyPass(CopyPassData& data) : _data(data) {}
     CopyPass(const CopyPass& rhs) : _data(rhs._data) {}
-    CopyPass& operator=(const CopyPass& rhs) { _data = rhs._data;  return *this; }
+    CopyPass& operator=(const CopyPass& rhs) {
+        _data = rhs._data;
+        return *this;
+    }
 
     CopyPass(CopyPass&& rhs) = delete;
     ~CopyPass() = default;
@@ -116,6 +123,7 @@ public:
     auto& impl() const { return _graph; }
 
     using VertexType = RenderGraphImpl::vertex_descriptor;
+
 private:
     RenderGraphImpl _graph;
 };

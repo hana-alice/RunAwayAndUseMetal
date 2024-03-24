@@ -555,49 +555,47 @@ VkImageLayout imageLayout(ImageLayout layout) {
 
 VkPipelineStageFlags pipelineStageFlags(PipelineStage stage) {
     VkPipelineStageFlags res{0};
-    switch (stage) {
-        case PipelineStage::TOP_OF_PIPE:
-            res = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-            break;
-        case PipelineStage::DRAW_INDIRECT:
-            res = VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT;
-            break;
-        case PipelineStage::VERTEX_INPUT:
-            res = VK_PIPELINE_STAGE_VERTEX_INPUT_BIT;
-            break;
-        case PipelineStage::VERTEX_SHADER:
-            res = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT;
-            break;
-        case PipelineStage::FRAGMENT_SHADER:
-            res = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-            break;
-        case PipelineStage::EARLY_FRAGMENT_TESTS:
-            res = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-            break;
-        case PipelineStage::LATE_FRAGMENT_TESTS:
-            res = VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
-            break;
-        case PipelineStage::COLOR_ATTACHMENT_OUTPUT:
-            res = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-            break;
-        case PipelineStage::COMPUTE_SHADER:
-            res = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
-            break;
-        case PipelineStage::TRANSFER:
-            res = VK_PIPELINE_STAGE_TRANSFER_BIT;
-            break;
-        case PipelineStage::BOTTOM_OF_PIPE:
-            res = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
-            break;
-        case PipelineStage::HOST:
-            res = VK_PIPELINE_STAGE_HOST_BIT;
-            break;
-        case PipelineStage::TASK_SHADER:
-            res = VK_PIPELINE_STAGE_TASK_SHADER_BIT_NV;
-            break;
-        case PipelineStage::MESH_SHADER:
-            res = VK_PIPELINE_STAGE_MESH_SHADER_BIT_NV;
-            break;
+    if(test(stage, rhi::PipelineStage::TOP_OF_PIPE)) {
+        res |= VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+    }
+    if(test(stage, rhi::PipelineStage::DRAW_INDIRECT)) {
+        res |= VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT;
+    }
+    if(test(stage, rhi::PipelineStage::VERTEX_INPUT)) {
+        res |= VK_PIPELINE_STAGE_VERTEX_INPUT_BIT;
+    }
+    if(test(stage, rhi::PipelineStage::VERTEX_SHADER)) {
+        res |= VK_PIPELINE_STAGE_VERTEX_SHADER_BIT;
+    }
+    if(test(stage, rhi::PipelineStage::FRAGMENT_SHADER)) {
+        res |= VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+    }
+    if(test(stage, rhi::PipelineStage::EARLY_FRAGMENT_TESTS)) {
+        res |= VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+    }
+    if(test(stage, rhi::PipelineStage::LATE_FRAGMENT_TESTS)) {
+        res |= VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+    }
+    if(test(stage, rhi::PipelineStage::COLOR_ATTACHMENT_OUTPUT)) {
+        res |= VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    }
+    if(test(stage, rhi::PipelineStage::COMPUTE_SHADER)) {
+        res |= VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+    }
+    if(test(stage, rhi::PipelineStage::TRANSFER)) {
+        res |= VK_PIPELINE_STAGE_TRANSFER_BIT;
+    }
+    if(test(stage, rhi::PipelineStage::BOTTOM_OF_PIPE)) {
+        res |= VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+    }
+    if(test(stage, rhi::PipelineStage::HOST)) {
+        res |= VK_PIPELINE_STAGE_HOST_BIT;
+    }
+    if(test(stage, rhi::PipelineStage::TASK_SHADER)) {
+        res |= VK_PIPELINE_STAGE_TASK_SHADER_BIT_NV;
+    }
+    if(test(stage, rhi::PipelineStage::MESH_SHADER)) {
+        res |= VK_PIPELINE_STAGE_MESH_SHADER_BIT_NV;
     }
     return res;
 }

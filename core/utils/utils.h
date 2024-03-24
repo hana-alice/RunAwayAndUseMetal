@@ -11,7 +11,7 @@ std::filesystem::path resourceDirectory() {
         return s_resourcePath.value();
     } else {
         // Debug/Release
-        return std::filesystem::current_path() / ".." /"resources";
+        return std::filesystem::current_path() /"resources";
     }
 }
 
