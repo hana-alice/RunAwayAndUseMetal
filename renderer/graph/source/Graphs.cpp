@@ -14,7 +14,7 @@ struct RenderGraphVisitor : public boost::dfs_visitor<> {
     }
 };
 
-void execute(RenderGraph& rg, AccessGraph& ag, ResourceGraph& resg, ShaderGraph& sg, TaskGraph& tg) {
+void execute(RenderGraph& rg, ResourceGraph& resg, ShaderGraph& sg, TaskGraph& tg) {
     AccessGraph ag{rg, resg, sg};
     ag.analyze();
 }

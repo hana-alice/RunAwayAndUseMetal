@@ -103,6 +103,10 @@ public:
 
     CopyPass& addPair(const CopyPair&);
 
+    CopyPass& uploadBuffer(const uint8_t* data, uint32_t offset, uint32_t size, std::string_view name);
+
+    uint8_t* allocateBuffer(uint32_t size);
+
 private:
     CopyPassData& _data;
 };

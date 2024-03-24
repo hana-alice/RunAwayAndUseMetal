@@ -63,6 +63,11 @@ struct CopyPair {
     std::variant<rhi::BufferCopyRegion, rhi::BufferImageCopyRegion, rhi::ImageBlit, rhi::ImageCopyRegion> region;
 };
 
+struct UploadPair {
+    std::vector<uint8_t> data;
+
+};
+
 struct CopyPassData {
     std::vector<CopyPair> pairs;
 };

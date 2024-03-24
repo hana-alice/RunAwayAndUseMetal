@@ -244,7 +244,7 @@ void populateBarrier(const AccessGraph::ResourceAccessMap& accessMap,
                         rhi::ImageLayout::PRESENT,
                         lastAccess,
                         rhi::AccessFlags::NONE));
-                resDetail.access == rhi::AccessFlags::NONE;
+                resDetail.access = rhi::AccessFlags::NONE;
             }
         }
     }
