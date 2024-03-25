@@ -23,6 +23,10 @@ namespace raum::rhi {
         return static_cast<std::underlying_type<T>::type>(lhs & rhs);                                                                   \
     }
 
+#define OPERATOR_EQUAL(T)                        \
+    bool operator==(const T& lhs, const T& rhs); \
+    inline bool operator!=(const T& lhs, const T& rhs) { return !(lhs == rhs); }
+
 class RHIShader;
 class RHIPipelineLayout;
 class RHIRenderPass;
@@ -287,7 +291,7 @@ OPERABLE(ImageFlag)
 enum class ImageLayout : uint8_t {
     UNDEFINED,
     GENERAL,
-    COLOR_ATTACHMENT_OPTIMAL,/**/
+    COLOR_ATTACHMENT_OPTIMAL, /**/
     DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
     DEPTH_STENCIL_READ_ONLY_OPTIMAL,
     SHADER_READ_ONLY_OPTIMAL,
@@ -522,11 +526,13 @@ struct AttachmentInfo {
     ImageLayout initialLayout{ImageLayout::UNDEFINED};
     ImageLayout finalLayout{ImageLayout::UNDEFINED};
 };
+OPERATOR_EQUAL(AttachmentInfo)
 
 struct AttachmentReference {
     uint8_t index;
     ImageLayout layout{ImageLayout::UNDEFINED};
 };
+OPERATOR_EQUAL(AttachmentReference)
 
 struct SubpassInfo {
     std::vector<uint32_t> preserves;
@@ -535,6 +541,7 @@ struct SubpassInfo {
     std::vector<AttachmentReference> resolves;
     std::vector<AttachmentReference> depthStencil; // expect only one
 };
+OPERATOR_EQUAL(SubpassInfo)
 
 enum class PipelineStage : uint32_t {
     TOP_OF_PIPE = 1,
@@ -596,12 +603,14 @@ struct SubpassDependency {
     AccessFlags dstAccessFlags{AccessFlags::NONE};
     DependencyFlags dependencyFlags{DependencyFlags::BY_REGION};
 };
+OPERATOR_EQUAL(SubpassDependency)
 
 struct RenderPassInfo {
     std::vector<AttachmentInfo> attachments;
     std::vector<SubpassInfo> subpasses;
     std::vector<SubpassDependency> dependencies;
 };
+OPERATOR_EQUAL(RenderPassInfo)
 
 struct FrameBufferInfo {
     RHIRenderPass* renderPass{nullptr};
@@ -610,6 +619,7 @@ struct FrameBufferInfo {
     uint32_t height{0};
     uint32_t layers{0};
 };
+OPERATOR_EQUAL(FrameBufferInfo)
 
 enum class IAType : uint8_t {
     VB_IB,
@@ -1044,27 +1054,10 @@ struct SamplerInfo {
     float maxLod;
     BorderColor borderColor{BorderColor::FLOAT_TRANSPARENT_BLACK};
 };
-inline bool operator==(const SamplerInfo& lhs, const SamplerInfo& rhs) {
-    return lhs.anisotropyEnable == rhs.anisotropyEnable &&
-           lhs.compareEnable == rhs.compareEnable &&
-           lhs.unnormalizedCoordinates == rhs.unnormalizedCoordinates &&
-           lhs.magFilter == rhs.magFilter &&
-           lhs.minFilter == rhs.minFilter &&
-           lhs.mipmapMode == rhs.mipmapMode &&
-           lhs.addressModeU == rhs.addressModeU &&
-           lhs.addressModeV == rhs.addressModeV &&
-           lhs.addressModeW == rhs.addressModeW &&
-           lhs.mipLodBias == rhs.mipLodBias &&
-           lhs.maxAnisotropy == rhs.maxAnisotropy &&
-           lhs.compareOp == rhs.compareOp &&
-           lhs.minLod == rhs.minLod &&
-           lhs.maxLod == rhs.maxLod &&
-           lhs.borderColor == rhs.borderColor;
-}
+OPERATOR_EQUAL(SamplerInfo)
 
 template <typename T>
-class RHIHash {
-public:
+struct RHIHash {
     size_t operator()(const T& t) const;
 };
 

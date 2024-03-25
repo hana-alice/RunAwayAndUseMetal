@@ -10,6 +10,8 @@ public:
         return _info.attachments;
     }
 
+    const RenderPassInfo& info() const { return _info; }
+
     virtual ~RHIRenderPass() = 0;
 
 protected:
