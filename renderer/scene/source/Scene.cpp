@@ -5,7 +5,7 @@ namespace raum::scene {
 
 static uint64_t object_id{0};
 
-Renderobject::Renderobject(): objectID(++object_id) {
+Renderable::Renderable(): objectID(++object_id) {
 }
 
 }

@@ -40,7 +40,7 @@ GraphSample::GraphSample(rhi::DevicePtr device, rhi::SwapchainPtr swapchain)
 
     asset::SceneLoader loader(device);
     loader.loadFlat(resourcePath / "models" / "sponza-gltf-pbr" / "sponza.glb");
-    const auto &aabb = loader.modelData().aabb;
+    const auto &aabb = loader.modelData()->aabb;
     auto far = std::abs(aabb.maxBound.z);
 
     const auto& imageInfo = swapchain->swapchainImageView()->image()->info();
@@ -52,8 +52,8 @@ GraphSample::GraphSample(rhi::DevicePtr device, rhi::SwapchainPtr swapchain)
     eye.setPosition(0.0f, 1.0f, far * 0.5f);
     eye.lookAt({}, {0.0f, 1.0f, 0.0f});
 
-    _scene = std::make_shared<scene::Scene>();
-    _scene->models.emplace_back(loader.modelData());
+    //_scene = std::make_shared<scene::Scene>();
+    //_scene->models.emplace_back(loader.modelData());
 
     _renderGraph = std::make_shared<graph::RenderGraph>();
 
@@ -79,8 +79,7 @@ void GraphSample::show() {
     auto width = imageInfo.extent.x;
     auto height = imageInfo.extent.y;
     queue.setViewport(0, 0, width, height, 0.0f, 1.0f)
-        .addCamera(_cam.get())
-        .addScene(_scene.get());
+        .addCamera(_cam.get());
 
 
 

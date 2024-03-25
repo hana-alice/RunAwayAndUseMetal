@@ -60,11 +60,11 @@ RenderQueue RenderPass::addQueue(std::string_view name) {
 //     return *this;
 // }
 
-RenderQueue& RenderQueue::addScene(scene::Scene* scene) {
-    auto& data = std::get<RenderQueueData>(_graph[_id].data);
-    data.scene = scene;
-    return *this;
-}
+//RenderQueue& RenderQueue::addScene(scene::Scene* scene) {
+//    auto& data = std::get<RenderQueueData>(_graph[_id].data);
+//    data.scene = scene;
+//    return *this;
+//}
 
 RenderQueue& RenderQueue::addCamera(scene::Camera* camera) {
     auto& data = std::get<RenderQueueData>(_graph[_id].data);
@@ -84,12 +84,12 @@ ComputePass& ComputePass::addResource(std::string_view name, std::string_view bi
 }
 
 CopyPass& CopyPass::addPair(const CopyPair& pair) {
-    _data.pairs.emplace_back(pair);
+    _data.copies.emplace_back(pair);
     return *this;
 }
 
-CopyPass& CopyPass::uploadBuffer(const uint8_t* data, uint32_t offset, uint32_t size, std::string_view name) {
-
+CopyPass& CopyPass::uploadBuffer(const UploadPair& pair) {
+    _data.uploads.emplace_back(pair);
     return *this;
 }
 

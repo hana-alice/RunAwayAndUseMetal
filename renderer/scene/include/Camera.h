@@ -1,6 +1,7 @@
 #pragma once
 #include <array>
 #include "Eye.h"
+#include <memory>
 namespace raum::scene {
 
 constexpr uint32_t EyePerCam{1};
@@ -15,5 +16,7 @@ public:
 private:
     Eye _eye;
 };
+
+using CameraPtr = std::shared_ptr<Camera>;
 
 }

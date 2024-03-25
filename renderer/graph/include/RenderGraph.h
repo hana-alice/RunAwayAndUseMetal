@@ -40,7 +40,7 @@ public:
 
     RenderQueue& addCamera(scene::Camera* camera);
     //    RenderQueue& addQuad();
-    RenderQueue& addScene(scene::Scene* scene);
+    //RenderQueue& addScene(scene::Scene* scene);
     RenderQueue& setViewport(int32_t x, int32_t y, uint32_t w, uint32_t h, float minDepth, float maxDepth);
 
 private:
@@ -102,10 +102,7 @@ public:
     ~CopyPass() = default;
 
     CopyPass& addPair(const CopyPair&);
-
-    CopyPass& uploadBuffer(const uint8_t* data, uint32_t offset, uint32_t size, std::string_view name);
-
-    uint8_t* allocateBuffer(uint32_t size);
+    CopyPass& uploadBuffer(const UploadPair&);
 
 private:
     CopyPassData& _data;

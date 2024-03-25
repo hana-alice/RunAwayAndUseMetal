@@ -39,6 +39,10 @@ class RHIDevice;
 class RHIGraphicsPipeline;
 class RHIComputePipeline;
 class RHISwapchain;
+class RHICommandBuffer;
+class RHIBlitEncoder;
+class RHIRenderEncoder;
+class RHIComputeEncoder;
 
 using DevicePtr = std::shared_ptr<RHIDevice>;
 using SwapchainPtr = std::shared_ptr<RHISwapchain>;
@@ -56,6 +60,10 @@ using GraphicsPipelinePtr = std::shared_ptr<RHIGraphicsPipeline>;
 using ComputePipelinePtr = std::shared_ptr<RHIComputePipeline>;
 using PipelineLayoutPtr = std::shared_ptr<RHIPipelineLayout>;
 using SamplerPtr = std::shared_ptr<RHISampler>;
+using CommandBufferPtr = std::shared_ptr<RHICommandBuffer>;
+using BlitEncoderPtr = std::shared_ptr<RHIBlitEncoder>;
+using RenderEncoderPtr = std::shared_ptr<RHIRenderEncoder>;
+using ComputeEncoderPtr = std::shared_ptr<RHIComputeEncoder>;
 
 static constexpr uint32_t FRAMES_IN_FLIGHT{3};
 

@@ -2,17 +2,19 @@
 #include "core/math.h"
 #include <glm/glm.hpp>
 #include <glm/gtx/quaternion.hpp>
+#include <memory>
 
 namespace raum::scene {
 
-class Renderobject {
+class Renderable {
 public:
-    Renderobject();
-    virtual ~Renderobject() {}
+    Renderable();
+    virtual ~Renderable() {}
 
 private:
     uint64_t objectID{0};
 };
+using RenderablePtr = std::shared_ptr<Renderable>;
 
 
 struct Degree {

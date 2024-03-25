@@ -16,10 +16,10 @@ public:
 
     void loadFlat(const std::filesystem::path& filePath);
 
-    const scene::Model& modelData() { return _data; }
+    scene::ModelPtr modelData() { return _data; }
 
 private:
-    scene::Model _data;
+    scene::ModelPtr _data;
     rhi::DevicePtr  _device;
 };
 

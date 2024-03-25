@@ -6,6 +6,7 @@
 #include "RHIDefine.h"
 #include "Camera.h"
 #include "Scene.h"
+#include <map>
 namespace raum::graph {
 
 template <class... Ts>
@@ -39,6 +40,8 @@ struct RenderingResource {
 
 struct RenderPassData {
     std::vector<RenderingResource> attachments;
+    rhi::RenderPassPtr renderpass;
+    rhi::FrameBufferPtr framebuffer;
 };
 
 struct SubRenderPassData {
@@ -47,9 +50,9 @@ struct SubRenderPassData {
 
 struct RenderQueueData {
     scene::Camera* camera{nullptr};
-    scene::Scene* scene{nullptr};
     rhi::Viewport viewport{};
     std::string phase{};
+    std::map<uint32_t, scene::RenderablePtr> renderables;
     std::vector<RenderingResource> resources;
 };
 
@@ -64,12 +67,15 @@ struct CopyPair {
 };
 
 struct UploadPair {
-    std::vector<uint8_t> data;
-
+    uint8_t* data{nullptr};
+    uint32_t size{0};
+    std::uint32_t offset{0};
+    std::string_view name;
 };
 
 struct CopyPassData {
-    std::vector<CopyPair> pairs;
+    std::vector<CopyPair> copies;
+    std::vector<UploadPair> uploads;
 };
 
 struct BufferData {

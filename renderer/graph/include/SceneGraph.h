@@ -1,33 +1,32 @@
 #pragma once
 #include <boost/graph/adjacency_list.hpp>
 #include <variant>
-#include "GraphTypes.h"
-#include "Model.h"
-#include "Light.h"
 #include "Camera.h"
+#include "GraphTypes.h"
+#include "Light.h"
+#include "Model.h"
 
 namespace raum::graph {
 
 struct ModelNode {
-    scene::Model& model;
+    scene::ModelPtr model;
 };
 
-
 struct CameraNode {
-    scene::Camera& camera;
+    scene::CameraPtr camera;
 };
 
 struct LightNode {
-    scene::Light& light;
+    scene::LightPtr light;
 };
 
 struct SceneNode {
     std::string name{};
     bool enable{true};
-    std::variant<scene::Model, scene::Camera, scene::Light> sceneNodeData;
+    std::variant<ModelNode, CameraNode, LightNode> sceneNodeData;
 };
 
-}
+} // namespace raum::graph
 
 namespace boost {
 namespace graph {
@@ -45,9 +44,7 @@ struct internal_vertex_constructor<raum::graph::SceneNode> {
 } // namespace graph
 } // namespace boost
 
-
-
-namespace raum::graph{
+namespace raum::graph {
 
 using SceneGraphImpl = boost::adjacency_list<boost::vecS, boost::vecS, boost::directedS, SceneNode, boost::no_property>;
 
@@ -58,16 +55,16 @@ public:
     SceneGraph& operator=(const SceneGraph&) = delete;
     SceneGraph(SceneGraph&&) = delete;
 
-    ModelNode addModel(std::string_view name, std::string_view parent);
-    CameraNode addCamera(std::string_view name, std::string_view parent, const scene::Frustum& frustum, scene::Projection proj);
-    LightNode addLight(std::string_view name, std::string_view parent);
+    ModelNode& addModel(std::string_view name, std::string_view parent);
+    CameraNode& addCamera(std::string_view name, std::string_view parent, const scene::Frustum& frustum, scene::Projection proj);
+    LightNode& addLight(std::string_view name, std::string_view parent);
 
     SceneNode& sceneRoot() const;
 
+    const SceneGraphImpl& impl() const { return _graph; }
+
 private:
     SceneGraphImpl _graph;
-
 };
 
-
-}
+} // namespace raum::graph

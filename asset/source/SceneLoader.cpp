@@ -20,17 +20,16 @@ void expand(scene::AABB& aabb, const aiAABB& src) {
     aabb.maxBound.z = std::max(aabb.maxBound.z, src.mMax.z);
 }
 
-void loadMesh(const aiScene* scene, const aiNode* node, std::vector<scene::Mesh>& meshes, scene::AABB& aabb, rhi::DevicePtr device) {
+void loadMesh(const aiScene* scene, const aiNode* node, std::vector<scene::MeshPtr>& meshes, scene::AABB& aabb, rhi::DevicePtr device) {
     for (size_t i = 0; i < node->mNumMeshes; ++i) {
         uint32_t location{0};
         const auto* mesh = scene->mMeshes[node->mMeshes[i]];
         expand(aabb, mesh->mAABB);
-//        mesh->mAABB;
 
-        auto& newMesh = meshes.emplace_back();
-        newMesh.materialID = mesh->mMaterialIndex;
+        auto& newMesh = meshes.emplace_back(scene::makeMesh());
+        newMesh->materialID = mesh->mMaterialIndex;
 
-        auto& meshData = newMesh.data;
+        auto& meshData = newMesh->data;
 
         std::vector<float> rawData;
         auto& meshVert = rawData;
@@ -188,15 +187,15 @@ void loadMesh(const aiScene* scene, const aiNode* node, std::vector<scene::Mesh>
 }
 
 void loadMaterial(const aiScene* scene,
-                  std::vector<scene::MaterialData>& mats,
+                  std::vector<scene::MaterialDataPtr>& mats,
                   std::filesystem::path file,
                   rhi::DevicePtr& device) {
     for (size_t i = 0; i < scene->mNumMaterials; ++i) {
         const auto* material = scene->mMaterials[i];
-        auto& matData = mats.emplace_back();
-        matData.name = material->GetName().C_Str();
-        if (matData.name.empty()) {
-            matData.name = (file / std::to_string(i)).string();
+        auto& matData = mats.emplace_back(scene::makeMaterialData());
+        matData->name = material->GetName().C_Str();
+        if (matData->name.empty()) {
+            matData->name = (file / std::to_string(i)).string();
         }
         auto entry = file.parent_path();
         aiString texturePath;
@@ -220,10 +219,10 @@ void loadMaterial(const aiScene* scene,
                     } else if (imgAsset.channels == 3) {
                         info.format = rhi::Format::RGB8_UNORM;
                     } else {
-                        raum_check(false, "unsupport image format");
+                        raum_check(false, "unsupported image format");
                     }
 
-                    matData.images[i] = std::shared_ptr<rhi::RHIImage>(device->createImage(info));
+                    matData->images[i] = std::shared_ptr<rhi::RHIImage>(device->createImage(info));
                 }
             }
         }
@@ -246,10 +245,10 @@ void loadMaterial(const aiScene* scene,
                     } else if (imgAsset.channels == 3) {
                         info.format = rhi::Format::RGB8_UNORM;
                     } else {
-                        raum_check(false, "unsupport image format");
+                        raum_check(false, "unsupported image format");
                     }
 
-                    matData.images[i] = std::shared_ptr<rhi::RHIImage>(device->createImage(info));
+                    matData->images[i] = std::shared_ptr<rhi::RHIImage>(device->createImage(info));
                 }
             }
         }
@@ -277,9 +276,9 @@ void SceneLoader::loadFlat(const std::filesystem::path& filePath) {
 
     raum_check(scene, "failed to load file {}", filePath.string());
 
-    loadMesh(scene, scene->mRootNode, _data.meshes, _data.aabb, _device);
-
-    loadMaterial(scene, _data.materials, filePath, _device);
+    _data = scene::makeModel();
+    loadMesh(scene, scene->mRootNode, _data->meshes, _data->aabb, _device);
+    loadMaterial(scene, _data->materials, filePath, _device);
 }
 
-} // namespace raum::framework::asset
+} // namespace
