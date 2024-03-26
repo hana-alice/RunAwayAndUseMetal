@@ -508,12 +508,12 @@ struct PipelineLayoutInfo {
 enum class LoadOp : uint8_t {
     LOAD,
     CLEAR,
-    DISCARD,
+    DONT_CARE,
 };
 
 enum class StoreOp : uint8_t {
     STORE,
-    CLEAR,
+    DONT_CARE,
 };
 
 struct AttachmentInfo {

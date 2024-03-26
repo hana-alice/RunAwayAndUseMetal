@@ -31,6 +31,9 @@ enum class ResourceType : uint8_t {
     INDIRECT_BUFFER,
 };
 
+using LoadOp = rhi::LoadOp;
+using StoreOp = rhi::StoreOp;
+
 struct RenderingResource {
     std::string name{};
     std::string bindingName{};
@@ -38,14 +41,25 @@ struct RenderingResource {
     ResourceType type{ResourceType::COLOR};
 };
 
+struct AttachmentResource {
+    std::string name{};
+    std::string bindingName{};
+    Access access{Access::READ};
+    ResourceType type{ResourceType::COLOR};
+    LoadOp loadOp{LoadOp::DONT_CARE};
+    StoreOp storeOp{StoreOp::DONT_CARE};
+    LoadOp stencilLoadOp{LoadOp::DONT_CARE};
+    StoreOp stencilStoreOp{StoreOp::DONT_CARE};
+};
+
 struct RenderPassData {
-    std::vector<RenderingResource> attachments;
+    std::vector<AttachmentResource> attachments;
     rhi::RenderPassPtr renderpass;
     rhi::FrameBufferPtr framebuffer;
 };
 
 struct SubRenderPassData {
-    std::vector<RenderingResource> attachments;
+    std::vector<AttachmentResource> attachments;
 };
 
 struct RenderQueueData {

@@ -469,7 +469,7 @@ VkAttachmentLoadOp loadOp(LoadOp op) {
         case LoadOp::CLEAR:
             res = VK_ATTACHMENT_LOAD_OP_CLEAR;
             break;
-        case LoadOp::DISCARD:
+        case LoadOp::DONT_CARE:
             res = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
             break;
     }
@@ -482,8 +482,8 @@ VkAttachmentStoreOp storeOp(StoreOp op) {
         case StoreOp::STORE:
             res = VK_ATTACHMENT_STORE_OP_STORE;
             break;
-        case StoreOp::CLEAR:
-            res = VK_ATTACHMENT_STORE_OP_STORE;
+        case StoreOp::DONT_CARE:
+            res = VK_ATTACHMENT_STORE_OP_DONT_CARE;
             break;
     }
     return res;

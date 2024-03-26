@@ -6,11 +6,11 @@ namespace raum::graph {
 
 namespace {
 
-bool isDepthStencil(const RenderingResource& res) {
+bool isDepthStencil(const AttachmentResource& res) {
     return res.type == ResourceType::DEPTH || res.type == ResourceType::STENCIL || res.type == ResourceType::DEPTH_STENCIL;
 }
 
-bool hasDepth(const RenderingResource& res) {
+bool hasDepth(const AttachmentResource& res) {
     return res.type == ResourceType::DEPTH || res.type == ResourceType::DEPTH_STENCIL;
 }
 
@@ -108,6 +108,11 @@ public:
                     }
                 }
                 _accessMap[res.name].emplace_back(v, access, stage);
+
+                rhi::RenderPassInfo rpInfo{};
+
+
+
             }
         } else if (std::holds_alternative<RenderQueueData>(rg[v].data)) {
             const auto& data = std::get<RenderQueueData>(rg[v].data);
@@ -179,16 +184,12 @@ void populateBarrier(const AccessGraph::ResourceAccessMap& accessMap,
                                },
                            },
                            resDetail.data);
-
-                bufferBarrierMap.emplace(
-                    std::piecewise_construct,
-                    std::forward_as_tuple(v),
-                    std::forward_as_tuple(
+                bufferBarrierMap[v].emplace_back(
                         rhiRes,
                         lastStage,
                         stage,
                         lastAccess,
-                        access));
+                        access);
 
                 lastAccess = access;
                 if(resDetail.residency != ResourceResidency::DONT_CARE) {
@@ -213,17 +214,14 @@ void populateBarrier(const AccessGraph::ResourceAccessMap& accessMap,
                            },
                            resDetail.data);
 
-                imageBarrierMap.emplace(
-                    std::piecewise_construct,
-                    std::forward_as_tuple(v),
-                    std::forward_as_tuple(
+                imageBarrierMap[v].emplace_back(
                         rhiRes,
                         lastStage,
                         stage,
                         getImageLayout(lastAccess),
                         getImageLayout(access),
                         lastAccess,
-                        access));
+                        access);
 
                 lastAccess = access;
                 if(resDetail.residency != ResourceResidency::DONT_CARE) {
@@ -233,17 +231,14 @@ void populateBarrier(const AccessGraph::ResourceAccessMap& accessMap,
         }
         if(resDetail.residency == ResourceResidency::SWAPCHAIN) {
             if(backbuffer) {
-                imageBarrierMap.emplace(
-                    std::piecewise_construct,
-                    std::forward_as_tuple(0xFFFFFFFF),
-                    std::forward_as_tuple(
+                imageBarrierMap[0xFFFFFFFF].emplace_back(
                         backbuffer,
                         lastStage,
                         rhi::PipelineStage::BOTTOM_OF_PIPE,
                         getImageLayout(lastAccess),
                         rhi::ImageLayout::PRESENT,
                         lastAccess,
-                        rhi::AccessFlags::NONE));
+                        rhi::AccessFlags::NONE);
                 resDetail.access = rhi::AccessFlags::NONE;
             }
         }

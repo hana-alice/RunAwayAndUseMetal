@@ -29,15 +29,15 @@ CopyPass RenderGraph::addCopyPass(std::string_view name) {
     return CopyPass{std::get<CopyPassData>(_graph[id].data)};
 }
 
-RenderPass& RenderPass::addColor(std::string_view name) {
+RenderPass& RenderPass::addColor(std::string_view name, LoadOp loadOp, StoreOp storeOp) {
     auto& data = std::get<RenderPassData>(_graph[_id].data);
-    data.attachments.emplace_back(std::string{name}, "", Access::WRITE, ResourceType::COLOR);
+    data.attachments.emplace_back(std::string{name}, "", Access::WRITE, ResourceType::COLOR, loadOp, storeOp);
     return *this;
 }
 
-RenderPass& RenderPass::addDepthStencil(std::string_view name) {
+RenderPass& RenderPass::addDepthStencil(std::string_view name, LoadOp loadOp, StoreOp storeOp, LoadOp stencilLoad, StoreOp stencilStore) {
     auto& data = std::get<RenderPassData>(_graph[_id].data);
-    data.attachments.emplace_back(std::string{name}, "", Access::WRITE, ResourceType::DEPTH_STENCIL);
+    data.attachments.emplace_back(std::string{name}, "", Access::WRITE, ResourceType::DEPTH_STENCIL, loadOp, storeOp, stencilLoad, stencilStore);
     return *this;
 }
 

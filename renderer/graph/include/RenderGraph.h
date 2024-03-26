@@ -60,8 +60,8 @@ public:
     RenderPass(RenderPass&& rhs) = delete;
     ~RenderPass() = default;
 
-    RenderPass& addColor(std::string_view name);
-    RenderPass& addDepthStencil(std::string_view name);
+    RenderPass& addColor(std::string_view name, LoadOp loadOp, StoreOp storeOp);
+    RenderPass& addDepthStencil(std::string_view name, LoadOp loadOp, StoreOp storeOp, LoadOp stencilLoad, StoreOp stencilStore);
     RenderPass& addShadingRate(std::string_view name);
 
     RenderQueue addQueue(std::string_view name);

@@ -2,7 +2,7 @@ file(GLOB_RECURSE backend_vk_h ${CMAKE_CURRENT_LIST_DIR}/include/*.h)
 file(GLOB_RECURSE backend_vk_cpp ${CMAKE_CURRENT_LIST_DIR}/source/*.cpp)
 source_group("Header Files" FILES ${backend_vk_h})
 
-file(GLOB_RECURSE rhi_abstract_h ${renderer_dir}/rhi/include/*.h)
+file(GLOB_RECURSE rhi_abstract_h ${renderer_dir}/rhi/include/*.*)
 source_group("Abstract Layer" FILES ${rhi_abstract_h})
 
 find_package(Vulkan REQUIRED)
