@@ -9,8 +9,8 @@
 namespace raum::graph {
 
 namespace {
-    static std::unordered_map<rhi::RenderPassInfo, rhi::RenderPassPtr> _renderPassMap;
-    static std::unordered_map<rhi::FrameBufferInfo, rhi::FrameBufferPtr> _frameBufferMap;
+    static std::unordered_map<rhi::RenderPassInfo, rhi::RenderPassPtr, rhi::RHIHash<rhi::RenderPassInfo>> _renderPassMap;
+    static std::unordered_map<rhi::FrameBufferInfo, rhi::FrameBufferPtr, rhi::RHIHash<rhi::FrameBufferInfo>> _frameBufferMap;
 
     rhi::RenderPassPtr getOrCreateRenderPass(const rhi::RenderPassInfo& rpInfo, rhi::DevicePtr device) {
         if (!_renderPassMap[rpInfo]) {

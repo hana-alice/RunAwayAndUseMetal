@@ -1017,31 +1017,35 @@ FormatType formatType(Format format) {
 
 
 void fillClearColors(std::vector<VkClearValue>& clearValues,
-                     ClearColor* colors,
+                     ClearValue* colors,
                      const std::vector<AttachmentInfo>& attachmentInfos) {
     for (size_t i = 0; i < attachmentInfos.size(); ++i) {
         switch (formatType(attachmentInfos[i].format)) {
             case FormatType::COLOR_UINT:
-                memcpy(clearValues[i].color.uint32, &colors[i], sizeof(colors[i].clearColorU));
+                memcpy(clearValues[i].color.uint32, &colors[i], sizeof(colors[i].color.clearColorU));
                 break;
             case FormatType::COLOR_INT:
-                memcpy(clearValues[i].color.int32, &colors[i], sizeof(colors[i].clearColorI));
+                memcpy(clearValues[i].color.int32, &colors[i], sizeof(colors[i].color.clearColorI));
                 break;
             case FormatType::COLOR_FLOAT:
-                memcpy(clearValues[i].color.float32, &colors[i], sizeof(colors[i].clearColorF));
+                memcpy(clearValues[i].color.float32, &colors[i], sizeof(colors[i].color.clearColorF));
                 break;
             case FormatType::DEPTH:
-                clearValues[i].depthStencil.depth = colors[i].depth;
+                clearValues[i].depthStencil.depth = colors[i].depthStencil.depth;
                 break;
             case FormatType::STENCIL:
-                clearValues[i].depthStencil.stencil = colors[i].stencil;
+                clearValues[i].depthStencil.stencil = colors[i].depthStencil.stencil;
+                break;
+            case FormatType::DEPTH_STENCIL:
+                clearValues[i].depthStencil.depth = colors[i].depthStencil.depth;
+                clearValues[i].depthStencil.stencil = colors[i].depthStencil.stencil;
                 break;
         }
     }
 }
 
 void fillClearAttachment(std::vector<VkClearAttachment>& clearAttachment,
-                         ClearColor* colors,
+                         ClearValue* colors,
                          uint32_t* attachmentIndices,
                          uint32_t attachmentNum,
                          const std::vector<AttachmentInfo>& attachmentInfos) {
@@ -1053,23 +1057,28 @@ void fillClearAttachment(std::vector<VkClearAttachment>& clearAttachment,
         switch (formatType(attachmentInfos[index].format)) {
             case FormatType::COLOR_UINT:
                 attachment.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-                memcpy(clearValue.color.uint32, &colors[index], sizeof(colors[index].clearColorU));
+                memcpy(clearValue.color.uint32, &colors[index], sizeof(colors[index].color.clearColorU));
                 break;
             case FormatType::COLOR_INT:
                 attachment.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-                memcpy(clearValue.color.int32, &colors[index], sizeof(colors[index].clearColorI));
+                memcpy(clearValue.color.int32, &colors[index], sizeof(colors[index].color.clearColorI));
                 break;
             case FormatType::COLOR_FLOAT:
                 attachment.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-                memcpy(clearValue.color.float32, &colors[index], sizeof(colors[index].clearColorF));
+                memcpy(clearValue.color.float32, &colors[index], sizeof(colors[index].color.clearColorF));
                 break;
             case FormatType::DEPTH:
                 attachment.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-                clearValue.depthStencil.depth = colors[index].depth;
+                clearValue.depthStencil.depth = colors[index].depthStencil.depth;
                 break;
             case FormatType::STENCIL:
                 attachment.aspectMask = VK_IMAGE_ASPECT_STENCIL_BIT;
-                clearValue.depthStencil.stencil = colors[index].stencil;
+                clearValue.depthStencil.stencil = colors[index].depthStencil.stencil;
+                break;
+            case FormatType::DEPTH_STENCIL:
+                attachment.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+                clearValue.depthStencil.depth = colors[index].depthStencil.depth;
+                clearValue.depthStencil.stencil = colors[index].depthStencil.stencil;
                 break;
         }
     }
@@ -1088,32 +1097,32 @@ void fillClearRect(std::vector<VkClearRect>& clearRects,
 }
 
 void fillClearColors(std::vector<VkClearColorValue>& clearValues,
-    ClearColor* colors,
+    ClearValue* colors,
     Format format) {
     switch (formatType(format)) {
         case FormatType::COLOR_UINT:
             for (size_t i = 0; i < clearValues.size(); ++i) {
-                clearValues[i].int32[0] = colors[i].clearColorI[0];
-                clearValues[i].int32[1] = colors[i].clearColorI[1];
-                clearValues[i].int32[2] = colors[i].clearColorI[2];
-                clearValues[i].int32[3] = colors[i].clearColorI[3];
+                clearValues[i].int32[0] = colors[i].color.clearColorI[0];
+                clearValues[i].int32[1] = colors[i].color.clearColorI[1];
+                clearValues[i].int32[2] = colors[i].color.clearColorI[2];
+                clearValues[i].int32[3] = colors[i].color.clearColorI[3];
             }
             break;
         case FormatType::COLOR_INT:
             for (size_t i = 0; i < clearValues.size(); ++i) {
-                clearValues[i].uint32[0] = colors[i].clearColorU[0];
-                clearValues[i].uint32[1] = colors[i].clearColorU[1];
-                clearValues[i].uint32[2] = colors[i].clearColorU[2];
-                clearValues[i].uint32[3] = colors[i].clearColorU[3];
+                clearValues[i].uint32[0] = colors[i].color.clearColorU[0];
+                clearValues[i].uint32[1] = colors[i].color.clearColorU[1];
+                clearValues[i].uint32[2] = colors[i].color.clearColorU[2];
+                clearValues[i].uint32[3] = colors[i].color.clearColorU[3];
             }
             break;
         case FormatType::COLOR_FLOAT:
         case FormatType::COLOR_UNFILTER_FLOAT:
             for (size_t i = 0; i < clearValues.size(); ++i) {
-                clearValues[i].float32[0] = colors[i].clearColorF[0];
-                clearValues[i].float32[1] = colors[i].clearColorF[1];
-                clearValues[i].float32[2] = colors[i].clearColorF[2];
-                clearValues[i].float32[3] = colors[i].clearColorF[3];
+                clearValues[i].float32[0] = colors[i].color.clearColorF[0];
+                clearValues[i].float32[1] = colors[i].color.clearColorF[1];
+                clearValues[i].float32[2] = colors[i].color.clearColorF[2];
+                clearValues[i].float32[3] = colors[i].color.clearColorF[3];
             }
             break;
     }

@@ -197,7 +197,7 @@ void BlitEncoder::fillBuffer(RHIBuffer* buffer, uint32_t dstOffset, uint32_t siz
     vkCmdFillBuffer(_commandBuffer->commandBuffer(), buf, dstOffset, size, value);
 }
 
-void BlitEncoder::clearColorImage(RHIImage* image, ImageLayout layout, ClearColor* data, ImageSubresourceRange* ranges, uint32_t rangeCount) {
+void BlitEncoder::clearColorImage(RHIImage* image, ImageLayout layout, ClearValue* data, ImageSubresourceRange* ranges, uint32_t rangeCount) {
     auto img = static_cast<Image*>(image)->image();
     VkImageLayout imgLayout = imageLayout(layout);
 

@@ -78,11 +78,11 @@ VkImageAspectFlags aspectMask(AspectMask mask);
 VkCommandBufferLevel commandBufferLevel(CommandBufferType commandBufferLevel);
 
 void fillClearColors(std::vector<VkClearValue>& clearValues,
-                     ClearColor* colors,
+                     ClearValue* colors,
                      const std::vector<AttachmentInfo>& attachmentInfos);
 
 void fillClearAttachment(std::vector<VkClearAttachment>& clearAttachment,
-                         ClearColor* colors,
+                         ClearValue* colors,
                          uint32_t* attachmentIndices,
                          uint32_t attachmentNum,
                          const std::vector<AttachmentInfo>& attachmentInfos);
@@ -92,7 +92,7 @@ void fillClearRect(std::vector<VkClearRect>& clearRects,
                    uint32_t count);
 
 void fillClearColors(std::vector<VkClearColorValue>& clearValues,
-                     ClearColor* colors,
+                     ClearValue* colors,
                      Format format);
 
 VkStencilFaceFlags stencilFaceFlags(FaceMode faceMode);

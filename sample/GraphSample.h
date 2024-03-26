@@ -71,8 +71,8 @@ void GraphSample::show() {
     _resourceGraph->mount(_forwardDS);
 
     auto renderPass = _renderGraph->addRenderPass("forward");
-    renderPass.addColor(_forwardRT)
-        .addDepthStencil(_forwardDS);
+    renderPass.addColor(_forwardRT, graph::LoadOp::CLEAR, graph::StoreOp::STORE, {0.8, 0.1, 0.3, 1.0})
+        .addDepthStencil(_forwardDS, graph::LoadOp::CLEAR, graph::StoreOp::STORE, graph::LoadOp::CLEAR, graph::StoreOp::STORE, 1.0, 0);
     auto queue = renderPass.addQueue("");
 
     const auto& imageInfo = _swapchain->swapchainImageView()->image()->info();

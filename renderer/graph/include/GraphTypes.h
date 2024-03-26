@@ -33,6 +33,7 @@ enum class ResourceType : uint8_t {
 
 using LoadOp = rhi::LoadOp;
 using StoreOp = rhi::StoreOp;
+using ClearValue = rhi::ClearValue;
 
 struct RenderingResource {
     std::string name{};
@@ -44,6 +45,7 @@ struct RenderingResource {
 struct AttachmentResource {
     std::string name{};
     std::string bindingName{};
+    ClearValue clearValue;
     Access access{Access::READ};
     ResourceType type{ResourceType::COLOR};
     LoadOp loadOp{LoadOp::DONT_CARE};

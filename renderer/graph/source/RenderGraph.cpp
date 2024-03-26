@@ -29,21 +29,22 @@ CopyPass RenderGraph::addCopyPass(std::string_view name) {
     return CopyPass{std::get<CopyPassData>(_graph[id].data)};
 }
 
-RenderPass& RenderPass::addColor(std::string_view name, LoadOp loadOp, StoreOp storeOp) {
+RenderPass& RenderPass::addColor(std::string_view name, LoadOp loadOp, StoreOp storeOp, const ClearValue& color) {
     auto& data = std::get<RenderPassData>(_graph[_id].data);
-    data.attachments.emplace_back(std::string{name}, "", Access::WRITE, ResourceType::COLOR, loadOp, storeOp);
+    data.attachments.emplace_back(std::string{name}, "", color, Access::WRITE, ResourceType::COLOR, loadOp, storeOp);
     return *this;
 }
 
-RenderPass& RenderPass::addDepthStencil(std::string_view name, LoadOp loadOp, StoreOp storeOp, LoadOp stencilLoad, StoreOp stencilStore) {
+RenderPass& RenderPass::addDepthStencil(std::string_view name, LoadOp loadOp, StoreOp storeOp, LoadOp stencilLoad, StoreOp stencilStore, float clearDepth, uint32_t clearStencil) {
     auto& data = std::get<RenderPassData>(_graph[_id].data);
-    data.attachments.emplace_back(std::string{name}, "", Access::WRITE, ResourceType::DEPTH_STENCIL, loadOp, storeOp, stencilLoad, stencilStore);
+    ClearValue ds{.depthStencil = {clearDepth, clearStencil}};
+    data.attachments.emplace_back(std::string{name}, "", ds, Access::WRITE, ResourceType::DEPTH_STENCIL, loadOp, storeOp, stencilLoad, stencilStore);
     return *this;
 }
 
 RenderPass& RenderPass::addShadingRate(std::string_view name) {
     auto& data = std::get<RenderPassData>(_graph[_id].data);
-    data.attachments.emplace_back(std::string{name}, "", Access::WRITE, ResourceType::SHADING_RATE);
+    data.attachments.emplace_back(std::string{name}, "", ClearValue{}, Access::WRITE, ResourceType::SHADING_RATE);
     return *this;
 }
 

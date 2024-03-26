@@ -33,7 +33,7 @@ public:
     virtual void drawIndexedIndirect(RHIBuffer* indirectBuffer, uint32_t offset, uint32_t drawCount, uint32_t stride) = 0;
     virtual void pushConstants(ShaderStage stage, uint32_t offset, void* data, uint32_t size) = 0;
 
-    virtual void clearAttachment(uint32_t* attachmentIndices, uint32_t attachmentNum, ClearColor* value, ClearRect* rects, uint32_t recNum) = 0;
+    virtual void clearAttachment(uint32_t* attachmentIndices, uint32_t attachmentNum, ClearValue * clearValues, ClearRect* rects, uint32_t recNum) = 0;
 };
 
 inline RHIRenderEncoder::~RHIRenderEncoder() {}
