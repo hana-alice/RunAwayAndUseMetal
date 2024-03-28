@@ -34,7 +34,7 @@ public:
     void drawIndexedIndirect(RHIBuffer* indirectBuffer, uint32_t offset, uint32_t drawCount, uint32_t stride) override;
     void pushConstants(ShaderStage stage, uint32_t offset, void* data, uint32_t size) override;
 
-    void clearAttachment(uint32_t* attachmentIndices, uint32_t attachmentNum, ClearColor* value, ClearRect* rects, uint32_t recNum) override;
+    void clearAttachment(uint32_t* attachmentIndices, uint32_t attachmentNum, ClearValue* value, ClearRect* rects, uint32_t recNum) override;
 
 private:
     CommandBuffer* _commandBuffer{nullptr};

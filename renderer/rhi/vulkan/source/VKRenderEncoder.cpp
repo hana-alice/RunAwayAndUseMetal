@@ -154,9 +154,9 @@ void RenderEncoder::pushConstants(ShaderStage stage, uint32_t offset, void* data
     vkCmdPushConstants(_commandBuffer->commandBuffer(), _graphicsPipeline->pipelineLayout()->layout(), stageFlag, offset, size, static_cast<uint32_t*>(data));
 }
 
-void RenderEncoder::clearAttachment(uint32_t* attachmentIndices, uint32_t attachmentNum, ClearColor* clearColors, ClearRect* rects, uint32_t recNum) {
+void RenderEncoder::clearAttachment(uint32_t* attachmentIndices, uint32_t attachmentNum, ClearValue * clearValues, ClearRect* rects, uint32_t recNum) {
     std::vector<VkClearAttachment> attachments(attachmentNum);
-    fillClearAttachment(attachments, clearColors, attachmentIndices, attachmentNum, _renderPass->attachments());
+    fillClearAttachment(attachments, clearValues, attachmentIndices, attachmentNum, _renderPass->attachments());
     std::vector<VkClearRect> clearRects(recNum);
     fillClearRect(clearRects, rects, recNum);
     

@@ -19,7 +19,7 @@ public:
     virtual void updateBuffer(RHIBuffer* buffer, uint32_t dstOffset, void* data, uint32_t dataSize) = 0;
     virtual void fillBuffer(RHIBuffer* buffer, uint32_t dstOffset, uint32_t size, uint32_t value) = 0;
 
-    virtual void clearColorImage(RHIImage* image, ImageLayout layout, ClearColor* data, ImageSubresourceRange* ranges, uint32_t rangeCount) = 0;
+    virtual void clearColorImage(RHIImage* image, ImageLayout layout, ClearValue* data, ImageSubresourceRange* ranges, uint32_t rangeCount) = 0;
     virtual void clearDepthStencilImage(RHIImage* image, ImageLayout layout, float depth, uint32_t stencil, ImageSubresourceRange* ranges, uint32_t rangeCount) = 0;
 
     virtual void resolveImage(RHIImage* srcImage, ImageLayout srcLayout, RHIImage* dstImage, ImageLayout dstLayout, ImageResolve* regions, uint32_t regionCount) = 0;

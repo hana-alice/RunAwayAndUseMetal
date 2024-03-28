@@ -1,13 +1,28 @@
 #pragma once
-#include "ResourceGraph.h"
+#include "AccessGraph.h"
 #include "RenderGraph.h"
+#include "ResourceGraph.h"
+#include "SceneGraph.h"
 #include "ShaderGraph.h"
 #include "TaskGraph.h"
-#include "AccessGraph.h"
-#include "SceneGraph.h"
 
 namespace raum::graph {
 
-void execute(RenderGraph& rg, AccessGraph& ag, ResourceGraph& resg, ShaderGraph& shg, SceneGraph& sg, TaskGraph& tg);
+class GraphScheduler {
+public:
+    GraphScheduler() = delete;
+    explicit GraphScheduler(rhi::DevicePtr device);
 
-}
+	void execute();
+
+private:
+	rhi::DevicePtr _device;
+    RenderGraph* _renderGraph;
+	TaskGraph* _taskGraph;
+	AccessGraph* _accessGraph;
+	SceneGraph* _sceneGraph;
+	ShaderGraph* _shaderGraph;
+	ResourceGraph* _resourceGraph;
+};
+
+} // namespace raum::graph

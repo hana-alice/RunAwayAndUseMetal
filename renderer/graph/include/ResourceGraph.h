@@ -47,6 +47,7 @@ using ResourceGraphImpl = boost::adjacency_list<boost::vecS, boost::vecS, boost:
 
 class ResourceGraph {
 public:
+    using VertexType = ResourceGraphImpl::vertex_descriptor;
     explicit ResourceGraph(rhi::RHIDevice* device);
 
     ResourceGraph() = delete;
@@ -65,6 +66,8 @@ public:
     bool contains(std::string_view name);
     const Resource& get(std::string_view name) const;
     Resource& get(std::string_view name);
+    const Resource& getView(std::string_view name) const;
+    Resource& getView(std::string_view name);
 
 private:
     rhi::RHIDevice* _device{nullptr};

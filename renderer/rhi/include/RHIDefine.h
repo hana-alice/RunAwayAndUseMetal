@@ -385,7 +385,6 @@ struct ImageViewInfo {
     RHIImage* image{nullptr};
     ImageSubresourceRange range{};
     ComponentMapping componentMapping{};
-    AspectMask aspectMask{AspectMask::COLOR};
     Format format{Format::UNKNOWN};
 };
 
@@ -508,12 +507,12 @@ struct PipelineLayoutInfo {
 enum class LoadOp : uint8_t {
     LOAD,
     CLEAR,
-    DISCARD,
+    DONT_CARE,
 };
 
 enum class StoreOp : uint8_t {
     STORE,
-    CLEAR,
+    DONT_CARE,
 };
 
 struct AttachmentInfo {
@@ -964,19 +963,27 @@ enum class ElementType : uint8_t {
     UINT,
 };
 
+struct ClearDepthStencil {
+    float depth{0.0F};
+    uint32_t stencil{0};
+};
+
 union ClearColor {
     float clearColorF[4];
     uint32_t clearColorU[4];
     int32_t clearColorI[4];
-    float depth;
-    uint32_t stencil;
+};
+
+union ClearValue {
+    ClearColor color;
+    ClearDepthStencil depthStencil;
 };
 
 struct RenderPassBeginInfo {
     RHIRenderPass* renderPass{nullptr};
     RHIFrameBuffer* frameBuffer{nullptr};
     Rect2D renderArea;
-    ClearColor* clearColors;
+    ClearValue* clearColors;
 };
 
 struct ImageBarrierInfo {
