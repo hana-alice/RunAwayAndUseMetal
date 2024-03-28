@@ -16,6 +16,8 @@ struct overloaded : Ts... {
 template <class... Ts>
 overloaded(Ts...) -> overloaded<Ts...>;
 
+constexpr size_t INVALID_VERTEX = 0xFFFFFFFF;
+
 enum class Access : uint8_t {
     READ,
     WRITE,

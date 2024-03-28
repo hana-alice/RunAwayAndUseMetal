@@ -385,7 +385,6 @@ struct ImageViewInfo {
     RHIImage* image{nullptr};
     ImageSubresourceRange range{};
     ComponentMapping componentMapping{};
-    AspectMask aspectMask{AspectMask::COLOR};
     Format format{Format::UNKNOWN};
 };
 
