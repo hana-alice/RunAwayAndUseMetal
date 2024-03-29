@@ -1,8 +1,8 @@
 #include "AccessGraph.h"
 #include <boost/graph/depth_first_search.hpp>
 #include "RHIBuffer.h"
-#include "RHIImageView.h"
 #include "RHIImage.h"
+#include "RHIImageView.h"
 
 namespace raum::graph {
 
@@ -42,28 +42,28 @@ rhi::PipelineStage getPipelineState(rhi::ShaderStage visibility) {
 
 rhi::ImageLayout getImageLayout(rhi::AccessFlags flags) {
     rhi::ImageLayout imgLayout{rhi::ImageLayout::UNDEFINED};
-    if(test(flags, rhi::AccessFlags::INPUT_ATTACHMENT_READ)) {
+    if (test(flags, rhi::AccessFlags::INPUT_ATTACHMENT_READ)) {
         imgLayout = rhi::ImageLayout::GENERAL;
     } else {
-        if(test(flags, rhi::AccessFlags::COLOR_ATTACHMENT_WRITE)) {
+        if (test(flags, rhi::AccessFlags::COLOR_ATTACHMENT_WRITE)) {
             imgLayout = rhi::ImageLayout::COLOR_ATTACHMENT_OPTIMAL;
-        } else if(test(flags, rhi::AccessFlags::DEPTH_STENCIL_ATTACHMENT_WRITE)) {
+        } else if (test(flags, rhi::AccessFlags::DEPTH_STENCIL_ATTACHMENT_WRITE)) {
             imgLayout = rhi::ImageLayout::DEPTH_ATTACHMENT_OPTIMAL;
-        } else if(test(flags, rhi::AccessFlags::SHADING_RATE_ATTACHMENT_READ)) {
+        } else if (test(flags, rhi::AccessFlags::SHADING_RATE_ATTACHMENT_READ)) {
             imgLayout = rhi::ImageLayout::SHADING_RATE;
         }
     }
 
-    if(test(flags, rhi::AccessFlags::TRANSFER_READ)) {
+    if (test(flags, rhi::AccessFlags::TRANSFER_READ)) {
         imgLayout = rhi::ImageLayout::TRANSFER_SRC_OPTIMAL;
-    } else if(test(flags, rhi::AccessFlags::TRANSFER_WRITE)) {
+    } else if (test(flags, rhi::AccessFlags::TRANSFER_WRITE)) {
         imgLayout = rhi::ImageLayout::TRANSFER_DST_OPTIMAL;
     }
 
-    if(test(flags, rhi::AccessFlags::SHADER_READ)) {
+    if (test(flags, rhi::AccessFlags::SHADER_READ)) {
         imgLayout = rhi::ImageLayout::SHADER_READ_ONLY_OPTIMAL;
     }
-    if(test(flags, rhi::AccessFlags::SHADER_WRITE)) {
+    if (test(flags, rhi::AccessFlags::SHADER_WRITE)) {
         imgLayout = rhi::ImageLayout::GENERAL;
     }
 
@@ -82,7 +82,8 @@ rhi::Format getFormat(const Resource& res) {
             },
             [](auto) {
             },
-        }, res.data);
+        },
+        res.data);
     return format;
 }
 
@@ -106,21 +107,28 @@ uint32_t getSampleCount(const Resource& res) {
 auto decomposeDetail(const Resource& res) {
     uint32_t samples{1};
     rhi::Format format{rhi::Format::UNKNOWN};
+    uint32_t width{0};
+    uint32_t height{0};
     std::visit(
         overloaded{
-            [&samples, &format](const ImageData& img) {
+            [&samples, &format, &width, &height](const ImageData& img) {
                 samples = img.info.sampleCount;
                 format = img.info.format;
+                width = img.info.extent.x;
+                height = img.info.extent.y;
             },
-            [&samples, &format](const ImageViewData& imgView) {
-                samples = imgView.imageView->image()->info().sampleCount;
+            [&samples, &format, &width, &height](const ImageViewData& imgView) {
+                const auto& imgInfo = imgView.imageView->image()->info();
+                samples = imgInfo.sampleCount;
                 format = imgView.info.format;
+                width = imgInfo.extent.x;
+                height = imgInfo.extent.y;
             },
             [](auto) {
             },
         },
         res.data);
-    return std::tie(samples, format);
+    return std::tie(samples, format, width, height);
 }
 
 struct AccessVisitor : public boost::dfs_visitor<> {
@@ -131,6 +139,7 @@ public:
 
             const auto& data = std::get<RenderPassData>(rg[v].data);
             for (const auto& res : data.attachments) {
+                _resg.mount(res.name);
                 // convention: "" represents color/depth outputs
                 rhi::AccessFlags access{rhi::AccessFlags::NONE};
                 rhi::PipelineStage stage{rhi::PipelineStage::TOP_OF_PIPE};
@@ -165,7 +174,7 @@ public:
                     }
                 }
                 const auto& resourceDetail = _resg.get(res.name);
-                auto [sampleCount, format] = decomposeDetail(resourceDetail);
+                auto [sampleCount, format, width, height] = decomposeDetail(resourceDetail);
 
                 auto [iter, _] = _rpInfoMap.emplace(std::piecewise_construct, std::forward_as_tuple(v), std::forward_as_tuple());
                 iter->second.attachments.emplace_back(
@@ -176,15 +185,21 @@ public:
                     format,
                     sampleCount,
                     getImageLayout(access),
-                    getImageLayout(access)
-                );
+                    getImageLayout(access));
 
-                //fbIter->
+                const auto& resView = _resg.getView(res.name);
+                const auto& imageView = std::get<ImageViewData>(resView.data);
+                fbIter->second.width = width;
+                fbIter->second.height = height;
+                fbIter->second.layers = imageView.info.range.sliceCount;
+                fbIter->second.images.emplace_back(imageView.imageView);
+
                 _accessMap[res.name].emplace_back(v, access, stage);
             }
         } else if (std::holds_alternative<RenderQueueData>(rg[v].data)) {
             const auto& data = std::get<RenderQueueData>(rg[v].data);
             for (const auto& res : data.resources) {
+                _resg.mount(res.name);
                 rhi::AccessFlags access{rhi::AccessFlags::NONE};
                 rhi::PipelineStage stage{rhi::PipelineStage::TOP_OF_PIPE};
                 if (res.access == Access::READ) {
@@ -219,7 +234,30 @@ public:
             }
         }
     }
-    const ResourceGraph& _resg;
+
+    void finish_vertex(const RenderGraphImpl::vertex_descriptor v, const RenderGraphImpl& rg) {
+        std::visit(
+            overloaded{
+                [&](RenderPassData& renderpass) {
+                    if (_rpInfoMap[v].subpasses.empty()) {
+                        auto& subpassInfo = _rpInfoMap[v].subpasses.emplace_back();
+                        for (const auto& attachment : renderpass.attachments) {
+                            auto index = static_cast<uint8_t>(&attachment - &renderpass.attachments[0]);
+                            if (isDepthStencil(attachment)) {
+                                subpassInfo.depthStencil.emplace_back(index,
+                                                                      _rpInfoMap[v].attachments[v].finalLayout);
+                            } else {
+                                subpassInfo.colors.emplace_back(index,
+                                                                _rpInfoMap[v].attachments[v].finalLayout);
+                            }
+                        }
+                    }
+                },
+                [](auto _) {
+                }},
+            rg[v].data);
+    }
+    ResourceGraph& _resg;
     const ShaderGraph& _sg;
     AccessGraph::ResourceAccessMap& _accessMap;
     AccessGraph::RenderPassInfoMap& _rpInfoMap;
@@ -255,14 +293,14 @@ void populateBarrier(const AccessGraph::ResourceAccessMap& accessMap,
                            },
                            resDetail.data);
                 bufferBarrierMap[v].emplace_back(
-                        rhiRes,
-                        lastStage,
-                        stage,
-                        lastAccess,
-                        access);
+                    rhiRes,
+                    lastStage,
+                    stage,
+                    lastAccess,
+                    access);
 
                 lastAccess = access;
-                if(resDetail.residency != ResourceResidency::DONT_CARE) {
+                if (resDetail.residency != ResourceResidency::DONT_CARE) {
                     resDetail.access = access;
                 }
             } else if (std::holds_alternative<ImageData>(resDetail.data) || std::holds_alternative<ImageViewData>(resDetail.data)) {
@@ -285,30 +323,33 @@ void populateBarrier(const AccessGraph::ResourceAccessMap& accessMap,
                            resDetail.data);
 
                 imageBarrierMap[v].emplace_back(
-                        rhiRes,
-                        lastStage,
-                        stage,
-                        getImageLayout(lastAccess),
-                        getImageLayout(access),
-                        lastAccess,
-                        access);
+                    rhiRes,
+                    lastStage,
+                    stage,
+                    getImageLayout(lastAccess),
+                    getImageLayout(access),
+                    lastAccess,
+                    access);
 
                 lastAccess = access;
-                if(resDetail.residency != ResourceResidency::DONT_CARE) {
+                if (resDetail.residency != ResourceResidency::DONT_CARE) {
                     resDetail.access = access;
+                    if (resDetail.residency == ResourceResidency::SWAPCHAIN) {
+                        backbuffer = rhiRes;
+                    }
                 }
             }
         }
-        if(resDetail.residency == ResourceResidency::SWAPCHAIN) {
-            if(backbuffer) {
+        if (resDetail.residency == ResourceResidency::SWAPCHAIN) {
+            if (backbuffer) {
                 imageBarrierMap[0xFFFFFFFF].emplace_back(
-                        backbuffer,
-                        lastStage,
-                        rhi::PipelineStage::BOTTOM_OF_PIPE,
-                        getImageLayout(lastAccess),
-                        rhi::ImageLayout::PRESENT,
-                        lastAccess,
-                        rhi::AccessFlags::NONE);
+                    backbuffer,
+                    lastStage,
+                    rhi::PipelineStage::BOTTOM_OF_PIPE,
+                    getImageLayout(lastAccess),
+                    rhi::ImageLayout::PRESENT,
+                    lastAccess,
+                    rhi::AccessFlags::NONE);
                 resDetail.access = rhi::AccessFlags::NONE;
             }
         }
@@ -331,6 +372,34 @@ void AccessGraph::analyze() {
     }
 
     populateBarrier(_accessMap, _resg, _bufferBarrierMap, _imageBarrierMap);
+}
+
+std::vector<rhi::BufferBarrierInfo>* AccessGraph::getBufferBarrier(RenderGraph::VertexType v) {
+    if (_bufferBarrierMap.contains(v)) {
+        return &_bufferBarrierMap[v];
+    }
+    return nullptr;
+}
+
+std::vector<rhi::ImageBarrierInfo>* AccessGraph::getImageBarrier(RenderGraph::VertexType v) {
+    if (_imageBarrierMap.contains(v)) {
+        return &_imageBarrierMap[v];
+    }
+    return nullptr;
+}
+
+rhi::RenderPassInfo* AccessGraph::getRenderPassInfo(RenderGraph::VertexType v) {
+    if (_renderPassInfoMap.contains(v)) {
+        return &_renderPassInfoMap[v];
+    }
+    return nullptr;
+}
+
+rhi::FrameBufferInfo* AccessGraph::getFrameBufferInfo(RenderGraph::VertexType v) {
+    if (_frameBufferInfoMap.contains(v)) {
+        return &_frameBufferInfoMap[v];
+    }
+    return nullptr;
 }
 
 } // namespace raum::graph

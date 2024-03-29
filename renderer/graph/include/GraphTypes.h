@@ -60,6 +60,7 @@ struct RenderPassData {
     std::vector<AttachmentResource> attachments;
     rhi::RenderPassPtr renderpass;
     rhi::FrameBufferPtr framebuffer;
+    rhi::Rect2D renderArea;
 };
 
 struct SubRenderPassData {

@@ -23,7 +23,10 @@ public:
 
     void analyze();
 
-    rhi::BufferBarrierInfo* getBufferBarrier(RenderGraph::VertexType v);
+    std::vector<rhi::BufferBarrierInfo>* getBufferBarrier(RenderGraph::VertexType v);
+    std::vector<rhi::ImageBarrierInfo>* getImageBarrier(RenderGraph::VertexType v);
+    rhi::RenderPassInfo* getRenderPassInfo(RenderGraph::VertexType v);
+    rhi::FrameBufferInfo* getFrameBufferInfo(RenderGraph::VertexType v);
 
 private:
     RenderGraph& _rg;
