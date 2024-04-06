@@ -61,6 +61,8 @@ struct RenderPassData {
     rhi::RenderPassPtr renderpass;
     rhi::FrameBufferPtr framebuffer;
     rhi::Rect2D renderArea;
+    rhi::DescriptorSetLayoutPtr descriptorSetLayout;
+    rhi::DescriptorSetPtr descriptorSet;
 };
 
 struct SubRenderPassData {
@@ -73,6 +75,7 @@ struct RenderQueueData {
     std::string phase{};
     std::map<uint32_t, scene::RenderablePtr> renderables;
     std::vector<RenderingResource> resources;
+    rhi::DescriptorSetPtr descriptorSet;
 };
 
 struct ComputePassData {
@@ -149,9 +152,19 @@ struct SamplerBinding {
     bool immutable{false};
 };
 
+enum class Rate {
+    PER_PASS,
+    PER_PHASE,
+    PER_INSTANCE,
+    PER_DRAW,
+};
+
+constexpr uint32_t BindingRateCount = 4;
+
 struct ShaderBindingDesc {
     BindingType type{BindingType::BUFFER};
     rhi::ShaderStage visibility{rhi::ShaderStage::NONE};
+    Rate rate{Rate::PER_PASS};
     uint32_t binding{0};
     BufferBinding buffer{};
     ImageBinding image{};
@@ -160,9 +173,9 @@ struct ShaderBindingDesc {
 
 struct ShaderResource {
     std::unordered_map<std::string, ShaderBindingDesc, hash_string, std::equal_to<>> bindings;
-    rhi::RHIDescriptorSetLayout* layout{nullptr};
+    std::array<rhi::DescriptorSetLayoutInfo, BindingRateCount> descriptorLayouts;
     boost::container::flat_map<std::string, std::string> shaderSources;
-    boost::container::flat_map<rhi::ShaderStage, rhi::RHIShader*> shaders;
+    boost::container::flat_map<rhi::ShaderStage, rhi::ShaderPtr> shaders;
 };
 
 using ShaderResources = std::unordered_map<std::string, ShaderResource, hash_string, std::equal_to<>>;

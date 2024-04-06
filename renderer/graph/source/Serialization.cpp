@@ -25,6 +25,13 @@ std::unordered_map<std::string_view, rhi::DescriptorType, hash_string, std::equa
     {"input", rhi::DescriptorType::INPUT_ATTACHMENT},
 };
 
+std::unordered_map<std::string_view, Rate, hash_string, std::equal_to<>> rateMap = {
+    {"per_pass", Rate::PER_PASS},
+    {"per_phase", Rate::PER_PHASE},
+    {"per_instance", Rate::PER_INSTANCE},
+    {"per_draw", Rate::PER_DRAW},
+};
+
 BufferBinding tag_invoke( value_to_tag<BufferBinding>, value const& jv ) {
     object const& obj = jv.as_object();
     BufferBinding buffer{};
@@ -102,6 +109,22 @@ BindingType tag_invoke( value_to_tag<BindingType>, value const& jv ) {
     return bt;
 }
 
+Rate tag_invoke( value_to_tag<Rate>, value const& jv ) {
+    object const& obj = jv.as_object();
+    Rate rate{Rate::PER_PASS};
+    const auto& rateStr = obj.at("rate").as_string();
+    if(rateStr == "per_pass") {
+        rate = Rate::PER_PASS;
+    } else if(rateStr == "per_phase") {
+        rate = Rate::PER_PHASE;
+    } else if(rateStr == "per_instance") {
+        rate = Rate::PER_INSTANCE;
+    } else if(rateStr == "per_draw") {
+        rate = Rate::PER_DRAW;
+    }
+    return rate;
+}
+
 void deserializeBinding(const object& obj, const rhi::ShaderStage stage, ShaderResource& resource, const std::map<uint32_t, std::string>& bindingMap) {
     if(!obj.contains("bindings")) {
         return;
@@ -116,6 +139,7 @@ void deserializeBinding(const object& obj, const rhi::ShaderStage stage, ShaderR
         resDesc.binding = slot;
         resDesc.visibility = resDesc.visibility | stage;
         resDesc.type = value_to<BindingType>(binding);
+        resDesc.rate = value_to<Rate>(binding);
         switch (resDesc.type) {
             case BindingType::BUFFER:
                 resDesc.buffer = value_to<BufferBinding>(binding);
@@ -218,6 +242,5 @@ void deserialize(const std::filesystem::path &path, std::string_view name, Shade
         }
         shaderGraph.addVertex(logicPath, std::move(resource));
     }
-
 }
 }

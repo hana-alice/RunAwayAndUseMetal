@@ -681,7 +681,7 @@ struct MultisamplingInfo {
     bool sampleShadingEnable{false};
     bool alphaToCoverageEnable{false};
     float minSampleShading{0.0f};
-    uint32_t sampleCount{0};
+    uint32_t sampleCount{1};
     uint32_t sampleMask{0xFFFFFFFF};
 };
 
@@ -708,10 +708,10 @@ enum class StencilOp : uint8_t {
 };
 
 struct StencilInfo {
-    StencilOp failOp;
-    StencilOp passOp;
-    StencilOp depthFailOp;
-    CompareOp compareOp;
+    StencilOp failOp{StencilOp::KEEP};
+    StencilOp passOp{StencilOp::KEEP};
+    StencilOp depthFailOp{StencilOp::KEEP};
+    CompareOp compareOp{CompareOp::ALWAYS};
     uint32_t compareMask{0};
     uint32_t writeMask{0};
     uint32_t reference{0};
@@ -726,7 +726,7 @@ struct DepthStencilInfo {
     StencilInfo front;
     StencilInfo back;
     float minDepthBounds{0.0f};
-    float maxDepthBounds{0.0f};
+    float maxDepthBounds{1.0f};
 };
 
 enum class BlendFactor : uint8_t {

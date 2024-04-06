@@ -6,6 +6,8 @@
 #include "assimp/postprocess.h"
 #include "assimp/scene.h"
 #include "core/define.h"
+#include "PBRMaterial.h"
+#include "Mesh.h"
 
 namespace raum::asset {
 
@@ -20,16 +22,22 @@ void expand(scene::AABB& aabb, const aiAABB& src) {
     aabb.maxBound.z = std::max(aabb.maxBound.z, src.mMax.z);
 }
 
-void loadMesh(const aiScene* scene, const aiNode* node, std::vector<scene::MeshPtr>& meshes, scene::AABB& aabb, rhi::DevicePtr device) {
+void loadMesh(const aiScene* scene,
+              const aiNode* node,
+              scene::Model& model,
+              rhi::DevicePtr device) {
+    auto& aabb = model.aabb();
+    auto& meshes = model.meshes();
     for (size_t i = 0; i < node->mNumMeshes; ++i) {
         uint32_t location{0};
         const auto* mesh = scene->mMeshes[node->mMeshes[i]];
         expand(aabb, mesh->mAABB);
+        auto localMatIndex = mesh->mMaterialIndex;
+        auto& mats = model.materials();
+        auto& newMesh = meshes.emplace_back(scene::makeMesh({}, model));
+        newMesh->setMaterial(mats[localMatIndex]);
 
-        auto& newMesh = meshes.emplace_back(scene::makeMesh());
-        newMesh->materialID = mesh->mMaterialIndex;
-
-        auto& meshData = newMesh->data;
+        auto& meshData = newMesh->meshData();
 
         std::vector<float> rawData;
         auto& meshVert = rawData;
@@ -182,21 +190,19 @@ void loadMesh(const aiScene* scene, const aiNode* node, std::vector<scene::MeshP
     }
 
     for (size_t i = 0; i < node->mNumChildren; ++i) {
-        loadMesh(scene, node->mChildren[i], meshes, aabb, device);
+        loadMesh(scene, node->mChildren[i], model, device);
     }
 }
 
 void loadMaterial(const aiScene* scene,
-                  std::vector<scene::MaterialDataPtr>& mats,
+                  std::vector<scene::MaterialPtr>& mats,
                   std::filesystem::path file,
                   rhi::DevicePtr& device) {
     for (size_t i = 0; i < scene->mNumMaterials; ++i) {
         const auto* material = scene->mMaterials[i];
-        auto& matData = mats.emplace_back(scene::makeMaterialData());
-        matData->name = material->GetName().C_Str();
-        if (matData->name.empty()) {
-            matData->name = (file / std::to_string(i)).string();
-        }
+        auto matTemplate = scene::getOrCreateMaterialTemplate("asset/layout/simple");
+        auto& mat = mats.emplace_back(matTemplate->instantiate(scene::MaterialType::PBR));
+        auto pbrMat = std::static_pointer_cast<scene::PBRMaterial>(mat);
         auto entry = file.parent_path();
         aiString texturePath;
         constexpr uint32_t enumOffset = 1;
@@ -222,7 +228,22 @@ void loadMaterial(const aiScene* scene,
                         raum_check(false, "unsupported image format");
                     }
 
-                    matData->images[i] = std::shared_ptr<rhi::RHIImage>(device->createImage(info));
+                    auto img = rhi::ImagePtr(device->createImage(info));
+
+                    rhi::ImageViewInfo viewInfo{};
+                    viewInfo.type = rhi::ImageViewType::IMAGE_VIEW_2D;
+                    viewInfo.image = img.get();
+                    viewInfo.format = info.format;
+                    viewInfo.range = {
+                        .aspect = rhi::AspectMask::COLOR,
+                        .firstSlice = 0,
+                        .sliceCount = 1,
+                        .firstMip = 0,
+                        .mipCount = 1
+                    };
+
+                    auto imgView = rhi::ImageViewPtr(device->createImageView(viewInfo));
+                    pbrMat->add(scene::Texture{"", img, imgView});
                 }
             }
         }
@@ -248,7 +269,22 @@ void loadMaterial(const aiScene* scene,
                         raum_check(false, "unsupported image format");
                     }
 
-                    matData->images[i] = std::shared_ptr<rhi::RHIImage>(device->createImage(info));
+                    auto img = rhi::ImagePtr(device->createImage(info));
+
+                    rhi::ImageViewInfo viewInfo{};
+                    viewInfo.type = rhi::ImageViewType::IMAGE_VIEW_2D;
+                    viewInfo.image = img.get();
+                    viewInfo.format = info.format;
+                    viewInfo.range = {
+                        .aspect = rhi::AspectMask::COLOR,
+                        .firstSlice = 0,
+                        .sliceCount = 1,
+                        .firstMip = 0,
+                        .mipCount = 1
+                    };
+
+                    auto imgView = rhi::ImageViewPtr(device->createImageView(viewInfo));
+                    pbrMat->add(scene::Texture{"", img, imgView});
                 }
             }
         }
@@ -277,8 +313,8 @@ void SceneLoader::loadFlat(const std::filesystem::path& filePath) {
     raum_check(scene, "failed to load file {}", filePath.string());
 
     _data = scene::makeModel();
-    loadMesh(scene, scene->mRootNode, _data->meshes, _data->aabb, _device);
-    loadMaterial(scene, _data->materials, filePath, _device);
+    loadMaterial(scene, _data->materials(), filePath, _device);
+    loadMesh(scene, scene->mRootNode, *_data, _device);
 }
 
 } // namespace

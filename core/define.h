@@ -63,8 +63,7 @@ void raum_expect(bool exp, fmt::format_string<Args...> s, Args&&... args) {
     raum_check(exp, s, args...);
 }
 
-template <typename... Args>
-void raum_unreachable() {
+inline void raum_unreachable() {
     constexpr auto fmtStr = R"(
 --------------------------- UNREACHABLE ---------------------------
 file:{}

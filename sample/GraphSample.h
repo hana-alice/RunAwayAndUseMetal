@@ -9,6 +9,8 @@
 #include "core/utils/utils.h"
 #include "RHIDevice.h"
 #include "Camera.h"
+#include "PBRMaterial.h"
+#include "Phase.h"
 namespace raum::sample {
 class GraphSample : public SampleBase {
 public:
@@ -31,7 +33,7 @@ private:
 
 GraphSample::GraphSample(rhi::DevicePtr device, rhi::SwapchainPtr swapchain)
 : _device(device), _swapchain(swapchain) {
-    _shaderGraph = std::make_shared<graph::ShaderGraph>(_device.get());
+    _shaderGraph = std::make_shared<graph::ShaderGraph>(_device);
 
     const auto& resourcePath = utils::resourceDirectory();
 
@@ -40,7 +42,13 @@ GraphSample::GraphSample(rhi::DevicePtr device, rhi::SwapchainPtr swapchain)
 
     asset::SceneLoader loader(device);
     loader.loadFlat(resourcePath / "models" / "sponza-gltf-pbr" / "sponza.glb");
-    const auto &aabb = loader.modelData()->aabb;
+    const auto& model = loader.modelData();
+    for(auto& mat : model->materials()) {
+        auto pbrMat = std::static_pointer_cast<raum::scene::PBRMaterial>(mat);
+        pbrMat->setDiffuse("mainTexture");
+    }
+
+    const auto &aabb = model->aabb();
     auto far = std::abs(aabb.maxBound.z);
 
     const auto& imageInfo = swapchain->swapchainImageView()->image()->info();
@@ -51,9 +59,6 @@ GraphSample::GraphSample(rhi::DevicePtr device, rhi::SwapchainPtr swapchain)
     auto& eye = _cam->eye();
     eye.setPosition(0.0f, 1.0f, far * 0.5f);
     eye.lookAt({}, {0.0f, 1.0f, 0.0f});
-
-    //_scene = std::make_shared<scene::Scene>();
-    //_scene->models.emplace_back(loader.modelData());
 
     _renderGraph = std::make_shared<graph::RenderGraph>();
 

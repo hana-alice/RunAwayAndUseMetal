@@ -1,8 +1,9 @@
 #pragma once
-#include "core/math.h"
 #include <glm/glm.hpp>
 #include <glm/gtx/quaternion.hpp>
 #include <memory>
+#include "core/math.h"
+
 
 namespace raum::scene {
 
@@ -15,7 +16,6 @@ private:
     uint64_t objectID{0};
 };
 using RenderablePtr = std::shared_ptr<Renderable>;
-
 
 struct Degree {
     float value{0.0};
@@ -35,6 +35,11 @@ struct Frustum {
     float aspect{0.0f}; // eg. 900.0f/600.0f = 1.5f
     float near{0.1f};
     float far{1000.0f};
+};
+
+struct AABB {
+    Vec3f minBound{};
+    Vec3f maxBound{};
 };
 
 } // namespace raum::scene
