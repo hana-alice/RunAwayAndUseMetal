@@ -17,14 +17,10 @@ public:
     AABB& aabb();
     const AABB& aabb() const;
 
-    void addPhase(PhasePtr phase);
-    void removePhase(std::string_view phaseName);
-
 private:
     std::vector<MeshPtr> _meshes;
     std::vector<MaterialPtr> _materials;
     AABB _aabb{};
-    std::vector<PhasePtr> _phases;
 };
 using ModelPtr = std::shared_ptr<Model>;
 

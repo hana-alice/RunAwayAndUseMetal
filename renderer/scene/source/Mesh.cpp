@@ -11,12 +11,12 @@ MeshData& Mesh::meshData() {
     return _data;
 }
 
-void Mesh::setMaterial(raum::scene::MaterialPtr material) {
-    _material = material;
+void Mesh::addTechnique(raum::scene::TechniquePtr tech) {
+    _techs.emplace_back(tech);
 }
 
-MaterialPtr Mesh::material() const {
-    return _material;
+void Mesh::removeTechnique(uint32_t index) {
+    _techs.erase(_techs.begin() + index);
 }
 
 const MeshData& Mesh::meshData() const {
