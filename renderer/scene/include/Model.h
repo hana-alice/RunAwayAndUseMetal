@@ -2,10 +2,9 @@
 #include "Material.h"
 #include "common.h"
 #include "Phase.h"
+#include "Mesh.h"
 
 namespace raum::scene {
-class Mesh;
-using MeshPtr = std::shared_ptr<Mesh>;
 
 class Model {
 public:

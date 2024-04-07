@@ -36,7 +36,7 @@ void loadMesh(const aiScene* scene,
         expand(aabb, mesh->mAABB);
         auto localMatIndex = mesh->mMaterialIndex;
         auto& mats = model.materials();
-        auto& newMesh = meshes.emplace_back(scene::makeMesh({}, model));
+        auto& newMesh = meshes.emplace_back(scene::makeMesh({}));
         auto mat = mats[localMatIndex];
         auto technique = std::make_shared<scene::Technique>(mat, phase);
 

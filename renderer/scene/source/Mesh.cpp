@@ -3,8 +3,8 @@
 
 namespace raum::scene {
 
-Mesh::Mesh(const MeshData& data, const Model& model)
-:_data(data), _model(model) {
+Mesh::Mesh(const MeshData& data)
+:_data(data) {
 }
 
 MeshData& Mesh::meshData() {
@@ -23,8 +23,5 @@ const MeshData& Mesh::meshData() const {
     return _data;
 }
 
-const Model& Mesh::model() const {
-    return _model;
-}
 
 } // namespace raum::scene

@@ -3,12 +3,9 @@
 #include <vector>
 #include "Common.h"
 #include "RHIDefine.h"
-#include "Scene.h"
 #include "Technique.h"
 
 namespace raum::scene {
-
-class Model;
 
 enum class ShaderAttribute : uint8_t {
     NONE = 0,
@@ -32,23 +29,23 @@ struct MeshData {
 class Mesh : public Renderable {
 public:
     Mesh() = delete;
-    Mesh(const MeshData& data, const Model& model);
+    Mesh(const MeshData& data);
 
     void addTechnique(TechniquePtr tech);
     void removeTechnique(uint32_t index);
     MeshData& meshData();
     const MeshData& meshData() const;
-    const Model& model() const;
     MaterialPtr material() const;
 
 private:
     MeshData _data;
-    const Model& _model;
     std::vector<TechniquePtr> _techs;
 };
 
-inline MeshPtr makeMesh(const MeshData& data, const Model& model) {
-    return std::make_shared<Mesh>(data, model);
+using MeshPtr = std::shared_ptr<Mesh>;
+
+inline MeshPtr makeMesh(const MeshData& data) {
+    return std::make_shared<Mesh>(data);
 }
 
 class PCGMesh : public Mesh {
