@@ -1,13 +1,13 @@
 #include "Graphs.h"
 #include <boost/graph/depth_first_search.hpp>
+#include "GraphUtils.h"
+#include "Mesh.h"
+#include "Phase.h"
 #include "RHIBlitEncoder.h"
 #include "RHICommandBuffer.h"
 #include "RHIComputeEncoder.h"
 #include "RHIDevice.h"
 #include "RHIRenderEncoder.h"
-#include "Mesh.h"
-#include "Phase.h"
-#include "GraphUtils.h"
 
 namespace raum::graph {
 
@@ -42,11 +42,7 @@ struct PreProcessVisitor : public boost::dfs_visitor<> {
                            _perPassLayout.descriptorBindings.clear();
                        },
                        [&](RenderQueueData& queueData) {
-                           auto phase = scene::getOrCreatePhase(queueData.phase);
-                           //generateDescriptorSetLayout(,)
-//                           for(const auto& layoutInfo : ) {
-//
-//                           }
+                           // auto phase = scene::getOrCreatePhase(queueData.phase);
                        },
                        [](auto _) {
 
@@ -65,7 +61,7 @@ struct PreProcessVisitor : public boost::dfs_visitor<> {
     rhi::DevicePtr _device;
     rhi::DescriptorSetLayoutInfo _perPassLayout;
     std::array<rhi::DescriptorSetLayoutPtr, BindingRateCount> descriptorSetLayouts;
-    std::vector<scene::Renderable>& _renderables;
+    std::vector<scene::RenderablePtr>& _renderables;
 };
 
 struct RenderGraphVisitor : public boost::dfs_visitor<> {
@@ -91,8 +87,6 @@ struct RenderGraphVisitor : public boost::dfs_visitor<> {
                        },
                        [&](RenderQueueData& data) {
                            _renderEncoder->setViewport(data.viewport);
-
-                           
                        },
                        [&](auto _) {
 
@@ -133,7 +127,8 @@ GraphScheduler::GraphScheduler(rhi::DevicePtr device) : _device(device) {
 }
 
 void GraphScheduler::execute() {
-//    collectRenderables(queueData.renderables, _sg);
+    std::vector<scene::RenderablePtr> renderables;
+    collectRenderables(renderables, *_sceneGraph);
 }
 
 } // namespace raum::graph

@@ -13,16 +13,16 @@ public:
     GraphScheduler() = delete;
     explicit GraphScheduler(rhi::DevicePtr device);
 
-	void execute();
+    void execute();
 
 private:
-	rhi::DevicePtr _device;
+    rhi::DevicePtr _device;
     RenderGraph* _renderGraph;
-	TaskGraph* _taskGraph;
-	AccessGraph* _accessGraph;
-	SceneGraph* _sceneGraph;
-	ShaderGraph* _shaderGraph;
-	ResourceGraph* _resourceGraph;
+    TaskGraph* _taskGraph;
+    AccessGraph* _accessGraph;
+    SceneGraph* _sceneGraph;
+    ShaderGraph* _shaderGraph;
+    ResourceGraph* _resourceGraph;
 };
 
 } // namespace raum::graph

@@ -1,5 +1,4 @@
 #include "Mesh.h"
-#include "Model.h"
 
 namespace raum::scene {
 
