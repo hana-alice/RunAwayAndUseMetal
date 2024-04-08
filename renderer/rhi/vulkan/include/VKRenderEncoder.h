@@ -29,7 +29,7 @@ public:
     void bindIndexBuffer(RHIBuffer* indexBuffer, uint32_t offset, IndexType type) override;
     void bindVertexBuffer(RHIBuffer* vertexBuffer, uint32_t index) override;
     void draw(uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t firstInstance) override;
-    void drawIndexed(uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t vertexOffset, uint32_t firstInstance) override;
+    void drawIndexed(uint32_t indexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t vertexOffset, uint32_t firstInstance) override;
     void drawIndirect(RHIBuffer* indirectBuffer, uint32_t offset, uint32_t drawCount, uint32_t stride) override;
     void drawIndexedIndirect(RHIBuffer* indirectBuffer, uint32_t offset, uint32_t drawCount, uint32_t stride) override;
     void pushConstants(ShaderStage stage, uint32_t offset, void* data, uint32_t size) override;

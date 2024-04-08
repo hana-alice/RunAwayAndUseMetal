@@ -1,18 +1,30 @@
 #include "SceneLoader.h"
 #include <numeric>
 #include "ImageLoader.h"
+#include "Mesh.h"
+#include "PBRMaterial.h"
 #include "RHIUtils.h"
+#include "Technique.h"
 #include "assimp/Importer.hpp"
 #include "assimp/postprocess.h"
 #include "assimp/scene.h"
 #include "core/define.h"
-#include "PBRMaterial.h"
-#include "Mesh.h"
-#include "Technique.h"
 
 namespace raum::asset {
 
 namespace {
+
+scene::PhasePtr simpleOpaquePhase() {
+    auto phase = scene::getOrCreatePhase("simple-opaque");
+    phase->setPrimitiveType(rhi::PrimitiveType::TRIANGLE_STRIP);
+    rhi::RasterizationInfo rasterizationInfo{};
+    phase->setRasterizationInfo(rasterizationInfo);
+    rhi::DepthStencilInfo depthStencilInfo{};
+    depthStencilInfo.depthTestEnable = true;
+    depthStencilInfo.depthWriteEnable = true;
+    phase->setDepthStencilInfo(depthStencilInfo);
+    return phase;
+}
 
 void expand(scene::AABB& aabb, const aiAABB& src) {
     aabb.minBound.x = std::min(aabb.minBound.x, src.mMin.x);
@@ -26,19 +38,16 @@ void expand(scene::AABB& aabb, const aiAABB& src) {
 void loadMesh(const aiScene* scene,
               const aiNode* node,
               scene::Model& model,
-              scene::PhasePtr phase,
+              const std::vector<scene::TechniquePtr>& techs,
               rhi::DevicePtr device) {
     auto& aabb = model.aabb();
-    auto& meshes = model.meshes();
+    // auto& meshes = model.meshes();
     for (size_t i = 0; i < node->mNumMeshes; ++i) {
+        auto newMesh = std::make_shared<scene::Mesh>();
         uint32_t location{0};
         const auto* mesh = scene->mMeshes[node->mMeshes[i]];
         expand(aabb, mesh->mAABB);
         auto localMatIndex = mesh->mMaterialIndex;
-        auto& mats = model.materials();
-        auto& newMesh = meshes.emplace_back(scene::makeMesh({}));
-        auto mat = mats[localMatIndex];
-        auto technique = std::make_shared<scene::Technique>(mat, phase);
 
         auto& meshData = newMesh->meshData();
         meshData.vertexCount = mesh->mNumVertices;
@@ -144,9 +153,9 @@ void loadMesh(const aiScene* scene,
             }
         }
 
+        uint32_t indexNum{0};
         if (mesh->HasFaces()) {
             std::vector<uint8_t> indices;
-            uint32_t indexNum{0};
             indexNum = std::accumulate(mesh->mFaces, mesh->mFaces + mesh->mNumFaces, indexNum, [](uint32_t curr, const aiFace& face) {
                 return curr + face.mNumIndices;
             });
@@ -186,29 +195,37 @@ void loadMesh(const aiScene* scene,
         bufferAttribute.rate = rhi::InputRate::PER_VERTEX;
         bufferAttribute.stride = stride;
 
-        rhi::BufferInfo bufferInfo {
+        rhi::BufferInfo bufferInfo{
             .memUsage = rhi::MemoryUsage::DEVICE_ONLY,
             .bufferUsage = rhi::BufferUsage::VERTEX,
             .size = static_cast<uint32_t>(meshVert.size()),
         };
 
         meshData.vertexBuffer.buffer = device->createBuffer(bufferInfo);
+
+        auto meshRenderer = model.meshRenderers().emplace_back(std::make_shared<scene::MeshRenderer>(newMesh));
+        meshRenderer->addTechnique(techs[localMatIndex]);
+        meshRenderer->setVertexInfo(0, mesh->mNumVertices, indexNum);
     }
 
     for (size_t i = 0; i < node->mNumChildren; ++i) {
-        loadMesh(scene, node->mChildren[i], model, phase, device);
+        loadMesh(scene, node->mChildren[i], model, techs, device);
     }
 }
 
 void loadMaterial(const aiScene* scene,
-                  std::vector<scene::MaterialPtr>& mats,
+                  scene::ModelPtr model,
+                  std::vector<scene::TechniquePtr>& techs,
                   std::filesystem::path file,
                   rhi::DevicePtr& device) {
+    auto phase = simpleOpaquePhase();
     for (size_t i = 0; i < scene->mNumMaterials; ++i) {
         const auto* material = scene->mMaterials[i];
-        auto matTemplate = scene::getOrCreateMaterialTemplate("asset/layout/simple");
-        auto& mat = mats.emplace_back(matTemplate->instantiate(scene::MaterialType::PBR));
+        scene::MaterialTemplatePtr matTemplate = scene::getOrCreateMaterialTemplate("asset/layout/simple");
+        scene::MaterialPtr mat = matTemplate->instantiate(scene::MaterialType::PBR);
         auto pbrMat = std::static_pointer_cast<scene::PBRMaterial>(mat);
+        techs.emplace_back(std::make_shared<scene::Technique>(mat, phase));
+
         auto entry = file.parent_path();
         aiString texturePath;
         constexpr uint32_t enumOffset = 1;
@@ -245,8 +262,7 @@ void loadMaterial(const aiScene* scene,
                         .firstSlice = 0,
                         .sliceCount = 1,
                         .firstMip = 0,
-                        .mipCount = 1
-                    };
+                        .mipCount = 1};
 
                     auto imgView = rhi::ImageViewPtr(device->createImageView(viewInfo));
                     pbrMat->add(scene::Texture{"", img, imgView});
@@ -286,33 +302,19 @@ void loadMaterial(const aiScene* scene,
                         .firstSlice = 0,
                         .sliceCount = 1,
                         .firstMip = 0,
-                        .mipCount = 1
-                    };
+                        .mipCount = 1};
 
                     auto imgView = rhi::ImageViewPtr(device->createImageView(viewInfo));
                     pbrMat->add(scene::Texture{"", img, imgView});
                 }
             }
         }
-
     }
 }
 
 } // namespace
 
 SceneLoader::SceneLoader(rhi::DevicePtr device) : _device(device) {
-}
-
-scene::PhasePtr simpleOpaquePhase() {
-    auto phase = scene::getOrCreatePhase("simple-opaque");
-    phase->setPrimitiveType(rhi::PrimitiveType::TRIANGLE_STRIP);
-    rhi::RasterizationInfo rasterizationInfo{};
-    phase->setRasterizationInfo(rasterizationInfo);
-    rhi::DepthStencilInfo depthStencilInfo{};
-    depthStencilInfo.depthTestEnable = true;
-    depthStencilInfo.depthWriteEnable = true;
-    phase->setDepthStencilInfo(depthStencilInfo);
-    return phase;
 }
 
 void SceneLoader::loadFlat(const std::filesystem::path& filePath) {
@@ -330,10 +332,12 @@ void SceneLoader::loadFlat(const std::filesystem::path& filePath) {
 
     raum_check(scene, "failed to load file {}", filePath.string());
 
-    _data = scene::makeModel();
-    loadMaterial(scene, _data->materials(), filePath, _device);
+    _data = std::make_shared<scene::Model>();
+
+    std::vector<scene::TechniquePtr> defaultTechs;
+    loadMaterial(scene, _data, defaultTechs, filePath, _device);
     auto phase = simpleOpaquePhase();
-    loadMesh(scene, scene->mRootNode, *_data, phase, _device);
+    loadMesh(scene, scene->mRootNode, *_data, defaultTechs, _device);
 }
 
-} // namespace
+} // namespace raum::asset

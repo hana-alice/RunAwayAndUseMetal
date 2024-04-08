@@ -26,27 +26,19 @@ struct MeshData {
     uint32_t indexCount{0};
 };
 
-class Mesh : public Renderable {
+class Mesh {
 public:
-    Mesh() = delete;
-    Mesh(const MeshData& data);
+    Mesh() = default;
 
-    void addTechnique(TechniquePtr tech);
-    void removeTechnique(uint32_t index);
     MeshData& meshData();
     const MeshData& meshData() const;
-    MaterialPtr material() const;
 
 private:
     MeshData _data;
-    std::vector<TechniquePtr> _techs;
 };
 
 using MeshPtr = std::shared_ptr<Mesh>;
 
-inline MeshPtr makeMesh(const MeshData& data) {
-    return std::make_shared<Mesh>(data);
-}
 
 class PCGMesh : public Mesh {
 public:
@@ -65,5 +57,35 @@ public:
 };
 
 using MeshRef = std::reference_wrapper<Mesh>;
+
+struct DrawInfo {
+    uint32_t firstVertex{0};
+    uint32_t vertexCount{0};
+    uint32_t firstInstance{0};
+    uint32_t instanceCount{1};
+    uint32_t indexCount{0};
+};
+
+class MeshRenderer : public Renderable {
+public:
+    MeshRenderer() = delete;
+    MeshRenderer(MeshPtr mesh);
+    
+    void addTechnique(TechniquePtr tech);
+    void removeTechnique(uint32_t index);
+    void setMesh(MeshPtr mesh);
+    void setVertexInfo(uint32_t firstVertex, uint32_t vertexCount, uint32_t indexCount);
+    void setInstanceInfo(uint32_t firstInstance, uint32_t instanceCount);
+
+    TechniquePtr technique(uint32_t index);
+    TechniquePtr technique(std::string_view phase);
+    const DrawInfo& drawInfo() const;
+
+private:
+    MeshPtr _mesh;
+    std::vector<TechniquePtr> _techs;
+    DrawInfo _drawInfo{};
+};
+using MeshRendererPtr = std::shared_ptr<MeshRenderer>;
 
 } // namespace raum::scene

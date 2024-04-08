@@ -7,12 +7,12 @@ Model::Model() {
 }
 
 
-std::vector<MeshPtr>& Model::meshes() {
-    return _meshes;
+std::vector<MeshRendererPtr>& Model::meshRenderers() {
+    return _meshRenderers;
 }
 
-const std::vector<MeshPtr>& Model::meshes() const {
-    return _meshes;
+const std::vector<MeshRendererPtr>& Model::meshRenderers() const {
+    return _meshRenderers;
 }
 
 AABB& Model::aabb() {
@@ -21,14 +21,6 @@ AABB& Model::aabb() {
 
 const AABB& Model::aabb() const {
     return _aabb;
-}
-
-std::vector<MaterialPtr>& Model::materials() {
-    return _materials;
-}
-
-const std::vector<MaterialPtr>& Model::materials() const {
-    return _materials;
 }
 
 }

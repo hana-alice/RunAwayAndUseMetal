@@ -21,8 +21,8 @@ void collectRenderables(std::vector<scene::RenderablePtr> renderables, const Sce
         if (std::holds_alternative<ModelNode>(graph[v].sceneNodeData)) {
             const auto& modelNode = std::get<ModelNode>(graph[v].sceneNodeData);
             if (culling(modelNode)) {
-                for (auto& mesh : modelNode.model->meshes()) {
-                    renderables.emplace_back(mesh);
+                for (auto& meshRenderer : modelNode.model->meshRenderers()) {
+                     .emplace_back(meshRenderer);
                 }
             }
         }
