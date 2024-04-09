@@ -1,7 +1,6 @@
 #pragma once
 #include "Material.h"
 #include "common.h"
-#include "Phase.h"
 #include "Mesh.h"
 
 namespace raum::scene {

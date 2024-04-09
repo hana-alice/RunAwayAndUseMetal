@@ -78,7 +78,6 @@ public:
     void setInstanceInfo(uint32_t firstInstance, uint32_t instanceCount);
 
     TechniquePtr technique(uint32_t index);
-    TechniquePtr technique(std::string_view phase);
     const DrawInfo& drawInfo() const;
 
 private:

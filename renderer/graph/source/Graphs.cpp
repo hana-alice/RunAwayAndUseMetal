@@ -2,7 +2,6 @@
 #include <boost/graph/depth_first_search.hpp>
 #include "GraphUtils.h"
 #include "Mesh.h"
-#include "Phase.h"
 #include "RHIBlitEncoder.h"
 #include "RHICommandBuffer.h"
 #include "RHIComputeEncoder.h"
@@ -22,7 +21,7 @@ void collectRenderables(std::vector<scene::RenderablePtr> renderables, const Sce
             const auto& modelNode = std::get<ModelNode>(graph[v].sceneNodeData);
             if (culling(modelNode)) {
                 for (auto& meshRenderer : modelNode.model->meshRenderers()) {
-                     .emplace_back(meshRenderer);
+                    renderables.emplace_back(meshRenderer);
                 }
             }
         }
@@ -39,13 +38,14 @@ struct PreProcessVisitor : public boost::dfs_visitor<> {
                                                     0,
                                                     renderpass.framebuffer->info().width,
                                                     renderpass.framebuffer->info().height};
-                           _perPassLayout.descriptorBindings.clear();
+
                        },
                        [&](RenderQueueData& queueData) {
-                           // auto phase = scene::getOrCreatePhase(queueData.phase);
+                           for (auto& desc : queueData.resources) {
+
+                           }
                        },
                        [](auto _) {
-
                        },
                    },
                    g[v].data);
@@ -59,8 +59,6 @@ struct PreProcessVisitor : public boost::dfs_visitor<> {
     ShaderGraph& _shg;
     SceneGraph& _sg;
     rhi::DevicePtr _device;
-    rhi::DescriptorSetLayoutInfo _perPassLayout;
-    std::array<rhi::DescriptorSetLayoutPtr, BindingRateCount> descriptorSetLayouts;
     std::vector<scene::RenderablePtr>& _renderables;
 };
 

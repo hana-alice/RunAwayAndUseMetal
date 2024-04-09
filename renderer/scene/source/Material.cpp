@@ -40,5 +40,12 @@ void Material::add(const Texture &tex) {
     _textures.emplace_back(tex);
 }
 
+void Material::add(const raum::scene::Buffer &buf) {
+    _buffers.emplace_back(buf);
+}
+
+rhi::DescriptorSetPtr Material::descriptorSet() {
+    return _descriptorSet;
+}
 
 }

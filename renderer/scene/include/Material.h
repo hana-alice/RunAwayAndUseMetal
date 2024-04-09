@@ -38,6 +38,11 @@ struct Texture {
     rhi::ImageViewPtr textureView;
 };
 
+struct Buffer {
+    std::string name;
+    rhi::BufferPtr buffer;
+};
+
 enum class MaterialType: uint8_t {
     PBR,
     NPR,
@@ -49,12 +54,17 @@ public:
     Material() = delete;
     Material(const std::string& shader);
     void add(const Texture& tex);
+    void add(const Buffer& buf);
     const std::string& shaderName() const { return _shaderName; }
+    rhi::DescriptorSetPtr descriptorSet();
 
 protected:
     MaterialType _type{MaterialType::PBR};
     std::vector<Texture> _textures;
+    std::vector<Buffer> _buffers;
     const std::string& _shaderName;
+    boost::container::flat_map<std::string, std::string, std::less<>> _bindingMap;
+    rhi::DescriptorSetPtr _descriptorSet;
 };
 
 using MaterialPtr = std::shared_ptr<Material>;

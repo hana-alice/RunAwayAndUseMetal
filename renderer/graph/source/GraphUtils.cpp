@@ -40,27 +40,25 @@ rhi::FrameBufferPtr getOrCreateFrameBuffer(rhi::RenderPassPtr renderpass, const 
 
 rhi::GraphicsPipelinePtr getOrCreateGraphicsPipeline(rhi::RenderPassPtr renderPass,
                                                      scene::MaterialPtr material,
-                                                     scene::PhasePtr phase,
                                                      ShaderGraph& shg) {
     size_t seed = rhi::RHIHash<rhi::RenderPassInfo>{}(renderPass->info());
     boost::hash_combine(seed, material->shaderName());
-    boost::hash_combine(seed, phase->phaseName());
 
     if (!_psoMap.contains(seed)) {
-        rhi::GraphicsPipelineInfo info;
-        info.primitiveType = phase->primitiveType();
-        info.subpassIndex = 0;
-        info.viewportCount = 1;
-        info.rasterizationInfo = phase->rasterizationInfo();
-        info.multisamplingInfo = phase->multisamplingInfo();
-        info.depthStencilInfo = phase->depthStencilInfo();
-        info.colorBlendInfo = phase->blendInfo();
-
-        info.renderPass = renderPass.get();
-        const auto& layout = shg.layout(material->shaderName());
-        for (auto [_, shaderPtr] : layout.shaders) {
-            info.shaders.emplace_back(shaderPtr.get());
-        }
+//        rhi::GraphicsPipelineInfo info;
+//        info.primitiveType = phase->primitiveType();
+//        info.subpassIndex = 0;
+//        info.viewportCount = 1;
+//        info.rasterizationInfo = phase->rasterizationInfo();
+//        info.multisamplingInfo = phase->multisamplingInfo();
+//        info.depthStencilInfo = phase->depthStencilInfo();
+//        info.colorBlendInfo = phase->blendInfo();
+//
+//        info.renderPass = renderPass.get();
+//        const auto& layout = shg.layout(material->shaderName());
+//        for (auto [_, shaderPtr] : layout.shaders) {
+//            info.shaders.emplace_back(shaderPtr.get());
+//        }
     }
     return _psoMap.at(seed);
 }

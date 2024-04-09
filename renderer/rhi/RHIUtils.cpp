@@ -1,6 +1,6 @@
 #include "RHIUtils.h"
-#include "RHIDefine.h"
 #include <boost/functional/hash.hpp>
+#include "RHIDefine.h"
 
 #define RHIHASHER(T)                                                        \
     template <>                                                             \
@@ -131,5 +131,59 @@ std::size_t hash_value(const FrameBufferInfo& info) {
     return seed;
 }
 RHIHASHER(FrameBufferInfo)
+
+bool operator==(const DescriptorBinding& lhs, const DescriptorBinding& rhs) {
+    return lhs.type == rhs.type &&
+           lhs.binding == rhs.binding &&
+           lhs.count == rhs.count &&
+           lhs.visibility == rhs.visibility &&
+           lhs.immutableSamplers == rhs.immutableSamplers;
+}
+std::size_t hash_value(const DescriptorBinding& binding) {
+    size_t seed = 9527;
+    boost::hash_combine(seed, binding.type);
+    boost::hash_combine(seed, binding.binding);
+    boost::hash_combine(seed, binding.count);
+    boost::hash_combine(seed, binding.visibility);
+    boost::hash_combine(seed, binding.immutableSamplers);
+    return seed;
+}
+RHIHASHER(DescriptorBinding)
+
+bool operator==(const DescriptorSetLayoutInfo& lhs, const DescriptorSetLayoutInfo& rhs) {
+    return lhs.descriptorBindings == rhs.descriptorBindings;
+}
+std::size_t hash_value(const DescriptorSetLayoutInfo& info) {
+    size_t seed = 9527;
+    boost::hash_combine(seed, info.descriptorBindings);
+    return seed;
+}
+RHIHASHER(DescriptorSetLayoutInfo)
+
+bool operator==(const PushConstantRange& lhs, const PushConstantRange& rhs) {
+    return lhs.stage == rhs.stage &&
+           lhs.size == rhs.size &&
+           lhs.offset == rhs.offset;
+}
+std::size_t hash_value(const PushConstantRange& info) {
+    size_t seed = 9527;
+    boost::hash_combine(seed, info.stage);
+    boost::hash_combine(seed, info.size);
+    boost::hash_combine(seed, info.offset);
+    return seed;
+}
+RHIHASHER(PushConstantRange)
+
+bool operator==(const PipelineLayoutInfo& lhs, const PipelineLayoutInfo& rhs) {
+    return lhs.setLayouts == rhs.setLayouts &&
+           lhs.pushConstantRanges == rhs.pushConstantRanges;
+}
+std::size_t hash_value(const PipelineLayoutInfo& info) {
+    size_t seed = 9527;
+    boost::hash_combine(seed, info.setLayouts);
+    boost::hash_combine(seed, info.pushConstantRanges);
+    return seed;
+}
+RHIHASHER(PipelineLayoutInfo)
 
 } // namespace raum::rhi

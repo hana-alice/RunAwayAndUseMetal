@@ -2,23 +2,39 @@
 
 namespace raum::scene {
 
-Technique::Technique(MaterialPtr material, raum::scene::PhasePtr phase)
-:_material(material), _phase(phase){
+Technique::Technique(MaterialPtr material, std::string_view phaseName)
+:_material(material), _phaseName(phaseName){
 }
 
 MaterialPtr Technique::material() {
     return _material;
 }
 
-PhasePtr Technique::phase() {
-    return _phase;
+const std::string& Technique::phaseName() const {
+    return _phaseName;
 }
 
-void Technique::bakePipelineStateObject(rhi::GraphicsPipelinePtr pso) {
-    _pso = pso;
+rhi::RasterizationInfo& Technique::rasterizationInfo() {
+    return _rasterizationInfo;
 }
 
-rhi::GraphicsPipelinePtr Technique::pipelineStateObject() const {
+rhi::DepthStencilInfo& Technique::depthStencilInfo() {
+    return _depthStencilInfo;
+}
+
+rhi::MultisamplingInfo& Technique::multisamplingInfo() {
+    return _multisamplingInfo;
+}
+
+rhi::BlendInfo& Technique::blendInfo() {
+    return _blendInfo;
+}
+
+void Technique::bakePipelineState() {
+
+}
+
+rhi::GraphicsPipelinePtr Technique::pipelineState() {
     return _pso;
 }
 

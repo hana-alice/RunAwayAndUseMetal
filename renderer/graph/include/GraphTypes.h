@@ -41,7 +41,6 @@ struct RenderingResource {
     std::string name{};
     std::string bindingName{};
     Access access{Access::READ};
-    ResourceType type{ResourceType::COLOR};
 };
 
 struct AttachmentResource {
@@ -61,8 +60,8 @@ struct RenderPassData {
     rhi::RenderPassPtr renderpass;
     rhi::FrameBufferPtr framebuffer;
     rhi::Rect2D renderArea;
-    rhi::DescriptorSetLayoutPtr descriptorSetLayout;
     rhi::DescriptorSetPtr descriptorSet;
+    std::vector<RenderingResource> resources;
 };
 
 struct SubRenderPassData {
@@ -73,7 +72,6 @@ struct RenderQueueData {
     scene::Camera* camera{nullptr};
     rhi::Viewport viewport{};
     std::string phase{};
-    std::map<uint32_t, scene::RenderablePtr> renderables;
     std::vector<RenderingResource> resources;
     rhi::DescriptorSetPtr descriptorSet;
 };
@@ -173,7 +171,8 @@ struct ShaderBindingDesc {
 
 struct ShaderResource {
     std::unordered_map<std::string, ShaderBindingDesc, hash_string, std::equal_to<>> bindings;
-    std::array<rhi::DescriptorSetLayoutInfo, BindingRateCount> descriptorLayouts;
+    std::array<rhi::DescriptorSetLayoutPtr, BindingRateCount> descriptorLayouts;
+    rhi::PipelineLayoutPtr pipelineLayout;
     boost::container::flat_map<std::string, std::string> shaderSources;
     boost::container::flat_map<rhi::ShaderStage, rhi::ShaderPtr> shaders;
 };

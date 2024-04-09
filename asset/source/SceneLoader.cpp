@@ -14,18 +14,6 @@ namespace raum::asset {
 
 namespace {
 
-scene::PhasePtr simpleOpaquePhase() {
-    auto phase = scene::getOrCreatePhase("simple-opaque");
-    phase->setPrimitiveType(rhi::PrimitiveType::TRIANGLE_STRIP);
-    rhi::RasterizationInfo rasterizationInfo{};
-    phase->setRasterizationInfo(rasterizationInfo);
-    rhi::DepthStencilInfo depthStencilInfo{};
-    depthStencilInfo.depthTestEnable = true;
-    depthStencilInfo.depthWriteEnable = true;
-    phase->setDepthStencilInfo(depthStencilInfo);
-    return phase;
-}
-
 void expand(scene::AABB& aabb, const aiAABB& src) {
     aabb.minBound.x = std::min(aabb.minBound.x, src.mMin.x);
     aabb.minBound.y = std::min(aabb.minBound.y, src.mMin.y);
@@ -218,13 +206,12 @@ void loadMaterial(const aiScene* scene,
                   std::vector<scene::TechniquePtr>& techs,
                   std::filesystem::path file,
                   rhi::DevicePtr& device) {
-    auto phase = simpleOpaquePhase();
     for (size_t i = 0; i < scene->mNumMaterials; ++i) {
         const auto* material = scene->mMaterials[i];
         scene::MaterialTemplatePtr matTemplate = scene::getOrCreateMaterialTemplate("asset/layout/simple");
         scene::MaterialPtr mat = matTemplate->instantiate(scene::MaterialType::PBR);
         auto pbrMat = std::static_pointer_cast<scene::PBRMaterial>(mat);
-        techs.emplace_back(std::make_shared<scene::Technique>(mat, phase));
+        techs.emplace_back(std::make_shared<scene::Technique>(mat, "original"));
 
         auto entry = file.parent_path();
         aiString texturePath;
@@ -336,7 +323,6 @@ void SceneLoader::loadFlat(const std::filesystem::path& filePath) {
 
     std::vector<scene::TechniquePtr> defaultTechs;
     loadMaterial(scene, _data, defaultTechs, filePath, _device);
-    auto phase = simpleOpaquePhase();
     loadMesh(scene, scene->mRootNode, *_data, defaultTechs, _device);
 }
 

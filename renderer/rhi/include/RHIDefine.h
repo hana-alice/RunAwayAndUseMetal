@@ -69,6 +69,12 @@ using BlitEncoderPtr = std::shared_ptr<RHIBlitEncoder>;
 using RenderEncoderPtr = std::shared_ptr<RHIRenderEncoder>;
 using ComputeEncoderPtr = std::shared_ptr<RHIComputeEncoder>;
 
+using DescriptorSetLayoutRef = std::weak_ptr<RHIDescriptorSetLayout>;
+using PipelineLayoutRef = std::weak_ptr<RHIPipelineLayout>;
+using RenderPassRef = std::weak_ptr<RHIRenderPass>;
+using FrameBufferRef = std::weak_ptr<RHIFrameBuffer>;
+
+
 static constexpr uint32_t FRAMES_IN_FLIGHT{3};
 
 enum class API : unsigned char {
@@ -437,11 +443,13 @@ struct DescriptorBinding {
     ShaderStage visibility;
     std::vector<RHISampler*> immutableSamplers;
 };
+OPERATOR_EQUAL(DescriptorBinding)
 
 using DescriptorBindings = std::vector<DescriptorBinding>;
 struct DescriptorSetLayoutInfo {
     DescriptorBindings descriptorBindings;
 };
+OPERATOR_EQUAL(DescriptorSetLayoutInfo)
 
 struct BufferBindingView {
     uint32_t offset{0};
@@ -498,11 +506,13 @@ struct PushConstantRange {
     uint32_t offset{0};
     uint32_t size{0};
 };
+OPERATOR_EQUAL(PushConstantRange)
 
 struct PipelineLayoutInfo {
     std::vector<PushConstantRange> pushConstantRanges;
     std::vector<RHIDescriptorSetLayout*> setLayouts;
 };
+OPERATOR_EQUAL(PipelineLayoutInfo)
 
 enum class LoadOp : uint8_t {
     LOAD,

@@ -14,7 +14,7 @@ public:
     void updateSampler(const SamplerBinding& info) override;
     void updateTexelBuffer(const TexelBufferBinding& info) override;
 
-	VkDescriptorSet descriptorSet() const { return _descriptorSet; }
+    VkDescriptorSet descriptorSet() const { return _descriptorSet; }
 
 private:
     DescriptorSet(const DescriptorSetInfo& info, DescriptorPool* pool, RHIDevice* device);
@@ -25,4 +25,4 @@ private:
 
     friend class DescriptorPool;
 };
-}
+} // namespace raum::rhi

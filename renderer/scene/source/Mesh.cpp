@@ -39,13 +39,6 @@ TechniquePtr MeshRenderer::technique(uint32_t index) {
     return _techs[index];
 }
 
-TechniquePtr MeshRenderer::technique(std::string_view phase) {
-    auto iter = std::find_if(_techs.begin(), _techs.end(), [phase](const TechniquePtr& tech) {
-        return tech->phase()->phaseName() == phase;
-    });
-    return iter == _techs.end() ? nullptr : *iter;
-}
-
 const DrawInfo& MeshRenderer::drawInfo() const {
     return _drawInfo;
 }
