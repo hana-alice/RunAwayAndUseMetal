@@ -354,4 +354,7 @@ static const std::unordered_map<Format, std::string_view> format2str{
     {Format::ASTC_6x5_UNORM, "astc_6x5_unorm"},
 };
 
+rhi::DescriptorSetLayoutPtr getOrCreateDescriptorSetLayout(const rhi::DescriptorSetLayoutInfo& info, rhi::DevicePtr device);
+rhi::PipelineLayoutPtr getOrCreatePipelineLayout(const rhi::PipelineLayoutInfo& info, rhi::DevicePtr device);
+
 } // namespace raum::rhi

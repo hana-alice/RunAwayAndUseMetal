@@ -24,15 +24,25 @@ rhi::RenderPassPtr getOrCreateRenderPass(const RenderGraph::VertexType v, Access
     return nullptr;
 }
 
-rhi::FrameBufferPtr getOrCreateFrameBuffer(rhi::RenderPassPtr renderpass, const RenderGraph::VertexType v, AccessGraph& ag, rhi::DevicePtr device) {
+rhi::FrameBufferPtr getOrCreateFrameBuffer(
+    rhi::RenderPassPtr renderpass,
+    const RenderGraph::VertexType v,
+    AccessGraph& ag,
+    ResourceGraph& resg,
+    rhi::DevicePtr device) {
     auto* framebufferInfo = ag.getFrameBufferInfo(v);
-    framebufferInfo->renderPass = renderpass.get();
     raum_check(framebufferInfo, "failed to analyze framebuffer info at {}", v);
     if (framebufferInfo) {
-        if (!_frameBufferMap.contains(*framebufferInfo)) {
-            _frameBufferMap[*framebufferInfo] = rhi::FrameBufferPtr(device->createFrameBuffer(*framebufferInfo));
+        auto& rhiFbInfo = framebufferInfo->info;
+        for(size_t i = 0; i < framebufferInfo->images.size(); ++i) {
+            auto resName = framebufferInfo->images[i];
+            auto imgView = std::get<ImageViewData>(resg.getView(resName).data).imageView;
+            rhiFbInfo.images[i] = imgView.get();
         }
-        return _frameBufferMap[*framebufferInfo];
+        if (!_frameBufferMap.contains(rhiFbInfo)) {
+            _frameBufferMap[rhiFbInfo] = rhi::FrameBufferPtr(device->createFrameBuffer(rhiFbInfo));
+        }
+        return _frameBufferMap[rhiFbInfo];
     }
     raum_unreachable();
     return nullptr;
@@ -45,20 +55,20 @@ rhi::GraphicsPipelinePtr getOrCreateGraphicsPipeline(rhi::RenderPassPtr renderPa
     boost::hash_combine(seed, material->shaderName());
 
     if (!_psoMap.contains(seed)) {
-//        rhi::GraphicsPipelineInfo info;
-//        info.primitiveType = phase->primitiveType();
-//        info.subpassIndex = 0;
-//        info.viewportCount = 1;
-//        info.rasterizationInfo = phase->rasterizationInfo();
-//        info.multisamplingInfo = phase->multisamplingInfo();
-//        info.depthStencilInfo = phase->depthStencilInfo();
-//        info.colorBlendInfo = phase->blendInfo();
-//
-//        info.renderPass = renderPass.get();
-//        const auto& layout = shg.layout(material->shaderName());
-//        for (auto [_, shaderPtr] : layout.shaders) {
-//            info.shaders.emplace_back(shaderPtr.get());
-//        }
+        //        rhi::GraphicsPipelineInfo info;
+        //        info.primitiveType = phase->primitiveType();
+        //        info.subpassIndex = 0;
+        //        info.viewportCount = 1;
+        //        info.rasterizationInfo = phase->rasterizationInfo();
+        //        info.multisamplingInfo = phase->multisamplingInfo();
+        //        info.depthStencilInfo = phase->depthStencilInfo();
+        //        info.colorBlendInfo = phase->blendInfo();
+        //
+        //        info.renderPass = renderPass.get();
+        //        const auto& layout = shg.layout(material->shaderName());
+        //        for (auto [_, shaderPtr] : layout.shaders) {
+        //            info.shaders.emplace_back(shaderPtr.get());
+        //        }
     }
     return _psoMap.at(seed);
 }
@@ -87,4 +97,22 @@ rhi::PipelineLayoutPtr getOrCreatePipelineLayout(const rhi::PipelineLayoutInfo& 
     return _pplLayoutMap.at(seed);
 }
 
+bool culling(const ModelNode& node) {
+    return true;
 }
+
+void collectRenderables(std::vector<scene::RenderablePtr> renderables, const SceneGraph& sg, bool enableCullling) {
+    const auto& graph = sg.impl();
+    for (auto v : boost::make_iterator_range(boost::vertices(graph))) {
+        if (std::holds_alternative<ModelNode>(graph[v].sceneNodeData)) {
+            const auto& modelNode = std::get<ModelNode>(graph[v].sceneNodeData);
+            if (culling(modelNode) || !enableCullling) {
+                for (auto& meshRenderer : modelNode.model->meshRenderers()) {
+                    renderables.emplace_back(meshRenderer);
+                }
+            }
+        }
+    }
+}
+
+} // namespace raum::graph

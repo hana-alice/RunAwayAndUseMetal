@@ -27,7 +27,7 @@ std::unordered_map<std::string_view, rhi::DescriptorType, hash_string, std::equa
 
 std::unordered_map<std::string_view, Rate, hash_string, std::equal_to<>> rateMap = {
     {"per_pass", Rate::PER_PASS},
-    {"per_phase", Rate::PER_PHASE},
+    {"per_batch", Rate::PER_BATCH},
     {"per_instance", Rate::PER_INSTANCE},
     {"per_draw", Rate::PER_DRAW},
 };
@@ -115,8 +115,8 @@ Rate tag_invoke( value_to_tag<Rate>, value const& jv ) {
     const auto& rateStr = obj.at("rate").as_string();
     if(rateStr == "per_pass") {
         rate = Rate::PER_PASS;
-    } else if(rateStr == "per_phase") {
-        rate = Rate::PER_PHASE;
+    } else if(rateStr == "per_batch") {
+        rate = Rate::PER_BATCH;
     } else if(rateStr == "per_instance") {
         rate = Rate::PER_INSTANCE;
     } else if(rateStr == "per_draw") {

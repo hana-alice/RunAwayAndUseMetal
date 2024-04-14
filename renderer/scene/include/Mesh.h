@@ -20,8 +20,7 @@ struct MeshData {
     rhi::VertexBuffer vertexBuffer;
     rhi::IndexBuffer indexBuffer;
     ShaderAttribute shaderAttrs{ShaderAttribute::NONE};
-    std::vector<rhi::VertexAttribute> attributes;
-    rhi::VertexBufferAttribute bufferAttribute;
+    rhi::VertexLayout vertexLayout;
     uint32_t vertexCount{0};
     uint32_t indexCount{0};
 };
@@ -38,7 +37,6 @@ private:
 };
 
 using MeshPtr = std::shared_ptr<Mesh>;
-
 
 class PCGMesh : public Mesh {
 public:
@@ -70,15 +68,17 @@ class MeshRenderer : public Renderable {
 public:
     MeshRenderer() = delete;
     MeshRenderer(MeshPtr mesh);
-    
+
     void addTechnique(TechniquePtr tech);
     void removeTechnique(uint32_t index);
     void setMesh(MeshPtr mesh);
     void setVertexInfo(uint32_t firstVertex, uint32_t vertexCount, uint32_t indexCount);
     void setInstanceInfo(uint32_t firstInstance, uint32_t instanceCount);
 
+    const MeshPtr& mesh() const;
     TechniquePtr technique(uint32_t index);
     const DrawInfo& drawInfo() const;
+    std::vector<TechniquePtr>& techniques();
 
 private:
     MeshPtr _mesh;

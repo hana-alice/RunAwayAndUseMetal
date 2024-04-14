@@ -1,11 +1,7 @@
 #include "ShaderGraph.h"
 #include "RHIDescriptorSetLayout.h"
-#include "RHIDescriptorPool.h"
-#include <fstream>
-
 #include "RHIDefine.h"
 #include "RHIUtils.h"
-#include "Serialization.h"
 #include "boost/graph/depth_first_search.hpp"
 #include "RHIDevice.h"
 
@@ -14,36 +10,6 @@ using boost::graph::find_vertex;
 using boost::add_edge;
 
 namespace raum::graph {
-
-namespace {
-
-std::unordered_map<rhi::DescriptorSetLayoutInfo, rhi::DescriptorSetLayoutRef, rhi::RHIHash<rhi::DescriptorSetLayoutInfo>> _descriptorsetLayoutMap;
-std::unordered_map<rhi::PipelineLayoutInfo, rhi::PipelineLayoutRef, rhi::RHIHash<rhi::PipelineLayoutInfo>> _pplLayoutMap;
-
-rhi::DescriptorSetLayoutPtr getOrCreateDescriptorSetLayout(const rhi::DescriptorSetLayoutInfo& info, rhi::DevicePtr device) {
-    rhi::DescriptorSetLayoutPtr res;
-    if(!_descriptorsetLayoutMap.contains(info) || _descriptorsetLayoutMap.at(info).expired()) {
-        res = rhi::DescriptorSetLayoutPtr(device->createDescriptorSetLayout(info));
-        _descriptorsetLayoutMap[info] = res;
-    } else {
-        res = _descriptorsetLayoutMap[info].lock();
-    }
-    return res;
-}
-
-rhi::PipelineLayoutPtr getOrCreatePipelineLayout(const rhi::PipelineLayoutInfo& info, rhi::DevicePtr device) {
-    rhi::PipelineLayoutPtr res;
-    if(!_pplLayoutMap.contains(info) || _pplLayoutMap.at(info).expired()) {
-        res = rhi::PipelineLayoutPtr(device->createPipelineLayout(info));
-        _pplLayoutMap[info] = res;
-    } else {
-        res = _pplLayoutMap[info].lock();
-    }
-    return res;
-}
-
-}
-
 
 void ShaderGraph::addVertex(const std::filesystem::path &logicPath, ShaderResource&& shaderResource) {
     auto& graph = _impl;
@@ -77,7 +43,7 @@ std::unordered_map<std::string_view, rhi::ShaderStage> str2ShaderStage = {
 };
 
 void generateDescriptorSetLayouts(ShaderResource& resource, rhi::DevicePtr device) {
-    std::array<rhi::DescriptorSetLayoutInfo, BindingRateCount> infos;
+    std::array<rhi::DescriptorSetLayoutInfo, rhi::BindingRateCount> infos;
     auto& layouts = resource.descriptorLayouts;
     for(const auto& binding : resource.bindings) {
         const auto& bindingDesc = binding.second;
@@ -100,13 +66,13 @@ void generateDescriptorSetLayouts(ShaderResource& resource, rhi::DevicePtr devic
         infos[index].descriptorBindings.emplace_back(bindingDesc.binding, type, count, bindingDesc.visibility, std::vector<rhi::RHISampler*>());
     }
 
-    std::vector<rhi::RHIDescriptorSetLayout*> descriptors(BindingRateCount);
-    for (size_t i = 0; i < BindingRateCount; ++i) {
-        layouts[i] = getOrCreateDescriptorSetLayout(infos[i], device);
+    std::vector<rhi::RHIDescriptorSetLayout*> descriptors(rhi::BindingRateCount);
+    for (size_t i = 0; i < rhi::BindingRateCount; ++i) {
+        layouts[i] = rhi::getOrCreateDescriptorSetLayout(infos[i], device);
         descriptors[i] = layouts[i].get();
     }
 
-    resource.pipelineLayout = getOrCreatePipelineLayout({{}, descriptors}, device);
+    resource.pipelineLayout = rhi::getOrCreatePipelineLayout({{}, descriptors}, device);
 }
 
 struct ShaderVisitor: public boost::dfs_visitor<>{

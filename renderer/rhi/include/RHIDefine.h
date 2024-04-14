@@ -47,6 +47,8 @@ class RHICommandBuffer;
 class RHIBlitEncoder;
 class RHIRenderEncoder;
 class RHIComputeEncoder;
+class RHIDescriptorPool;
+class RHICommandPool;
 
 using DevicePtr = std::shared_ptr<RHIDevice>;
 using SwapchainPtr = std::shared_ptr<RHISwapchain>;
@@ -65,6 +67,7 @@ using ComputePipelinePtr = std::shared_ptr<RHIComputePipeline>;
 using PipelineLayoutPtr = std::shared_ptr<RHIPipelineLayout>;
 using SamplerPtr = std::shared_ptr<RHISampler>;
 using CommandBufferPtr = std::shared_ptr<RHICommandBuffer>;
+using CommandPoolPtr = std::shared_ptr<RHICommandPool>;
 using BlitEncoderPtr = std::shared_ptr<RHIBlitEncoder>;
 using RenderEncoderPtr = std::shared_ptr<RHIRenderEncoder>;
 using ComputeEncoderPtr = std::shared_ptr<RHIComputeEncoder>;
@@ -74,8 +77,11 @@ using PipelineLayoutRef = std::weak_ptr<RHIPipelineLayout>;
 using RenderPassRef = std::weak_ptr<RHIRenderPass>;
 using FrameBufferRef = std::weak_ptr<RHIFrameBuffer>;
 
+using DescriptorPoolPtr = std::unique_ptr<RHIDescriptorPool>;
+
 
 static constexpr uint32_t FRAMES_IN_FLIGHT{3};
+static constexpr uint32_t BindingRateCount = 4;
 
 enum class API : unsigned char {
     VULKAN,
@@ -405,12 +411,14 @@ struct VertexAttribute {
     Format format{Format::UNKNOWN};
     uint32_t offset{0};
 };
+OPERATOR_EQUAL(VertexAttribute)
 
 struct VertexBufferAttribute {
     uint32_t binding{0};
     uint32_t stride{0};
     InputRate rate{InputRate::PER_VERTEX};
 };
+OPERATOR_EQUAL(VertexBufferAttribute)
 
 using VertexBufferAttributes = std::vector<VertexBufferAttribute>;
 using VertexAttributes = std::vector<VertexAttribute>;
@@ -419,6 +427,7 @@ struct VertexLayout {
     VertexAttributes vertexAttrs;
     VertexBufferAttributes vertexBufferAttrs;
 };
+OPERATOR_EQUAL(VertexLayout)
 // struct GraphicsPipelineLayout {
 //     VertexLayout vertexLayout;
 // };
@@ -498,7 +507,7 @@ struct BindingInfo {
 
 struct DescriptorSetInfo {
     RHIDescriptorSetLayout* layout{nullptr};
-    std::vector<BindingInfo> bindingInfos;
+    BindingInfo bindingInfos;
 };
 
 struct PushConstantRange {
@@ -685,6 +694,7 @@ struct RasterizationInfo {
     float depthBiasSlopeFactor{0.0f};
     float lineWidth{1.0f};
 };
+OPERATOR_EQUAL(RasterizationInfo)
 
 struct MultisamplingInfo {
     bool enable{false};
@@ -694,6 +704,7 @@ struct MultisamplingInfo {
     uint32_t sampleCount{1};
     uint32_t sampleMask{0xFFFFFFFF};
 };
+OPERATOR_EQUAL(MultisamplingInfo)
 
 enum class CompareOp : uint8_t {
     NEVER,
@@ -726,6 +737,7 @@ struct StencilInfo {
     uint32_t writeMask{0};
     uint32_t reference{0};
 };
+OPERATOR_EQUAL(StencilInfo)
 
 struct DepthStencilInfo {
     bool depthTestEnable{false};
@@ -738,6 +750,7 @@ struct DepthStencilInfo {
     float minDepthBounds{0.0f};
     float maxDepthBounds{1.0f};
 };
+OPERATOR_EQUAL(DepthStencilInfo)
 
 enum class BlendFactor : uint8_t {
     ZERO,
@@ -783,6 +796,7 @@ struct AttachmentBlendInfo {
     BlendOp alphaBlendOp{BlendOp::ADD};
     Channel writemask{Channel::R | Channel::G | Channel::B | Channel::A};
 };
+OPERATOR_EQUAL(AttachmentBlendInfo)
 
 enum class LogicOp : uint8_t {
     CLEAR,
@@ -823,6 +837,7 @@ struct GraphicsPipelineInfo {
     DepthStencilInfo depthStencilInfo{};
     BlendInfo colorBlendInfo{};
 };
+OPERATOR_EQUAL(GraphicsPipelineInfo)
 
 enum class MemoryUsage : uint8_t {
     HOST_VISIBLE,
@@ -1079,10 +1094,10 @@ struct RHIHash {
 };
 
 enum class UpdateFrequency : uint8_t {
-    PER_FRAME = 0,
-    PER_PASS,
-    PER_PHASE,
+    PER_PASS = 0,
+    PER_BATCH,
     PER_INSTANCE,
+    PER_DRAW,
 };
 
 enum class CommandType : uint8_t {

@@ -20,8 +20,15 @@ public:
     rhi::BlendInfo& blendInfo();
     rhi::MultisamplingInfo& multisamplingInfo();
 
-    void bakePipelineState();
     rhi::GraphicsPipelinePtr pipelineState();
+
+    void bake(rhi::RenderPassPtr renderpass,
+              rhi::PipelineLayoutPtr pplLayout,
+              rhi::VertexLayout vertexLayout,
+              const boost::container::flat_map<rhi::ShaderStage, rhi::ShaderPtr>& shaderIn,
+              const boost::container::flat_map<std::string_view, uint32_t>& perBatchBinding,
+              rhi::DescriptorSetLayoutPtr batchLayout,
+              rhi::DevicePtr device);
 
 private:
     std::string _phaseName;

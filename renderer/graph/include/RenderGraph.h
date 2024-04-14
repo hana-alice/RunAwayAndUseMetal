@@ -121,7 +121,9 @@ public:
     ComputePass addComputePass(std::string_view name);
     CopyPass addCopyPass(std::string_view name);
 
-    auto& impl() const { return _graph; }
+    void clear();
+
+    auto& impl() { return _graph; }
 
     using VertexType = RenderGraphImpl::vertex_descriptor;
 

@@ -29,6 +29,10 @@ CopyPass RenderGraph::addCopyPass(std::string_view name) {
     return CopyPass{std::get<CopyPassData>(_graph[id].data)};
 }
 
+void RenderGraph::clear() {
+    _graph.clear();
+}
+
 RenderPass& RenderPass::addColor(std::string_view name, LoadOp loadOp, StoreOp storeOp, const ClearValue& color) {
     auto& data = std::get<RenderPassData>(_graph[_id].data);
     data.attachments.emplace_back(std::string{name}, "", color, Access::WRITE, ResourceType::COLOR, loadOp, storeOp);

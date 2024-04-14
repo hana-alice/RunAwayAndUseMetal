@@ -39,13 +39,14 @@ void loadMesh(const aiScene* scene,
 
         auto& meshData = newMesh->meshData();
         meshData.vertexCount = mesh->mNumVertices;
+        auto& vertexLayout = meshData.vertexLayout;
 
         std::vector<float> rawData;
         auto& meshVert = rawData;
         uint32_t stride{0};
         // pos
         stride += 3;
-        meshData.attributes.emplace_back(rhi::VertexAttribute{
+        vertexLayout.vertexAttrs.emplace_back(rhi::VertexAttribute{
             location++,
             0,
             rhi::Format::RGB32_SFLOAT,
@@ -57,7 +58,7 @@ void loadMesh(const aiScene* scene,
         if (mesh->HasNormals()) {
             stride += 3;
             normal = mesh->mNormals;
-            meshData.attributes.emplace_back(rhi::VertexAttribute{
+            vertexLayout.vertexAttrs.emplace_back(rhi::VertexAttribute{
                 location++,
                 0,
                 rhi::Format::RGB32_SFLOAT,
@@ -66,7 +67,7 @@ void loadMesh(const aiScene* scene,
         }
         if (mesh->HasTextureCoords(0)) {
             stride += 2;
-            meshData.attributes.emplace_back(rhi::VertexAttribute{
+            vertexLayout.vertexAttrs.emplace_back(rhi::VertexAttribute{
                 location++,
                 0,
                 rhi::Format::RG32_SFLOAT,
@@ -75,12 +76,12 @@ void loadMesh(const aiScene* scene,
         }
         if (mesh->HasTangentsAndBitangents()) {
             stride += 3 + 3;
-            meshData.attributes.emplace_back(rhi::VertexAttribute{
+            vertexLayout.vertexAttrs.emplace_back(rhi::VertexAttribute{
                 location++,
                 0,
                 rhi::Format::RGB32_SFLOAT,
             });
-            meshData.attributes.emplace_back(rhi::VertexAttribute{
+            vertexLayout.vertexAttrs.emplace_back(rhi::VertexAttribute{
                 location++,
                 0,
                 rhi::Format::RGB32_SFLOAT,
@@ -91,7 +92,7 @@ void loadMesh(const aiScene* scene,
         if (mesh->HasVertexColors(0)) {
             color = mesh->mColors[0];
             stride += 4;
-            meshData.attributes.emplace_back(rhi::VertexAttribute{
+            vertexLayout.vertexAttrs.emplace_back(rhi::VertexAttribute{
                 location++,
                 0,
                 rhi::Format::RGBA32_SFLOAT,
@@ -178,7 +179,7 @@ void loadMesh(const aiScene* scene,
             };
             meshData.indexBuffer.buffer = device->createBuffer(bufferInfo);
         }
-        auto& bufferAttribute = meshData.bufferAttribute;
+        auto& bufferAttribute = vertexLayout.vertexBufferAttrs.emplace_back();
         bufferAttribute.binding = 0;
         bufferAttribute.rate = rhi::InputRate::PER_VERTEX;
         bufferAttribute.stride = stride;

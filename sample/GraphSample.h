@@ -10,7 +10,6 @@
 #include "RHIDevice.h"
 #include "Camera.h"
 #include "PBRMaterial.h"
-#include "Phase.h"
 namespace raum::sample {
 class GraphSample : public SampleBase {
 public:
@@ -43,8 +42,8 @@ GraphSample::GraphSample(rhi::DevicePtr device, rhi::SwapchainPtr swapchain)
     asset::SceneLoader loader(device);
     loader.loadFlat(resourcePath / "models" / "sponza-gltf-pbr" / "sponza.glb");
     const auto& model = loader.modelData();
-    for(auto& mat : model->materials()) {
-        auto pbrMat = std::static_pointer_cast<raum::scene::PBRMaterial>(mat);
+    for(auto& meshRenderer : model->meshRenderers()) {
+        auto pbrMat = std::static_pointer_cast<raum::scene::PBRMaterial>(meshRenderer->technique(0)->material());
         pbrMat->setDiffuse("mainTexture");
     }
 
@@ -69,6 +68,7 @@ GraphSample::GraphSample(rhi::DevicePtr device, rhi::SwapchainPtr swapchain)
     if(!_resourceGraph->contains(_forwardDS)) {
         _resourceGraph->addImage(_forwardDS, rhi::ImageUsage::DEPTH_STENCIL_ATTACHMENT, width, height, rhi::Format::D24_UNORM_S8_UINT);
     }
+    
 }
 
 void GraphSample::show() {

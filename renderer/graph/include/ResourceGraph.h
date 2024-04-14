@@ -20,7 +20,7 @@ struct Resource {
     std::string name{};
     ResourceResidency residency{ResourceResidency::DONT_CARE};
     rhi::AccessFlags access{rhi::AccessFlags::NONE};
-    std::variant<BufferData, BufferViewData, ImageData, ImageViewData> data;
+    std::variant<BufferData, BufferViewData, ImageData, ImageViewData, rhi::SwapchainPtr> data;
     uint64_t life{0};
 };
 } // namespace raum::graph
@@ -60,6 +60,7 @@ public:
     void addImage(std::string_view name, const rhi::ImageInfo& data);
     void addImage(std::string_view name, rhi::ImageUsage, uint32_t width, uint32_t height, rhi::Format format);
     void addImageView(std::string_view name, const ImageViewData& data);
+    void import(std::string_view name, rhi::SwapchainPtr swapchain);
     void mount(std::string_view name);
     void unmount(std::string_view name, uint64_t life);
 
@@ -68,6 +69,12 @@ public:
     Resource& get(std::string_view name);
     const Resource& getView(std::string_view name) const;
     Resource& getView(std::string_view name);
+
+    rhi::BufferPtr getBuffer(std::string_view name);
+    rhi::BufferViewPtr getBufferView(std::string_view name);
+    rhi::ImagePtr getImage(std::string_view name);
+    rhi::ImageViewPtr getImageView(std::string_view name);
+    rhi::SwapchainPtr getSwapchain(std::string_view name);
 
 private:
     rhi::RHIDevice* _device{nullptr};

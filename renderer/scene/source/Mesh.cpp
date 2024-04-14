@@ -35,8 +35,16 @@ void MeshRenderer::setInstanceInfo(uint32_t firstInstance, uint32_t instanceCoun
     _drawInfo.instanceCount = instanceCount;
 }
 
+const MeshPtr& MeshRenderer::mesh() const {
+    return _mesh;
+}
+
 TechniquePtr MeshRenderer::technique(uint32_t index) {
     return _techs[index];
+}
+
+std::vector<TechniquePtr>& MeshRenderer::techniques() {
+    return _techs;
 }
 
 const DrawInfo& MeshRenderer::drawInfo() const {

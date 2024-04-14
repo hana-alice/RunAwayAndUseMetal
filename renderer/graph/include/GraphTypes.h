@@ -60,8 +60,6 @@ struct RenderPassData {
     rhi::RenderPassPtr renderpass;
     rhi::FrameBufferPtr framebuffer;
     rhi::Rect2D renderArea;
-    rhi::DescriptorSetPtr descriptorSet;
-    std::vector<RenderingResource> resources;
 };
 
 struct SubRenderPassData {
@@ -73,7 +71,7 @@ struct RenderQueueData {
     rhi::Viewport viewport{};
     std::string phase{};
     std::vector<RenderingResource> resources;
-    rhi::DescriptorSetPtr descriptorSet;
+    scene::BindGroupPtr bindGroup;
 };
 
 struct ComputePassData {
@@ -100,24 +98,24 @@ struct CopyPassData {
 
 struct BufferData {
     rhi::BufferInfo info{};
-    rhi::RHIBuffer* buffer{nullptr};
+    rhi::BufferPtr buffer;
 };
 
 struct BufferViewData {
     std::string origin{};
     rhi::BufferViewInfo info{};
-    rhi::RHIBufferView* bufferView{nullptr};
+    rhi::BufferViewPtr bufferView;
 };
 
 struct ImageData {
     rhi::ImageInfo info{};
-    rhi::RHIImage* image{nullptr};
+    rhi::ImagePtr image;
 };
 
 struct ImageViewData {
     std::string origin{};
     rhi::ImageViewInfo info{};
-    rhi::RHIImageView* imageView{nullptr};
+    rhi::ImageViewPtr imageView;
 };
 
 enum class BindingType :uint8_t {
@@ -152,12 +150,10 @@ struct SamplerBinding {
 
 enum class Rate {
     PER_PASS,
-    PER_PHASE,
+    PER_BATCH,
     PER_INSTANCE,
     PER_DRAW,
 };
-
-constexpr uint32_t BindingRateCount = 4;
 
 struct ShaderBindingDesc {
     BindingType type{BindingType::BUFFER};
@@ -171,7 +167,7 @@ struct ShaderBindingDesc {
 
 struct ShaderResource {
     std::unordered_map<std::string, ShaderBindingDesc, hash_string, std::equal_to<>> bindings;
-    std::array<rhi::DescriptorSetLayoutPtr, BindingRateCount> descriptorLayouts;
+    std::array<rhi::DescriptorSetLayoutPtr, rhi::BindingRateCount> descriptorLayouts;
     rhi::PipelineLayoutPtr pipelineLayout;
     boost::container::flat_map<std::string, std::string> shaderSources;
     boost::container::flat_map<rhi::ShaderStage, rhi::ShaderPtr> shaders;

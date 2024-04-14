@@ -42,7 +42,7 @@ public:
     // in this case all children of 'name' will be compiled. [grouped multithreading]
     void compile(std::string_view name);
 
-    rhi::DescriptorSetLayoutInfo layoutInfo(std::string_view name, Rate rate);
+//    rhi::DescriptorSetLayoutInfo layoutInfo(std::string_view name, Rate rate);
 
     const ShaderResource& layout(std::string_view name) const;
 
