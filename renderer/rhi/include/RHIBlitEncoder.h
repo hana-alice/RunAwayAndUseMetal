@@ -16,7 +16,7 @@ public:
     virtual void blitImage(RHIImage* srcImage, ImageLayout srcLayout, RHIImage* dstImage, ImageLayout dstLayout, ImageBlit* regions, uint32_t regionCount, Filter filter) = 0;
     virtual void copyBufferToImage(RHIBuffer* buffer, RHIImage* image, ImageLayout layout, BufferImageCopyRegion* regions, uint32_t regionCount) = 0;
     virtual void copyImageToBuffer(RHIImage* image, ImageLayout layout, RHIBuffer* dstBuffer, BufferImageCopyRegion* regions, uint32_t regionCount) = 0;
-    virtual void updateBuffer(RHIBuffer* buffer, uint32_t dstOffset, void* data, uint32_t dataSize) = 0;
+    virtual void updateBuffer(RHIBuffer* buffer, uint32_t dstOffset, const void* const data, uint32_t dataSize) = 0;
     virtual void fillBuffer(RHIBuffer* buffer, uint32_t dstOffset, uint32_t size, uint32_t value) = 0;
 
     virtual void clearColorImage(RHIImage* image, ImageLayout layout, ClearValue* data, ImageSubresourceRange* ranges, uint32_t rangeCount) = 0;

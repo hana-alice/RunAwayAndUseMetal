@@ -15,6 +15,13 @@ public:
 
     void execute();
 
+    //deprecated futrue
+    RenderGraph& renderGraph() { return *_renderGraph; }
+    SceneGraph& sceneGraph() { return *_sceneGraph; }
+    ShaderGraph& shaderGraph() { return *_shaderGraph; }
+    ResourceGraph& resourceGraph() { return *_resourceGraph; }
+
+
 private:
     RenderGraph* _renderGraph;
     TaskGraph* _taskGraph;
@@ -23,11 +30,12 @@ private:
     ShaderGraph* _shaderGraph;
     ResourceGraph* _resourceGraph;
 
-    std::unordered_map<rhi::RHIImageView*, rhi::CommandBufferPtr> _commandBuffers;
+    std::vector<rhi::CommandBufferPtr> _commandBuffers;
     rhi::CommandPoolPtr _commandPool;
-    rhi::SwapchainPtr _swapchian;
+    rhi::SwapchainPtr _swapchain;
     rhi::DevicePtr _device;
 
+    std::unordered_map<std::string, scene::BindGroupPtr> _perPhaseBindGroups;
 };
 
 } // namespace raum::graph

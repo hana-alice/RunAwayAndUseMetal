@@ -11,8 +11,12 @@ public:
     virtual void present() = 0;
 
     virtual uint32_t imageCount() const = 0;
+    virtual uint32_t imageIndex() const = 0;
+    virtual uint32_t width() const = 0;
+    virtual uint32_t height() const = 0;
+    virtual Format format() const = 0;
 
-    virtual RHIImageView* swapchainImageView() const = 0;
+    virtual RHIImage* allocateImage(uint32_t index) = 0;
     virtual ~RHISwapchain() = 0;
 };
 

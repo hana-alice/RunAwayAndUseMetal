@@ -9,7 +9,7 @@
 #include "VKSampler.h"
 namespace raum::rhi {
 DescriptorSet::DescriptorSet(const DescriptorSetInfo& info, DescriptorPool* pool, RHIDevice* device)
-: RHIDescriptorSet(info, device),
+: RHIDescriptorSet(info, device), _info(info),
   _device(static_cast<Device*>(device)),
   _descriptorPool(pool) {
     
@@ -24,9 +24,8 @@ DescriptorSet::DescriptorSet(const DescriptorSetInfo& info, DescriptorPool* pool
 
     vkAllocateDescriptorSets(_device->device(), &allocInfo, &_descriptorSet);
 
-    update(info.bindingInfos);
+    //update(info.bindingInfos);
 }
-
 
 void DescriptorSet::update(const BindingInfo& bindingInfo) {
     std::vector<VkWriteDescriptorSet> writes;

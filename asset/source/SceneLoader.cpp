@@ -45,58 +45,64 @@ void loadMesh(const aiScene* scene,
         auto& meshVert = rawData;
         uint32_t stride{0};
         // pos
-        stride += 3;
         vertexLayout.vertexAttrs.emplace_back(rhi::VertexAttribute{
             location++,
             0,
             rhi::Format::RGB32_SFLOAT,
+            stride * static_cast<uint32_t >(sizeof(float)),
         });
+        stride += 3;
 
         meshData.shaderAttrs = scene::ShaderAttribute::POSITION;
 
         const aiVector3D* normal{nullptr};
         if (mesh->HasNormals()) {
-            stride += 3;
             normal = mesh->mNormals;
             vertexLayout.vertexAttrs.emplace_back(rhi::VertexAttribute{
                 location++,
                 0,
                 rhi::Format::RGB32_SFLOAT,
+                stride * static_cast<uint32_t >(sizeof(float)),
             });
             meshData.shaderAttrs |= scene::ShaderAttribute::NORMAL;
+            stride += 3;
         }
         if (mesh->HasTextureCoords(0)) {
-            stride += 2;
             vertexLayout.vertexAttrs.emplace_back(rhi::VertexAttribute{
                 location++,
                 0,
                 rhi::Format::RG32_SFLOAT,
+                stride * static_cast<uint32_t >(sizeof(float)),
             });
+            stride += 2;
             meshData.shaderAttrs |= scene::ShaderAttribute::UV;
         }
         if (mesh->HasTangentsAndBitangents()) {
+            vertexLayout.vertexAttrs.emplace_back(rhi::VertexAttribute{
+                location++,
+                0,
+                rhi::Format::RGB32_SFLOAT,
+                stride * static_cast<uint32_t >(sizeof(float)),
+            });
+            vertexLayout.vertexAttrs.emplace_back(rhi::VertexAttribute{
+                location++,
+                0,
+                rhi::Format::RGB32_SFLOAT,
+                stride * static_cast<uint32_t >(sizeof(float)),
+            });
             stride += 3 + 3;
-            vertexLayout.vertexAttrs.emplace_back(rhi::VertexAttribute{
-                location++,
-                0,
-                rhi::Format::RGB32_SFLOAT,
-            });
-            vertexLayout.vertexAttrs.emplace_back(rhi::VertexAttribute{
-                location++,
-                0,
-                rhi::Format::RGB32_SFLOAT,
-            });
             meshData.shaderAttrs |= scene::ShaderAttribute::BI_TANGENT;
         }
         const aiColor4D* color{nullptr};
         if (mesh->HasVertexColors(0)) {
             color = mesh->mColors[0];
-            stride += 4;
             vertexLayout.vertexAttrs.emplace_back(rhi::VertexAttribute{
                 location++,
                 0,
                 rhi::Format::RGBA32_SFLOAT,
+                stride * static_cast<uint32_t >(sizeof(float)),
             });
+            stride += 4;
         }
         meshVert.resize(stride * mesh->mNumVertices);
 
@@ -182,7 +188,7 @@ void loadMesh(const aiScene* scene,
         auto& bufferAttribute = vertexLayout.vertexBufferAttrs.emplace_back();
         bufferAttribute.binding = 0;
         bufferAttribute.rate = rhi::InputRate::PER_VERTEX;
-        bufferAttribute.stride = stride;
+        bufferAttribute.stride = stride * static_cast<uint32_t >(sizeof(float));
 
         rhi::BufferInfo bufferInfo{
             .memUsage = rhi::MemoryUsage::DEVICE_ONLY,
@@ -212,7 +218,7 @@ void loadMaterial(const aiScene* scene,
         scene::MaterialTemplatePtr matTemplate = scene::getOrCreateMaterialTemplate("asset/layout/simple");
         scene::MaterialPtr mat = matTemplate->instantiate(scene::MaterialType::PBR);
         auto pbrMat = std::static_pointer_cast<scene::PBRMaterial>(mat);
-        techs.emplace_back(std::make_shared<scene::Technique>(mat, "original"));
+        techs.emplace_back(std::make_shared<scene::Technique>(mat, "default"));
 
         auto entry = file.parent_path();
         aiString texturePath;
@@ -253,7 +259,16 @@ void loadMaterial(const aiScene* scene,
                         .mipCount = 1};
 
                     auto imgView = rhi::ImageViewPtr(device->createImageView(viewInfo));
-                    pbrMat->add(scene::Texture{"", img, imgView});
+                    if (texType == aiTextureType_DIFFUSE) {
+                        pbrMat->add(scene::Texture{"mainTexture", img, imgView});
+                        pbrMat->add(scene::Sampler{"mainSampler",
+                                                   {
+                                                       .magFilter = rhi::Filter::LINEAR,
+                                                       .minFilter = rhi::Filter::LINEAR,
+                                                   }});
+                    }
+
+                    imgLoader.free(std::move(imgAsset));
                 }
             }
         }

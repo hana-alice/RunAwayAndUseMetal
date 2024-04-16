@@ -53,6 +53,12 @@ void Technique::bake(rhi::RenderPassPtr renderpass,
         shaders.emplace_back(p.second.get());
     });
 
+    const auto& attachments = renderpass->attachments();
+    auto colorSize = std::count_if(attachments.begin(), attachments.end(), [](const rhi::AttachmentInfo& attachment) {
+        return attachment.finalLayout == rhi::ImageLayout::COLOR_ATTACHMENT_OPTIMAL;
+    });
+    _blendInfo.attachmentBlends.resize(colorSize);
+
     rhi::GraphicsPipelineInfo info{
         .primitiveType = _primitiveType,
         .pipelineLayout = pplLayout.get(),

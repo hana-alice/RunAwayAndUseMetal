@@ -2,12 +2,7 @@
 #include <boost/functional/hash.hpp>
 #include "RHIDefine.h"
 #include "RHIDevice.h"
-
-#define RHIHASHER(T)                                                        \
-    template <>                                                             \
-    struct RHIHash<T> {                                                     \
-        size_t operator()(const T& info) const { return hash_value(info); } \
-    };
+#include <unordered_set>
 
 namespace raum::rhi {
 bool operator==(const SamplerInfo& lhs, const SamplerInfo& rhs) {
@@ -46,7 +41,6 @@ std::size_t hash_value(const SamplerInfo& info) {
     boost::hash_combine(seed, info.anisotropyEnable);
     return seed;
 }
-RHIHASHER(SamplerInfo);
 
 bool operator==(const AttachmentReference& lhs, const AttachmentReference& rhs) {
     return lhs.index == rhs.index && lhs.layout == rhs.layout;
@@ -57,7 +51,6 @@ size_t hash_value(const AttachmentReference& info) {
     boost::hash_combine(seed, info.layout);
     return seed;
 }
-RHIHASHER(AttachmentReference)
 
 bool operator==(const AttachmentInfo& lhs, const AttachmentInfo& rhs) {
     return lhs.loadOp == rhs.loadOp && lhs.storeOp == rhs.storeOp && lhs.stencilLoadOp == rhs.stencilLoadOp && lhs.stencilStoreOp == rhs.stencilStoreOp && lhs.format == rhs.format && lhs.sampleCount == rhs.sampleCount && lhs.initialLayout == rhs.initialLayout && lhs.finalLayout == rhs.finalLayout;
@@ -74,7 +67,6 @@ size_t hash_value(const AttachmentInfo& info) {
     boost::hash_combine(seed, info.finalLayout);
     return seed;
 }
-RHIHASHER(AttachmentInfo);
 
 bool operator==(const SubpassInfo& lhs, const SubpassInfo& rhs) {
     return lhs.colors == rhs.colors && lhs.depthStencil == rhs.depthStencil && lhs.inputs == rhs.inputs && lhs.preserves == rhs.preserves && lhs.resolves == rhs.resolves;
@@ -88,7 +80,6 @@ size_t hash_value(const SubpassInfo& info) {
     boost::hash_combine(seed, info.resolves);
     return seed;
 }
-RHIHASHER(SubpassInfo)
 
 bool operator==(const SubpassDependency& lhs, const SubpassDependency& rhs) {
     return lhs.dependencyFlags == rhs.dependencyFlags && lhs.dst == rhs.dst && lhs.src == rhs.src && lhs.srcStage == rhs.srcStage && lhs.dstStage == rhs.dstStage &&
@@ -105,7 +96,6 @@ size_t hash_value(const SubpassDependency& info) {
     boost::hash_combine(seed, info.dstAccessFlags);
     return seed;
 }
-RHIHASHER(SubpassDependency)
 
 bool operator==(const RenderPassInfo& lhs, const RenderPassInfo& rhs) {
     return lhs.attachments == rhs.attachments && lhs.subpasses == rhs.subpasses && lhs.dependencies == rhs.dependencies;
@@ -117,7 +107,6 @@ std::size_t hash_value(const RenderPassInfo& info) {
     boost::hash_combine(seed, info.dependencies);
     return seed;
 }
-RHIHASHER(RenderPassInfo)
 
 bool operator==(const FrameBufferInfo& lhs, const FrameBufferInfo& rhs) {
     return lhs.renderPass == rhs.renderPass && lhs.width == rhs.width && lhs.height == rhs.height && lhs.layers == rhs.layers && lhs.images == rhs.images;
@@ -131,7 +120,6 @@ std::size_t hash_value(const FrameBufferInfo& info) {
     boost::hash_combine(seed, info.images);
     return seed;
 }
-RHIHASHER(FrameBufferInfo)
 
 bool operator==(const DescriptorBinding& lhs, const DescriptorBinding& rhs) {
     return lhs.type == rhs.type &&
@@ -149,7 +137,6 @@ std::size_t hash_value(const DescriptorBinding& binding) {
     boost::hash_combine(seed, binding.immutableSamplers);
     return seed;
 }
-RHIHASHER(DescriptorBinding)
 
 bool operator==(const DescriptorSetLayoutInfo& lhs, const DescriptorSetLayoutInfo& rhs) {
     return lhs.descriptorBindings == rhs.descriptorBindings;
@@ -159,7 +146,6 @@ std::size_t hash_value(const DescriptorSetLayoutInfo& info) {
     boost::hash_combine(seed, info.descriptorBindings);
     return seed;
 }
-RHIHASHER(DescriptorSetLayoutInfo)
 
 bool operator==(const PushConstantRange& lhs, const PushConstantRange& rhs) {
     return lhs.stage == rhs.stage &&
@@ -173,7 +159,6 @@ std::size_t hash_value(const PushConstantRange& info) {
     boost::hash_combine(seed, info.offset);
     return seed;
 }
-RHIHASHER(PushConstantRange)
 
 bool operator==(const VertexAttribute& lhs, const VertexAttribute& rhs) {
     return lhs.offset == rhs.offset &&
@@ -189,7 +174,6 @@ std::size_t hash_value(const VertexAttribute& info) {
     boost::hash_combine(seed, info.location);
     return seed;
 }
-RHIHASHER(VertexAttribute)
 
 bool operator==(const VertexBufferAttribute& lhs, const VertexBufferAttribute& rhs) {
     return lhs.binding == rhs.binding &&
@@ -203,7 +187,6 @@ std::size_t hash_value(const VertexBufferAttribute& info) {
     boost::hash_combine(seed, info.rate);
     return seed;
 }
-RHIHASHER(VertexBufferAttribute)
 
 bool operator==(const VertexLayout& lhs, const VertexLayout& rhs) {
     return lhs.vertexAttrs == rhs.vertexAttrs &&
@@ -215,7 +198,6 @@ std::size_t hash_value(const VertexLayout& info) {
     boost::hash_combine(seed, info.vertexBufferAttrs);
     return seed;
 }
-RHIHASHER(VertexLayout)
 
 bool operator==(const PipelineLayoutInfo& lhs, const PipelineLayoutInfo& rhs) {
     return lhs.setLayouts == rhs.setLayouts &&
@@ -227,7 +209,6 @@ std::size_t hash_value(const PipelineLayoutInfo& info) {
     boost::hash_combine(seed, info.pushConstantRanges);
     return seed;
 }
-RHIHASHER(PipelineLayoutInfo)
 
 bool operator==(const RasterizationInfo& lhs, const RasterizationInfo& rhs) {
     return lhs.depthClamp == rhs.depthClamp &&
@@ -253,7 +234,6 @@ std::size_t hash_value(const RasterizationInfo& info) {
     boost::hash_combine(seed, info.lineWidth);
     return seed;
 }
-RHIHASHER(RasterizationInfo)
 
 bool operator==(const MultisamplingInfo& lhs, const MultisamplingInfo& rhs) {
     return lhs.enable == rhs.enable &&
@@ -273,7 +253,6 @@ std::size_t hash_value(const MultisamplingInfo& info) {
     boost::hash_combine(seed, info.sampleMask);
     return seed;
 }
-RHIHASHER(MultisamplingInfo)
 
 bool operator==(const StencilInfo& lhs, const StencilInfo& rhs) {
     return lhs.failOp == rhs.failOp &&
@@ -295,7 +274,6 @@ std::size_t hash_value(const StencilInfo& info) {
     boost::hash_combine(seed, info.reference);
     return seed;
 }
-RHIHASHER(StencilInfo)
 
 bool operator==(const DepthStencilInfo& lhs, const DepthStencilInfo& rhs) {
     return lhs.depthTestEnable == rhs.depthTestEnable &&
@@ -321,7 +299,6 @@ std::size_t hash_value(const DepthStencilInfo& info) {
     boost::hash_combine(seed, info.maxDepthBounds);
     return seed;
 }
-RHIHASHER(DepthStencilInfo)
 
 bool operator==(const AttachmentBlendInfo& lhs, const AttachmentBlendInfo& rhs) {
     return lhs.blendEnable == rhs.blendEnable &&
@@ -345,13 +322,12 @@ std::size_t hash_value(const AttachmentBlendInfo& info) {
     boost::hash_combine(seed, info.writemask);
     return seed;
 }
-RHIHASHER(AttachmentBlendInfo)
 
 bool operator==(const BlendInfo& lhs, const BlendInfo& rhs) {
     return lhs.logicOpEnable == rhs.logicOpEnable &&
            lhs.logicOp == rhs.logicOp &&
            lhs.attachmentBlends == rhs.attachmentBlends &&
-           lhs.blendConstants == rhs.blendConstants;
+           std::equal(std::begin(lhs.blendConstants), std::end(lhs.blendConstants), std::begin(rhs.blendConstants), std::end(rhs.blendConstants));
 }
 std::size_t hash_value(const BlendInfo& info) {
     size_t seed = 9527;
@@ -361,7 +337,6 @@ std::size_t hash_value(const BlendInfo& info) {
     boost::hash_combine(seed, info.blendConstants);
     return seed;
 }
-RHIHASHER(BlendInfo)
 
 bool operator==(const GraphicsPipelineInfo& lhs, const GraphicsPipelineInfo& rhs) {
     return lhs.primitiveType == rhs.primitiveType &&
@@ -391,7 +366,6 @@ std::size_t hash_value(const GraphicsPipelineInfo& info) {
     boost::hash_combine(seed, info.colorBlendInfo);
     return seed;
 }
-RHIHASHER(GraphicsPipelineInfo)
 
 namespace {
 std::unordered_map<rhi::DescriptorSetLayoutInfo, rhi::DescriptorSetLayoutRef, rhi::RHIHash<rhi::DescriptorSetLayoutInfo>> _descriptorsetLayoutMap;
@@ -418,6 +392,30 @@ rhi::PipelineLayoutPtr getOrCreatePipelineLayout(const rhi::PipelineLayoutInfo& 
         res = _pplLayoutMap[info].lock();
     }
     return res;
+}
+
+const std::unordered_set<Format> depthFormats {
+    Format::D16_UNORM,
+    Format::X8_D24_UNORM_PACK32,
+    Format::D32_SFLOAT,
+    Format::D16_UNORM_S8_UINT,
+    Format::D24_UNORM_S8_UINT,
+    Format::D32_SFLOAT_S8_UINT,
+};
+const std::unordered_set<Format> stencilFormats {
+    Format::X8_D24_UNORM_PACK32,
+    Format::S8_UINT,
+    Format::D16_UNORM_S8_UINT,
+    Format::D24_UNORM_S8_UINT,
+    Format::D32_SFLOAT_S8_UINT,
+};
+
+bool hasDepth(Format format) {
+    return depthFormats.contains(format);
+}
+
+bool hasStencil(Format format) {
+    return stencilFormats.contains(format);
 }
 
 } // namespace raum::rhi

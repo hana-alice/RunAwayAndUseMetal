@@ -56,6 +56,7 @@ public:
     ResourceGraph(ResourceGraph&&) = delete;
 
     void addBuffer(std::string_view name, const BufferData& data);
+    void addBuffer(std::string_view name, uint32_t size, rhi::BufferUsage usage);
     void addBufferView(std::string_view name, const BufferViewData& data);
     void addImage(std::string_view name, const rhi::ImageInfo& data);
     void addImage(std::string_view name, rhi::ImageUsage, uint32_t width, uint32_t height, rhi::Format format);

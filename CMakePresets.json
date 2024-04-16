@@ -4,6 +4,7 @@
         {
             "name": "debug",
             "binaryDir": "${sourceDir}/build",
+            "installDir": "${sourceDir}/build",
             "cacheVariables": {
                 "CMAKE_TOOLCHAIN_FILE": "vcpkg/scripts/buildsystems/vcpkg.cmake"
             }

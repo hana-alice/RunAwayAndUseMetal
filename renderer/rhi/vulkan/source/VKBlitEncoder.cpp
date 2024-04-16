@@ -185,7 +185,7 @@ void BlitEncoder::copyImageToBuffer(RHIImage* image, ImageLayout layout, RHIBuff
     vkCmdCopyImageToBuffer(_commandBuffer->commandBuffer(), src, imgLayout, dst, regionCount, copies.data());
 }
 
-void BlitEncoder::updateBuffer(RHIBuffer* buffer, uint32_t dstOffset, void* data, uint32_t dataSize) {
+void BlitEncoder::updateBuffer(RHIBuffer* buffer, uint32_t dstOffset, const void* const data, uint32_t dataSize) {
     RAUM_WARN_IF(buffer->info().size > 65536, "Use copy staging buffer instead!");
 
     auto buf = static_cast<Buffer*>(buffer)->buffer();

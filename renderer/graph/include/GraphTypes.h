@@ -36,11 +36,14 @@ enum class ResourceType : uint8_t {
 using LoadOp = rhi::LoadOp;
 using StoreOp = rhi::StoreOp;
 using ClearValue = rhi::ClearValue;
+using ShaderStage = rhi::ShaderStage;
+using BufferUsage = rhi::BufferUsage;
 
 struct RenderingResource {
     std::string name{};
     std::string bindingName{};
     Access access{Access::READ};
+    ShaderStage visibility{ShaderStage::FRAGMENT};
 };
 
 struct AttachmentResource {
@@ -69,7 +72,6 @@ struct SubRenderPassData {
 struct RenderQueueData {
     scene::Camera* camera{nullptr};
     rhi::Viewport viewport{};
-    std::string phase{};
     std::vector<RenderingResource> resources;
     scene::BindGroupPtr bindGroup;
 };
@@ -85,7 +87,7 @@ struct CopyPair {
 };
 
 struct UploadPair {
-    uint8_t* data{nullptr};
+    const void* data{nullptr};
     uint32_t size{0};
     std::uint32_t offset{0};
     std::string_view name;

@@ -62,6 +62,7 @@ struct DrawInfo {
     uint32_t firstInstance{0};
     uint32_t instanceCount{1};
     uint32_t indexCount{0};
+    uint32_t vertexOffset{0};
 };
 
 class MeshRenderer : public Renderable {

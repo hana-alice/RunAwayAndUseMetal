@@ -207,10 +207,10 @@ void reflect(const std::string& source, std::map<uint32_t, std::string>& binding
 
     for (; it != end; ++it) {
         std::string matchStr((*it)[0].begin(), (*it)[0].end());
-        const char* setPatt = R"(set\s*=\s*0)";
+        const char* setPatt = R"(set\s*=\s*\d)";
         boost::regex setReg(setPatt);
         boost::sregex_iterator setIt(matchStr.begin(), matchStr.end(), setReg);
-        if (setIt == end) continue; // skip if not set 0
+        //if (setIt == end) continue; // skip if not set 0
 
         std::string_view bindingStr((*it)[1].begin(), (*it)[1].end());
         std::string_view nameStr((*it)[2].begin(), (*it)[2].end());

@@ -12,7 +12,7 @@ public:
               rhi::DescriptorSetLayoutPtr layout,
               rhi::DevicePtr device);
 
-    rhi::DescriptorSetPtr descriptorSet();
+    rhi::DescriptorSetPtr descriptorSet() const;
 
     void bindBuffer(std::string_view name,
                     uint32_t index,
@@ -27,15 +27,10 @@ public:
                    uint32_t index,
                    rhi::ImageViewPtr imgView,
                    rhi::ImageLayout layout);
-//
-//    void bindImage(std::string_view name,
-//                   uint32_t index,
-//                   rhi::RHIImageView* imgView,
-//                   rhi::ImageLayout layout);
 
     void bindSampler(std::string_view name,
                      uint32_t index,
-                     rhi::SamplerPtr sampler);
+                     const rhi::SamplerInfo& samplerInfo);
 
     void bindTexelBuffer(std::string_view name,
                          uint32_t index,
@@ -51,6 +46,8 @@ private:
     rhi::BindingInfo _currentBinding;
     rhi::BindingInfo _updateInfo;
     std::vector<uint32_t> _updateIndices;
+
+    rhi::DevicePtr _device;
 };
 
 using BindGroupPtr = std::shared_ptr<BindGroup>;

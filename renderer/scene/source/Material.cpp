@@ -48,6 +48,11 @@ void Material::add(const raum::scene::Buffer &buf) {
     _dirty = true;
 }
 
+void Material::add(const Sampler &info) {
+    _samplers.emplace_back(info);
+    _dirty = true;
+}
+
 void Material::initBindGroup(
     const boost::container::flat_map<std::string_view, uint32_t> &bindings,
     rhi::DescriptorSetLayoutPtr layout,
@@ -63,9 +68,16 @@ void Material::update() {
         for(const auto& buffer : _buffers) {
             _bindGroup->bindBuffer(buffer.name, 0, buffer.buffer);
         }
+        for(const auto& sampler : _samplers) {
+            _bindGroup->bindSampler(sampler.name, 0, sampler.info);
+        }
         _bindGroup->update();
     }
     _dirty = false;
+}
+
+BindGroupPtr Material::bindGroup() {
+    return _bindGroup;
 }
 
 } // namespace raum::scene

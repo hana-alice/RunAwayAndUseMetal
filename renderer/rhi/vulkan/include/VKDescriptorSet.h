@@ -19,6 +19,7 @@ public:
 private:
     DescriptorSet(const DescriptorSetInfo& info, DescriptorPool* pool, RHIDevice* device);
 
+    const DescriptorSetInfo _info;
     VkDescriptorSet _descriptorSet;
     Device* _device;
     DescriptorPool* _descriptorPool;

@@ -146,6 +146,13 @@ target_link_libraries(raum_sample PRIVATE
     raum_asset
     raum_core
 )
-file(COPY asset/resources DESTINATION ${CMAKE_BINARY_DIR})
 
+# set_target_properties(raum_sample PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+
+
+file(COPY asset/resources DESTINATION ${CMAKE_BINARY_DIR})
+file(COPY framework/platform/windows/builds/qt6.conf DESTINATION ${CMAKE_BINARY_DIR})
+message(${CMAKE_INSTALL_PREFIX} 111)
+message(${CMAKE_BINARY_DIR} 222)
+message(${RUNTIME_OUTPUT_DIRECTORY} 333)
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT raum_sample)

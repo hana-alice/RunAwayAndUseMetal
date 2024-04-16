@@ -23,7 +23,7 @@ public:
     ImageLoader() = default;
     ~ImageLoader() = default;
 
-    const ImageAsset load(const std::string_view path);
+    ImageAsset load(const std::string_view path);
     void free(ImageAsset&&);
 };
 } // namespace raum::framework::asset

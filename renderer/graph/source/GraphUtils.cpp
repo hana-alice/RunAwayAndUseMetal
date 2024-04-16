@@ -34,9 +34,11 @@ rhi::FrameBufferPtr getOrCreateFrameBuffer(
     raum_check(framebufferInfo, "failed to analyze framebuffer info at {}", v);
     if (framebufferInfo) {
         auto& rhiFbInfo = framebufferInfo->info;
+        rhiFbInfo.images.resize(framebufferInfo->images.size());
+        rhiFbInfo.renderPass = renderpass.get();
         for(size_t i = 0; i < framebufferInfo->images.size(); ++i) {
             auto resName = framebufferInfo->images[i];
-            auto imgView = std::get<ImageViewData>(resg.getView(resName).data).imageView;
+            auto imgView = resg.getImageView(resName);
             rhiFbInfo.images[i] = imgView.get();
         }
         if (!_frameBufferMap.contains(rhiFbInfo)) {
@@ -46,31 +48,6 @@ rhi::FrameBufferPtr getOrCreateFrameBuffer(
     }
     raum_unreachable();
     return nullptr;
-}
-
-rhi::GraphicsPipelinePtr getOrCreateGraphicsPipeline(rhi::RenderPassPtr renderPass,
-                                                     scene::MaterialPtr material,
-                                                     ShaderGraph& shg) {
-    size_t seed = rhi::RHIHash<rhi::RenderPassInfo>{}(renderPass->info());
-    boost::hash_combine(seed, material->shaderName());
-
-    if (!_psoMap.contains(seed)) {
-        //        rhi::GraphicsPipelineInfo info;
-        //        info.primitiveType = phase->primitiveType();
-        //        info.subpassIndex = 0;
-        //        info.viewportCount = 1;
-        //        info.rasterizationInfo = phase->rasterizationInfo();
-        //        info.multisamplingInfo = phase->multisamplingInfo();
-        //        info.depthStencilInfo = phase->depthStencilInfo();
-        //        info.colorBlendInfo = phase->blendInfo();
-        //
-        //        info.renderPass = renderPass.get();
-        //        const auto& layout = shg.layout(material->shaderName());
-        //        for (auto [_, shaderPtr] : layout.shaders) {
-        //            info.shaders.emplace_back(shaderPtr.get());
-        //        }
-    }
-    return _psoMap.at(seed);
 }
 
 rhi::DescriptorSetLayoutPtr getOrCreateDescriptorSetLayout(const rhi::DescriptorSetLayoutInfo& info, rhi::DevicePtr device) {
@@ -101,7 +78,7 @@ bool culling(const ModelNode& node) {
     return true;
 }
 
-void collectRenderables(std::vector<scene::RenderablePtr> renderables, const SceneGraph& sg, bool enableCullling) {
+void collectRenderables(std::vector<scene::RenderablePtr>& renderables, const SceneGraph& sg, bool enableCullling) {
     const auto& graph = sg.impl();
     for (auto v : boost::make_iterator_range(boost::vertices(graph))) {
         if (std::holds_alternative<ModelNode>(graph[v].sceneNodeData)) {

@@ -123,6 +123,10 @@ FormatInfo formatInfo(Format format) {
     return formatMap.at(format);
 }
 
+uint32_t getFormatSize(Format format) {
+    return formatMap.at(format).size;
+}
+
 VkVertexInputRate mapRate(InputRate rate) {
     switch (rate) {
         case InputRate::PER_VERTEX:

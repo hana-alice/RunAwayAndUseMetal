@@ -10,7 +10,7 @@ namespace raum::graph {
 	
 rhi::RenderPassPtr getOrCreateRenderPass(const RenderGraph::VertexType v, AccessGraph& ag, rhi::DevicePtr device);
 
-rhi::FrameBufferPtr getOrCreateFrameBuffer(rhi::RenderPassPtr renderpass, const RenderGraph::VertexType v, AccessGraph& ag, rhi::DevicePtr device);
+rhi::FrameBufferPtr getOrCreateFrameBuffer(rhi::RenderPassPtr renderpass, const RenderGraph::VertexType v, AccessGraph& ag, ResourceGraph& resg, rhi::DevicePtr device);
 
 rhi::GraphicsPipelinePtr getOrCreateGraphicsPipeline(rhi::RenderPassPtr renderPass,
                                                      scene::MaterialPtr material,
@@ -18,7 +18,7 @@ rhi::GraphicsPipelinePtr getOrCreateGraphicsPipeline(rhi::RenderPassPtr renderPa
 
 bool culling(const ModelNode& node);
 
-void collectRenderables(std::vector<scene::RenderablePtr> renderables, const SceneGraph& sg, bool enableCullling);
+void collectRenderables(std::vector<scene::RenderablePtr>& renderables, const SceneGraph& sg, bool enableCullling);
 
 void warmUp(SceneGraph& sg, ShaderGraph& shg, rhi::DevicePtr device);
 

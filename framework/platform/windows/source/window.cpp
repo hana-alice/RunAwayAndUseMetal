@@ -1,4 +1,5 @@
 #include "window.h"
+#include <QTimer>
 
 namespace raum::platform {
 NativeWindow::NativeWindow(int argc, char** argv, uint32_t w, uint32_t h) {
@@ -7,6 +8,12 @@ NativeWindow::NativeWindow(int argc, char** argv, uint32_t w, uint32_t h) {
     _window->addToolBar("raum");
     _window->resize(w,h);
     _hwnd = _window->winId();
+
+    _timer = new QTimer();
+    _timer->setInterval(std::chrono::milliseconds(33));
+    QObject::connect(_timer, &QTimer::timeout, [&](){
+        this->update();
+    });
 }
 
 void NativeWindow::registerPollEvents(TickFunction&& tickFunc) {
@@ -21,13 +28,22 @@ Size NativeWindow::pixelSize() {
     };
 }
 
+void NativeWindow::update() {
+    for(auto& callback : _tickFunc) {
+        callback();
+    }
+}
+
 void NativeWindow::mainLoop() {
     _window->show();
+    _timer->start();
     _app->exec();
 }
 
 NativeWindow::~NativeWindow() {
     _app->quit();
+    _timer->stop();
+    delete _timer;
     delete _window;
 }
 

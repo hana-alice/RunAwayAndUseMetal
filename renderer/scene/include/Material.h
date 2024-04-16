@@ -41,6 +41,11 @@ struct Buffer {
     rhi::BufferPtr buffer;
 };
 
+struct Sampler {
+    std::string name;
+    rhi::SamplerInfo info;
+};
+
 enum class MaterialType : uint8_t {
     PBR,
     NPR,
@@ -53,6 +58,7 @@ public:
     Material(const std::string& shader);
     void add(const Texture& tex);
     void add(const Buffer& buf);
+    void add(const Sampler& info);
     const std::string& shaderName() const { return _shaderName; }
 
     void initBindGroup(
@@ -61,12 +67,13 @@ public:
         rhi::DevicePtr device);
 
     void update();
-    const BindGroup& bindGroup();
+    BindGroupPtr bindGroup();
 
 protected:
     MaterialType _type{MaterialType::PBR};
     std::vector<Texture> _textures;
     std::vector<Buffer> _buffers;
+    std::vector<Sampler> _samplers;
     const std::string& _shaderName;
     BindGroupPtr _bindGroup;
     bool _dirty{false};

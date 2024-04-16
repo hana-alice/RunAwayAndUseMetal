@@ -16,14 +16,28 @@ namespace raum::rhi {
     inline T operator&(T lhs, T rhs) {                                                                                                  \
         return static_cast<T>(static_cast<std::underlying_type<T>::type>(lhs) & static_cast<std::underlying_type<T>::type>(rhs));       \
     }                                                                                                                                   \
-    inline T operator|=(T lhs, T rhs) {                                                                                                 \
+    inline T& operator|=(T& lhs, const T& rhs) {                                                                                                 \
         return lhs = static_cast<T>(static_cast<std::underlying_type<T>::type>(lhs) | static_cast<std::underlying_type<T>::type>(rhs)); \
     }                                                                                                                                   \
     inline bool test(T lhs, T rhs) {                                                                                                    \
         return static_cast<std::underlying_type<T>::type>(lhs & rhs);                                                                   \
     }
 
+template <typename T>
+struct RHIHash {
+    size_t operator()(const T& t) const;
+};
+
 #define OPERATOR_EQUAL(T)                        \
+    bool operator==(const T& lhs, const T& rhs); \
+    inline bool operator!=(const T& lhs, const T& rhs) { return !(lhs == rhs); }
+
+#define RHIHASHER(T)                                                        \
+    std::size_t hash_value(const T& info);                                  \
+    template <>                                                             \
+    struct RHIHash<T> {                                                     \
+        size_t operator()(const T& info) const { return hash_value(info); } \
+    };                                                                      \
     bool operator==(const T& lhs, const T& rhs); \
     inline bool operator!=(const T& lhs, const T& rhs) { return !(lhs == rhs); }
 
@@ -61,11 +75,9 @@ using RenderPassPtr = std::shared_ptr<RHIRenderPass>;
 using FrameBufferPtr = std::shared_ptr<RHIFrameBuffer>;
 using DescriptorSetPtr = std::shared_ptr<RHIDescriptorSet>;
 using DescriptorSetLayoutPtr = std::shared_ptr<RHIDescriptorSetLayout>;
-using QueuePtr = std::shared_ptr<RHIQueue>;
 using GraphicsPipelinePtr = std::shared_ptr<RHIGraphicsPipeline>;
 using ComputePipelinePtr = std::shared_ptr<RHIComputePipeline>;
 using PipelineLayoutPtr = std::shared_ptr<RHIPipelineLayout>;
-using SamplerPtr = std::shared_ptr<RHISampler>;
 using CommandBufferPtr = std::shared_ptr<RHICommandBuffer>;
 using CommandPoolPtr = std::shared_ptr<RHICommandPool>;
 using BlitEncoderPtr = std::shared_ptr<RHIBlitEncoder>;
@@ -78,7 +90,6 @@ using RenderPassRef = std::weak_ptr<RHIRenderPass>;
 using FrameBufferRef = std::weak_ptr<RHIFrameBuffer>;
 
 using DescriptorPoolPtr = std::unique_ptr<RHIDescriptorPool>;
-
 
 static constexpr uint32_t FRAMES_IN_FLIGHT{3};
 static constexpr uint32_t BindingRateCount = 4;
@@ -411,14 +422,14 @@ struct VertexAttribute {
     Format format{Format::UNKNOWN};
     uint32_t offset{0};
 };
-OPERATOR_EQUAL(VertexAttribute)
+RHIHASHER(VertexAttribute)
 
 struct VertexBufferAttribute {
     uint32_t binding{0};
     uint32_t stride{0};
     InputRate rate{InputRate::PER_VERTEX};
 };
-OPERATOR_EQUAL(VertexBufferAttribute)
+RHIHASHER(VertexBufferAttribute)
 
 using VertexBufferAttributes = std::vector<VertexBufferAttribute>;
 using VertexAttributes = std::vector<VertexAttribute>;
@@ -427,10 +438,7 @@ struct VertexLayout {
     VertexAttributes vertexAttrs;
     VertexBufferAttributes vertexBufferAttrs;
 };
-OPERATOR_EQUAL(VertexLayout)
-// struct GraphicsPipelineLayout {
-//     VertexLayout vertexLayout;
-// };
+RHIHASHER(VertexLayout)
 
 enum class DescriptorType {
     SAMPLER,
@@ -452,13 +460,13 @@ struct DescriptorBinding {
     ShaderStage visibility;
     std::vector<RHISampler*> immutableSamplers;
 };
-OPERATOR_EQUAL(DescriptorBinding)
+RHIHASHER(DescriptorBinding)
 
 using DescriptorBindings = std::vector<DescriptorBinding>;
 struct DescriptorSetLayoutInfo {
     DescriptorBindings descriptorBindings;
 };
-OPERATOR_EQUAL(DescriptorSetLayoutInfo)
+RHIHASHER(DescriptorSetLayoutInfo)
 
 struct BufferBindingView {
     uint32_t offset{0};
@@ -515,13 +523,13 @@ struct PushConstantRange {
     uint32_t offset{0};
     uint32_t size{0};
 };
-OPERATOR_EQUAL(PushConstantRange)
+RHIHASHER(PushConstantRange)
 
 struct PipelineLayoutInfo {
     std::vector<PushConstantRange> pushConstantRanges;
     std::vector<RHIDescriptorSetLayout*> setLayouts;
 };
-OPERATOR_EQUAL(PipelineLayoutInfo)
+RHIHASHER(PipelineLayoutInfo)
 
 enum class LoadOp : uint8_t {
     LOAD,
@@ -544,13 +552,13 @@ struct AttachmentInfo {
     ImageLayout initialLayout{ImageLayout::UNDEFINED};
     ImageLayout finalLayout{ImageLayout::UNDEFINED};
 };
-OPERATOR_EQUAL(AttachmentInfo)
+RHIHASHER(AttachmentInfo)
 
 struct AttachmentReference {
     uint8_t index;
     ImageLayout layout{ImageLayout::UNDEFINED};
 };
-OPERATOR_EQUAL(AttachmentReference)
+RHIHASHER(AttachmentReference)
 
 struct SubpassInfo {
     std::vector<uint32_t> preserves;
@@ -559,7 +567,7 @@ struct SubpassInfo {
     std::vector<AttachmentReference> resolves;
     std::vector<AttachmentReference> depthStencil; // expect only one
 };
-OPERATOR_EQUAL(SubpassInfo)
+RHIHASHER(SubpassInfo)
 
 enum class PipelineStage : uint32_t {
     TOP_OF_PIPE = 1,
@@ -621,14 +629,14 @@ struct SubpassDependency {
     AccessFlags dstAccessFlags{AccessFlags::NONE};
     DependencyFlags dependencyFlags{DependencyFlags::BY_REGION};
 };
-OPERATOR_EQUAL(SubpassDependency)
+RHIHASHER(SubpassDependency)
 
 struct RenderPassInfo {
     std::vector<AttachmentInfo> attachments;
     std::vector<SubpassInfo> subpasses;
     std::vector<SubpassDependency> dependencies;
 };
-OPERATOR_EQUAL(RenderPassInfo)
+RHIHASHER(RenderPassInfo)
 
 struct FrameBufferInfo {
     RHIRenderPass* renderPass{nullptr};
@@ -637,7 +645,7 @@ struct FrameBufferInfo {
     uint32_t height{0};
     uint32_t layers{0};
 };
-OPERATOR_EQUAL(FrameBufferInfo)
+RHIHASHER(FrameBufferInfo)
 
 enum class IAType : uint8_t {
     VB_IB,
@@ -694,7 +702,7 @@ struct RasterizationInfo {
     float depthBiasSlopeFactor{0.0f};
     float lineWidth{1.0f};
 };
-OPERATOR_EQUAL(RasterizationInfo)
+RHIHASHER(RasterizationInfo)
 
 struct MultisamplingInfo {
     bool enable{false};
@@ -704,7 +712,7 @@ struct MultisamplingInfo {
     uint32_t sampleCount{1};
     uint32_t sampleMask{0xFFFFFFFF};
 };
-OPERATOR_EQUAL(MultisamplingInfo)
+RHIHASHER(MultisamplingInfo)
 
 enum class CompareOp : uint8_t {
     NEVER,
@@ -737,7 +745,7 @@ struct StencilInfo {
     uint32_t writeMask{0};
     uint32_t reference{0};
 };
-OPERATOR_EQUAL(StencilInfo)
+RHIHASHER(StencilInfo)
 
 struct DepthStencilInfo {
     bool depthTestEnable{false};
@@ -750,7 +758,7 @@ struct DepthStencilInfo {
     float minDepthBounds{0.0f};
     float maxDepthBounds{1.0f};
 };
-OPERATOR_EQUAL(DepthStencilInfo)
+RHIHASHER(DepthStencilInfo)
 
 enum class BlendFactor : uint8_t {
     ZERO,
@@ -796,7 +804,7 @@ struct AttachmentBlendInfo {
     BlendOp alphaBlendOp{BlendOp::ADD};
     Channel writemask{Channel::R | Channel::G | Channel::B | Channel::A};
 };
-OPERATOR_EQUAL(AttachmentBlendInfo)
+RHIHASHER(AttachmentBlendInfo)
 
 enum class LogicOp : uint8_t {
     CLEAR,
@@ -837,7 +845,7 @@ struct GraphicsPipelineInfo {
     DepthStencilInfo depthStencilInfo{};
     BlendInfo colorBlendInfo{};
 };
-OPERATOR_EQUAL(GraphicsPipelineInfo)
+RHIHASHER(GraphicsPipelineInfo)
 
 enum class MemoryUsage : uint8_t {
     HOST_VISIBLE,
@@ -1086,12 +1094,7 @@ struct SamplerInfo {
     float maxLod;
     BorderColor borderColor{BorderColor::FLOAT_TRANSPARENT_BLACK};
 };
-OPERATOR_EQUAL(SamplerInfo)
-
-template <typename T>
-struct RHIHash {
-    size_t operator()(const T& t) const;
-};
+RHIHASHER(SamplerInfo)
 
 enum class UpdateFrequency : uint8_t {
     PER_PASS = 0,

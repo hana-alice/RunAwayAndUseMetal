@@ -66,10 +66,12 @@ void generateDescriptorSetLayouts(ShaderResource& resource, rhi::DevicePtr devic
         infos[index].descriptorBindings.emplace_back(bindingDesc.binding, type, count, bindingDesc.visibility, std::vector<rhi::RHISampler*>());
     }
 
-    std::vector<rhi::RHIDescriptorSetLayout*> descriptors(rhi::BindingRateCount);
+    std::vector<rhi::RHIDescriptorSetLayout*> descriptors;
     for (size_t i = 0; i < rhi::BindingRateCount; ++i) {
-        layouts[i] = rhi::getOrCreateDescriptorSetLayout(infos[i], device);
-        descriptors[i] = layouts[i].get();
+        if (!infos[i].descriptorBindings.empty()) {
+            layouts[i] = rhi::getOrCreateDescriptorSetLayout(infos[i], device);
+            descriptors.emplace_back(layouts[i].get());
+        }
     }
 
     resource.pipelineLayout = rhi::getOrCreatePipelineLayout({{}, descriptors}, device);

@@ -15,7 +15,7 @@ public:
     void blitImage(RHIImage* srcImage, ImageLayout srcLayout, RHIImage* dstImage, ImageLayout dstLayout, ImageBlit* regions, uint32_t regionCount, Filter filter) override;
     void copyBufferToImage(RHIBuffer* buffer, RHIImage* image, ImageLayout layout, BufferImageCopyRegion* regions, uint32_t regionCount) override;
     void copyImageToBuffer(RHIImage* image, ImageLayout layout, RHIBuffer* dstBuffer, BufferImageCopyRegion* regions, uint32_t regionCount) override;
-    void updateBuffer(RHIBuffer* buffer, uint32_t dstOffset, void* data, uint32_t dataSize) override;
+    void updateBuffer(RHIBuffer* buffer, uint32_t dstOffset, const void* const data, uint32_t dataSize) override;
     void fillBuffer(RHIBuffer* buffer, uint32_t dstOffset, uint32_t size, uint32_t value) override;
 
     void clearColorImage(RHIImage* image, ImageLayout layout, ClearValue* data, ImageSubresourceRange* ranges, uint32_t rangeCount) override;
