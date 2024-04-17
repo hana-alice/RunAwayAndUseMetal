@@ -326,6 +326,7 @@ void populateBarrier(const AccessGraph::ResourceAccessMap& accessMap,
                                            access));
 
                 lastAccess = access;
+                lastStage = stage;
                 if (resDetail.residency != ResourceResidency::DONT_CARE) {
                     resDetail.access = access;
                 }
@@ -348,6 +349,7 @@ void populateBarrier(const AccessGraph::ResourceAccessMap& accessMap,
                         getSubresourceRange(resDetail)});
 
                 lastAccess = access;
+                lastStage = stage;
                 if (resDetail.residency != ResourceResidency::DONT_CARE) {
                     resDetail.access = access;
                 }

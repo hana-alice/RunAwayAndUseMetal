@@ -119,11 +119,19 @@ Swapchain::Swapchain(const SwapchainInfo& info, Device* device)
 #else
     #pragma error Run Away
 #endif
+
+    _presentSemaphores.resize(imageCount);
+    for (auto& sem : _presentSemaphores) {
+        VkSemaphoreCreateInfo info{};
+        info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+        vkCreateSemaphore(_device->device(), &info, nullptr, &sem);
+    }
 }
 
 bool Swapchain::aquire() {
-    VkSemaphore presentSemaphore = _presentQueue->presentSemaphore();
-    return vkAcquireNextImageKHR(_device->device(), _swapchain, UINT64_MAX, presentSemaphore, VK_NULL_HANDLE, &_imageIndex) == VK_SUCCESS;
+    VkSemaphore imageAvailableSem = _presentSemaphores[_imageIndex];
+    _presentQueue->setPresentSemaphore(imageAvailableSem);
+    return vkAcquireNextImageKHR(_device->device(), _swapchain, UINT64_MAX, imageAvailableSem, VK_NULL_HANDLE, &_imageIndex) == VK_SUCCESS;
 }
 
 void Swapchain::present() {
@@ -138,6 +146,7 @@ void Swapchain::present() {
     presentInfo.pImageIndices = &_imageIndex;
     presentInfo.pResults = nullptr;
     vkQueuePresentKHR(_presentQueue->_vkQueue, &presentInfo);
+    _imageIndex = (_imageIndex + 1) % static_cast<uint32_t>(_vkImages.size());
 }
 
 Swapchain::~Swapchain() {

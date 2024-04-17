@@ -362,4 +362,14 @@ rhi::PipelineLayoutPtr getOrCreatePipelineLayout(const rhi::PipelineLayoutInfo& 
 bool hasDepth(Format format);
 bool hasStencil(Format format);
 
+ImagePtr defaultSampledImage(DevicePtr);
+ImagePtr defaultStorageImage(DevicePtr);
+ImageViewPtr defaultSampledImageView(DevicePtr);
+ImageViewPtr defaultStorageImageView(DevicePtr);
+BufferPtr defaultUniformBuffer(DevicePtr);
+BufferPtr defaultStorageBuffer(DevicePtr);
+BufferViewPtr defaultUniformBufferView(DevicePtr);
+BufferViewPtr defaultStorageBufferView(DevicePtr);
+SamplerInfo defaultLinearSampler(DevicePtr);
+
 } // namespace raum::rhi

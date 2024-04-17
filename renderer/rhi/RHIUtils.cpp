@@ -334,7 +334,9 @@ std::size_t hash_value(const BlendInfo& info) {
     boost::hash_combine(seed, info.logicOpEnable);
     boost::hash_combine(seed, info.logicOp);
     boost::hash_combine(seed, info.attachmentBlends);
-    boost::hash_combine(seed, info.blendConstants);
+    for(const auto& v : info.blendConstants) {
+        boost::hash_combine(seed, v);
+    }
     return seed;
 }
 
@@ -416,6 +418,129 @@ bool hasDepth(Format format) {
 
 bool hasStencil(Format format) {
     return stencilFormats.contains(format);
+}
+
+namespace {
+ImagePtr sampledImage;
+ImagePtr storageImage;
+ImageViewPtr sampledImageView;
+ImageViewPtr storageImageView;
+BufferPtr uniformBuffer;
+BufferPtr storageBuffer;
+BufferViewPtr uniformBufferView;
+BufferViewPtr storageBufferView;
+
+SamplerInfo sampler{
+    .magFilter = Filter::LINEAR,
+    .minFilter = Filter::LINEAR,
+};
+}
+[[nodiscard]] ImagePtr defaultSampledImage(DevicePtr device) {
+    if(!sampledImage) {
+        ImageInfo info{
+            .format = Format::RGBA8_UNORM,
+            .extent = {2, 2, 1},
+        };
+        sampledImage = ImagePtr(device->createImage(info));
+    }
+    return sampledImage;
+}
+[[nodiscard]] ImagePtr defaultStorageImage(DevicePtr device) {
+    if(!storageImage) {
+        ImageInfo info{
+            .usage = ImageUsage::STORAGE,
+            .format = Format::RGBA8_UNORM,
+            .extent = {2, 2, 1},
+        };
+        storageImage = ImagePtr(device->createImage(info));
+    }
+    return storageImage;
+}
+
+[[nodiscard]] ImageViewPtr defaultSampledImageView(DevicePtr device) {
+    auto image = defaultSampledImage(device);
+    if(!sampledImageView) {
+        ImageViewInfo info{
+            .image = image.get(),
+            .range = {
+                .aspect = AspectMask::COLOR,
+                .sliceCount = 1,
+                .mipCount = 1,
+            },
+            .format = image->info().format,
+        };
+        sampledImageView = ImageViewPtr(device->createImageView(info));
+    }
+    return sampledImageView;
+}
+
+[[nodiscard]] ImageViewPtr defaultStorageImageView(DevicePtr device) {
+    auto image = defaultStorageImage(device);
+    if(!storageImageView) {
+        ImageViewInfo info{
+            .image = image.get(),
+            .range = {
+                .aspect = AspectMask::COLOR,
+                .sliceCount = 1,
+                .mipCount = 1,
+            },
+            .format = image->info().format,
+        };
+        storageImageView = ImageViewPtr(device->createImageView(info));
+    }
+    return storageImageView;
+}
+
+[[nodiscard]] BufferPtr defaultUniformBuffer(DevicePtr device) {
+    if(!uniformBuffer) {
+        BufferInfo info{
+          .size = 16,
+        };
+        uniformBuffer = BufferPtr(device->createBuffer(info));
+    }
+    return uniformBuffer;
+}
+[[nodiscard]] BufferPtr defaultStorageBuffer(DevicePtr device) {
+    if(!storageBuffer) {
+        BufferInfo info{
+            .bufferUsage = BufferUsage::STORAGE,
+            .size = 16,
+        };
+        storageBuffer = BufferPtr(device->createBuffer(info));
+    }
+    return storageBuffer;
+}
+
+[[nodiscard]] BufferViewPtr defaultUniformBufferView(DevicePtr device) {
+    if(!uniformBufferView) {
+        auto uniformBuffer = defaultUniformBuffer(device);
+        BufferViewInfo info {
+            .buffer = uniformBuffer.get(),
+            .format =  Format::RGBA8_UNORM,
+            .offset = 0,
+            .size = uniformBuffer->info().size,
+        };
+        uniformBufferView = BufferViewPtr(device->createBufferView(info));
+    }
+    return uniformBufferView;
+}
+
+[[nodiscard]] BufferViewPtr defaultStorageBufferView(DevicePtr device) {
+    if(!storageBufferView) {
+        auto storageBuffer = defaultStorageBuffer(device);
+        BufferViewInfo info {
+            .buffer = storageBuffer.get(),
+            .format =  Format::RGBA8_UNORM,
+            .offset = 0,
+            .size = storageBuffer->info().size,
+        };
+        storageBufferView = BufferViewPtr(device->createBufferView(info));
+    }
+    return storageBufferView;
+}
+
+[[nodiscard]] SamplerInfo defaultLinearSampler(DevicePtr device) {
+    return sampler;
 }
 
 } // namespace raum::rhi

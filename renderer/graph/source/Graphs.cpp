@@ -316,6 +316,7 @@ void GraphScheduler::execute() {
     static bool warmed{false};
 
     _swapchain->aquire();
+    auto* queue = _device->getQueue({rhi::QueueType::GRAPHICS});
 
     rhi::CommandBufferPtr cmdBuffer;
     if (_commandBuffers.empty()) {
@@ -326,6 +327,7 @@ void GraphScheduler::execute() {
     }
     cmdBuffer = _commandBuffers[_swapchain->imageIndex()];
     cmdBuffer->reset();
+    cmdBuffer->enqueue(queue);
     cmdBuffer->begin({});
 
     std::vector<scene::RenderablePtr> renderables;
@@ -371,9 +373,8 @@ void GraphScheduler::execute() {
         cmdBuffer->appendImageBarrier(presentBarrier->info);
         cmdBuffer->applyBarrier(rhi::DependencyFlags::BY_REGION);
     }
-    auto* queue = _device->getQueue({rhi::QueueType::GRAPHICS});
 
-    cmdBuffer->commit(queue);
+    cmdBuffer->commit();
     queue->submit();
     _swapchain->present();
 

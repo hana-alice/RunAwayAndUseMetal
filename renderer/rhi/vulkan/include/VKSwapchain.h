@@ -32,6 +32,8 @@ private:
     uint32_t _imageIndex{0};
     std::vector<VkImage> _vkImages;
 
+    std::vector<VkSemaphore> _presentSemaphores;
+
     friend class Device;
 };
 

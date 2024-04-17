@@ -21,34 +21,78 @@ BindGroup::BindGroup(const boost::container::flat_map<std::string_view, uint32_t
     for(const auto& descBinding : layout->info().descriptorBindings) {
         switch (descBinding.type) {
             case rhi::DescriptorType::UNIFORM_BUFFER:
+            case rhi::DescriptorType::UNIFORM_BUFFER_DYNAMIC: {
+                auto& bufferBinding = _currentBinding.bufferBindings.emplace_back();
+                bufferBinding.binding = descBinding.binding;
+                bufferBinding.arrayElement = 0;
+                bufferBinding.type = descBinding.type;
+                bufferBinding.buffers.resize(descBinding.count);
+                for(auto& bindingView : bufferBinding.buffers) {
+                    auto uniformBuffer = rhi::defaultUniformBuffer(device);
+                    bindingView.buffer = uniformBuffer.get();
+                    bindingView.size = uniformBuffer->info().size;
+                }
+                _updateIndices[descBinding.binding] = _currentBinding.bufferBindings.size() - 1;
+                break;
+            };
             case rhi::DescriptorType::STORAGE_BUFFER:
-            case rhi::DescriptorType::UNIFORM_BUFFER_DYNAMIC:
             case rhi::DescriptorType::STORAGE_BUFFER_DYNAMIC: {
                 auto& bufferBinding = _currentBinding.bufferBindings.emplace_back();
                 bufferBinding.binding = descBinding.binding;
                 bufferBinding.arrayElement = 0;
                 bufferBinding.type = descBinding.type;
                 bufferBinding.buffers.resize(descBinding.count);
+                for(auto& bindingView : bufferBinding.buffers) {
+                    auto storageBuffer = rhi::defaultStorageBuffer(device);
+                    bindingView.buffer = storageBuffer.get();
+                    bindingView.size = storageBuffer->info().size;
+                }
                 _updateIndices[descBinding.binding] = _currentBinding.bufferBindings.size() - 1;
                 break;
             };
-            case rhi::DescriptorType::STORAGE_IMAGE:
+            case rhi::DescriptorType::STORAGE_IMAGE: {
+                auto& imageBinding = _currentBinding.imageBindings.emplace_back();
+                imageBinding.binding = descBinding.binding;
+                imageBinding.arrayElement = 0;
+                imageBinding.type = descBinding.type;
+                imageBinding.imageViews.resize(descBinding.count);
+                for(auto& bindingView : imageBinding.imageViews) {
+                    auto storageImageView = rhi::defaultStorageImageView(device);
+                    bindingView.imageView = storageImageView.get();
+                    bindingView.layout = rhi::ImageLayout::GENERAL;
+                }
+                _updateIndices[descBinding.binding] = _currentBinding.imageBindings.size() - 1;
+                break;
+            }
             case rhi::DescriptorType::SAMPLED_IMAGE:{
                 auto& imageBinding = _currentBinding.imageBindings.emplace_back();
                 imageBinding.binding = descBinding.binding;
                 imageBinding.arrayElement = 0;
                 imageBinding.type = descBinding.type;
                 imageBinding.imageViews.resize(descBinding.count);
+                for(auto& bindingView : imageBinding.imageViews) {
+                    auto sampledImageView = rhi::defaultSampledImageView(device);
+                    bindingView.imageView = sampledImageView.get();
+                    bindingView.layout = rhi::ImageLayout::SHADER_READ_ONLY_OPTIMAL;
+                }
                 _updateIndices[descBinding.binding] = _currentBinding.imageBindings.size() - 1;
                 break;
             }
-            case rhi::DescriptorType::UNIFORM_TEXEL_BUFFER:
+            case rhi::DescriptorType::UNIFORM_TEXEL_BUFFER: {
+                auto& texelBinding = _currentBinding.texelBufferBindings.emplace_back();
+                texelBinding.binding = descBinding.binding;
+                texelBinding.arrayElement = 0;
+                texelBinding.type = descBinding.type;
+                texelBinding.bufferViews.resize(descBinding.count, rhi::defaultUniformBufferView(device).get());
+                _updateIndices[descBinding.binding] = _currentBinding.texelBufferBindings.size() - 1;
+                break;
+            }
             case rhi::DescriptorType::STORAGE_TEXEL_BUFFER: {
                 auto& texelBinding = _currentBinding.texelBufferBindings.emplace_back();
                 texelBinding.binding = descBinding.binding;
                 texelBinding.arrayElement = 0;
                 texelBinding.type = descBinding.type;
-                texelBinding.bufferViews.resize(descBinding.count);
+                texelBinding.bufferViews.resize(descBinding.count, rhi::defaultStorageBufferView(device).get());
                 _updateIndices[descBinding.binding] = _currentBinding.texelBufferBindings.size() - 1;
                 break;
             }
@@ -56,13 +100,14 @@ BindGroup::BindGroup(const boost::container::flat_map<std::string_view, uint32_t
                 auto& samplerBinding = _currentBinding.samplerBindings.emplace_back();
                 samplerBinding.binding = descBinding.binding;
                 samplerBinding.arrayElement = 0;
-                samplerBinding.samplers.resize(descBinding.count);
+                const auto& linearSampler = rhi::defaultLinearSampler(device);
+                samplerBinding.samplers.resize(descBinding.count, device->getSampler(linearSampler));
                 _updateIndices[descBinding.binding] = _currentBinding.samplerBindings.size() - 1;
                 break;
             }
         }
     }
-
+    _descriptorSet->update(_currentBinding);
 }
 
 rhi::DescriptorSetPtr BindGroup::descriptorSet() const {

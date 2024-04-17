@@ -14,7 +14,8 @@ public:
 
     void enqueue(RHICommandBuffer* commandBuffer) override;
 
-    VkSemaphore presentSemaphore();
+    void addCompleteHandler(const std::function<void()>& func);
+
     VkSemaphore popCommandSemaphore();
 
     ~Queue();
@@ -23,6 +24,8 @@ private:
 
     void initPresentQueue(uint32_t presentCount);
     void initCommandQueue();
+
+    void setPresentSemaphore(VkSemaphore semaphore);
 
     VkQueue _vkQueue{VK_NULL_HANDLE};
 
@@ -37,6 +40,8 @@ private:
     std::vector<VkFence> _frameFence;
 
     VkSemaphore _currCommandSemaphore;
+
+    std::array<std::vector<std::function<void()>>, FRAMES_IN_FLIGHT> _completeHandlers;
 
     friend class Device;
     friend class Swapchain;

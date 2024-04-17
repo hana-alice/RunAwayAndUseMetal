@@ -21,7 +21,7 @@ public:
     virtual void enqueue(RHIQueue*) = 0;
 
     // commit to queue, enqueue automatically if not enqueued
-    virtual void commit(RHIQueue*) = 0;
+    virtual void commit() = 0;
 
     // reuse
     virtual void reset() = 0;
@@ -31,6 +31,8 @@ public:
     virtual void appendBufferBarrier(const BufferBarrierInfo&) = 0;
 
     virtual void applyBarrier(DependencyFlags flags) = 0;
+
+    virtual void onComplete(const std::function<void()>&) = 0;
 
 protected:
     explicit RHICommandBuffer(const CommandBufferInfo& info, RHIDevice* device) {}

@@ -186,18 +186,6 @@ void Device::initInstance() {
         std::vector<const char*> requiredExts;
         if constexpr (enableValidationLayer) {
             requiredExts.emplace_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-
-            VkDebugUtilsMessengerCreateInfoEXT dbgMsgInfo{};
-            dbgMsgInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
-            dbgMsgInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
-            dbgMsgInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
-            dbgMsgInfo.pfnUserCallback = debugCallback;
-            dbgMsgInfo.pUserData = nullptr;
-
-            // result = createDebugMessengerExt(_instance, &dbgMsgInfo, nullptr, &_debugMessenger);
-            // RAUM_ERROR_IF(result == VK_ERROR_EXTENSION_NOT_PRESENT, "validation ext not found.");
-
-            instInfo.pNext = (VkDebugUtilsMessengerCreateInfoEXT*)&dbgMsgInfo;
         }
 #ifdef RAUM_WINDOWS
         requiredExts.emplace_back("VK_KHR_surface");
@@ -211,6 +199,20 @@ void Device::initInstance() {
 
         result = vkCreateInstance(&instInfo, nullptr, &_instance);
         RAUM_CRITICAL_IF(result != VK_SUCCESS, "vkCreateInstance");
+
+        if constexpr (enableValidationLayer) {
+            VkDebugUtilsMessengerCreateInfoEXT dbgMsgInfo{};
+            dbgMsgInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+            dbgMsgInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+            dbgMsgInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+            dbgMsgInfo.pfnUserCallback = debugCallback;
+            dbgMsgInfo.pUserData = nullptr;
+
+             result = createDebugMessengerExt(_instance, &dbgMsgInfo, nullptr, &_debugMessenger);
+             RAUM_ERROR_IF(result == VK_ERROR_EXTENSION_NOT_PRESENT, "validation ext not found.");
+
+            instInfo.pNext = (VkDebugUtilsMessengerCreateInfoEXT*)&dbgMsgInfo;
+        }
     }
 }
 

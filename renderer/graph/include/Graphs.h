@@ -20,7 +20,7 @@ public:
     SceneGraph& sceneGraph() { return *_sceneGraph; }
     ShaderGraph& shaderGraph() { return *_shaderGraph; }
     ResourceGraph& resourceGraph() { return *_resourceGraph; }
-
+    rhi::CommandPoolPtr commandPool() { return _commandPool; }
 
 private:
     RenderGraph* _renderGraph;
