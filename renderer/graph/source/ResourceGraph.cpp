@@ -24,7 +24,7 @@ rhi::ImageViewInfo getDefaultViewInfo(const rhi::ImageInfo& info) {
     rhi::ImageViewInfo viewInfo{};
     viewInfo.format = info.format;
     viewInfo.range = {
-        .aspect = info.format >= rhi::Format::D16_UNORM && info.format <= rhi::Format::D32_SFLOAT_S8_UINT ? rhi::AspectMask::COLOR : rhi::AspectMask::DEPTH | rhi::AspectMask::STENCIL,
+        .aspect = info.format >= rhi::Format::D16_UNORM && info.format <= rhi::Format::D32_SFLOAT_S8_UINT ? rhi::AspectMask::DEPTH | rhi::AspectMask::STENCIL : rhi::AspectMask::COLOR,
         .firstSlice = 0,
         .sliceCount = info.sliceCount,
         .firstMip = 0,
@@ -33,12 +33,15 @@ rhi::ImageViewInfo getDefaultViewInfo(const rhi::ImageInfo& info) {
     switch (info.type) {
         case rhi::ImageType::IMAGE_1D: {
             viewInfo.type = info.sliceCount > 1 ? rhi::ImageViewType::IMAGE_VIEW_1D_ARRAY : rhi::ImageViewType::IMAGE_VIEW_1D;
+            break;
         }
         case rhi::ImageType::IMAGE_2D: {
             viewInfo.type = info.sliceCount > 1 ? rhi::ImageViewType::IMAGE_VIEW_2D_ARRAY : rhi::ImageViewType::IMAGE_VIEW_2D;
+            break;
         }
         case rhi::ImageType::IMAGE_3D: {
             viewInfo.type = rhi::ImageViewType::IMAGE_VIEW_3D;
+            break;
         }
         default:
             break;
@@ -55,10 +58,20 @@ void ResourceGraph::addBuffer(std::string_view name, const BufferData& data) {
     _graph[v].data = data;
 }
 
+void ResourceGraph::addBuffer(std::string_view name, uint32_t size, rhi::BufferUsage usage) {
+    const auto& v = add_vertex(name.data(), _graph);
+    _graph[v].data = BufferData{
+        .info = {
+            .bufferUsage = usage,
+            .size = size,
+        },
+    };
+}
+
 void ResourceGraph::addBufferView(std::string_view name, const BufferViewData& data) {
     const auto& v = add_vertex(name.data(), _graph);
     _graph[v].data = data;
-    add_edge(v, data.origin.data(), _graph);
+    add_edge( data.origin.data(), v, _graph);
 }
 
 void ResourceGraph::addImage(std::string_view name, const rhi::ImageInfo& info) {
@@ -96,7 +109,13 @@ void ResourceGraph::addImage(std::string_view name, rhi::ImageUsage usage, uint3
 void ResourceGraph::addImageView(std::string_view name, const raum::graph::ImageViewData& data) {
     const auto& v = add_vertex(name.data(), _graph);
     _graph[v].data = data;
-    add_edge(v, data.origin.data(), _graph);
+    add_edge(data.origin.data(), v, _graph);
+}
+
+void ResourceGraph::import(std::string_view name, rhi::SwapchainPtr swapchain) {
+    const auto& v = add_vertex(name.data(), _graph);
+    _graph[v].data = swapchain;
+    _graph[v].residency = ResourceResidency::SWAPCHAIN;
 }
 
 void ResourceGraph::mount(std::string_view name) {
@@ -106,33 +125,66 @@ void ResourceGraph::mount(std::string_view name) {
     std::visit(overloaded{
                    [&](BufferData& data) {
                        if (!data.buffer) {
-                           data.buffer = _device->createBuffer(data.info);
+                           data.buffer = rhi::BufferPtr(_device->createBuffer(data.info));
                        }
                    },
                    [&](BufferViewData& data) {
                        if (!data.bufferView) {
                            const auto& v = *find_vertex(data.origin.data(), _graph);
                            const auto& originData = std::get<BufferData>(_graph[v].data);
-                           data.info.buffer = originData.buffer;
-                           data.bufferView = _device->createBufferView(data.info);
+                           data.info.buffer = originData.buffer.get();
+                           data.bufferView = rhi::BufferViewPtr(_device->createBufferView(data.info));
                        }
                    },
                    [&](ImageData& data) {
                        if (!data.image) {
-                           data.image = _device->createImage(data.info);
+                           data.image = rhi::ImagePtr(_device->createImage(data.info));
 
                            auto& viewResource = getView(name);
                            auto& imageView = std::get<ImageViewData>(viewResource.data);
-                           imageView.info.image = data.image;
-                           imageView.imageView = _device->createImageView(imageView.info);
+                           imageView.info.image = data.image.get();
+                           imageView.imageView = rhi::ImageViewPtr(_device->createImageView(imageView.info));
                        }
                    },
                    [&](ImageViewData& data) {
                        if (!data.imageView) {
                            const auto& v = *find_vertex(data.origin.data(), _graph);
                            const auto& originData = std::get<ImageData>(_graph[v].data);
-                           data.info.image = originData.image;
-                           data.imageView = _device->createImageView(data.info);
+                           data.info.image = originData.image.get();
+                           data.imageView = rhi::ImageViewPtr(_device->createImageView(data.info));
+                       }
+                   },
+                   [&](rhi::SwapchainPtr data) {
+                       if(!boost::out_degree(v, _graph)) {
+                           for(size_t i = 0; i < data->imageCount(); ++i) {
+                               std::string imageName{name};
+                               imageName.append("/" + std::to_string(i));
+                               const auto& vert = add_vertex(imageName, _graph);
+
+                               rhi::ImageInfo info{
+                                   .type = rhi::ImageType::IMAGE_2D,
+                                   .usage = rhi::ImageUsage::COLOR_ATTACHMENT | rhi::ImageUsage::TRANSFER_DST,
+                                   .format = data->format(),
+                                   .sliceCount = 1,
+                                   .mipCount = 1,
+                                   .extent = {data->width(), data->height(), 1},
+                               };
+
+                               auto image = rhi::ImagePtr(data->allocateImage(i));
+                               _graph[vert].data = ImageData{info, image};
+                               add_edge(name.data(), vert, _graph);
+
+                               rhi::ImageViewInfo viewInfo = getDefaultViewInfo(info);
+                               viewInfo.image = image.get();
+                               imageName.append("/" + std::to_string(i));
+                               const auto& viewVert = add_vertex(imageName, _graph);
+                               _graph[viewVert].data = ImageViewData{
+                                   _graph[vert].name,
+                                   viewInfo,
+                                   rhi::ImageViewPtr(_device->createImageView(viewInfo)),
+                               };
+                               add_edge( _graph[vert].name, viewVert, _graph);
+                           }
                        }
                    },
                    [](auto&) {
@@ -147,20 +199,16 @@ struct UnmountVisitor : public boost::dfs_visitor<> {
         std::visit(
             overloaded{
                 [](BufferData& data) {
-                    delete data.buffer;
-                    data.buffer = nullptr;
+                    data.buffer.reset();
                 },
                 [](BufferViewData& data) {
-                    delete data.bufferView;
-                    data.bufferView = nullptr;
+                    data.bufferView.reset();
                 },
                 [](ImageData& data) {
-                    delete data.image;
-                    data.image = nullptr;
+                    data.image.reset();
                 },
                 [](ImageViewData& data) {
-                    delete data.imageView;
-                    data.imageView = nullptr;
+                    data.imageView.reset();
                 },
                 [](auto&) {
                 },
@@ -197,25 +245,79 @@ Resource& ResourceGraph::get(std::string_view name) {
 const Resource& ResourceGraph::getView(std::string_view name) const {
     auto v = *find_vertex(name.data(), _graph);
     size_t res{INVALID_VERTEX};
+    std::string viewName{name};
+    viewName.append("/");
+    viewName.append(name);
     for (const auto& e : make_iterator_range(out_edges(v, _graph))) {
-        if (_graph[e.m_target].name == name) {
+        if (_graph[e.m_target].name == viewName) {
             res = e.m_target;
+            break;
         }
     }
     raum_check(res != INVALID_VERTEX, "can't find resource view: {}/{}", name, name);
-    return _graph[v];
+    return _graph[res];
 }
 
 Resource& ResourceGraph::getView(std::string_view name) {
     auto v = *find_vertex(name.data(), _graph);
     size_t res{INVALID_VERTEX};
+    std::string viewName{name};
+    viewName.append("/");
+    viewName.append(name);
     for (const auto& e : make_iterator_range(out_edges(v, _graph))) {
-        if (_graph[e.m_target].name == name) {
+        if (_graph[e.m_target].name == viewName) {
             res = e.m_target;
+            break;
         }
     }
     raum_check(res != INVALID_VERTEX, "can't find resource view: {}/{}", name, name);
-    return _graph[v];
+    return _graph[res];
+}
+
+rhi::BufferPtr ResourceGraph::getBuffer(std::string_view name) {
+    Resource& res = get(name);
+    if(std::holds_alternative<BufferData>(res.data)) {
+        return std::get<BufferData>(res.data).buffer;
+    }
+    return nullptr;
+}
+
+rhi::BufferViewPtr ResourceGraph::getBufferView(std::string_view name) {
+    Resource& res = get(name);
+    if(std::holds_alternative<BufferViewData>(res.data)) {
+        return std::get<BufferViewData>(res.data).bufferView;
+    }
+    return nullptr;
+}
+
+rhi::ImagePtr ResourceGraph::getImage(std::string_view name) {
+    Resource& res = get(name);
+    if(std::holds_alternative<ImageData>(res.data)) {
+        return std::get<ImageData>(res.data).image;
+    } else if(std::holds_alternative<rhi::SwapchainPtr>(res.data)) {
+        std::string imageName(name);
+        imageName.append("/" + std::to_string(std::get<rhi::SwapchainPtr>(res.data)->imageIndex()));
+        auto v = *find_vertex(imageName, _graph);
+        return std::get<ImageData>(_graph[v].data).image;
+    }
+    return nullptr;
+}
+
+rhi::ImageViewPtr ResourceGraph::getImageView(std::string_view name) {
+    Resource& res = get(name);
+    if(std::holds_alternative<ImageViewData>(res.data)) {
+        return std::get<ImageViewData>(res.data).imageView;
+    } else if (std::holds_alternative<ImageData>(res.data)) {
+        auto& viewRes = getView(name);
+        return std::get<ImageViewData>(viewRes.data).imageView;
+    } else if (std::holds_alternative<rhi::SwapchainPtr>(res.data)) {
+        std::string viewName(name);
+        viewName.append("/" + std::to_string(std::get<rhi::SwapchainPtr>(res.data)->imageIndex()));
+        viewName.append("/" + std::to_string(std::get<rhi::SwapchainPtr>(res.data)->imageIndex()));
+        auto v = *find_vertex(viewName, _graph);
+        return std::get<ImageViewData>(_graph[v].data).imageView;
+    }
+    return nullptr;
 }
 
 } // namespace raum::graph

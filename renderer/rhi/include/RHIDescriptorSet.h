@@ -8,7 +8,7 @@ public:
 
     virtual ~RHIDescriptorSet() = 0;
 
-    virtual void update(const std::vector<BindingInfo>& info) = 0;
+    virtual void update(const BindingInfo& info) = 0;
 
     virtual void updateBuffer(const BufferBinding& info) = 0;
 

@@ -1,7 +1,12 @@
 #include "SceneLoader.h"
 #include <numeric>
 #include "ImageLoader.h"
+#include "Mesh.h"
+#include "PBRMaterial.h"
+#include "RHIBlitEncoder.h"
+#include "RHICommandBuffer.h"
 #include "RHIUtils.h"
+#include "Technique.h"
 #include "assimp/Importer.hpp"
 #include "assimp/postprocess.h"
 #include "assimp/scene.h"
@@ -20,73 +25,86 @@ void expand(scene::AABB& aabb, const aiAABB& src) {
     aabb.maxBound.z = std::max(aabb.maxBound.z, src.mMax.z);
 }
 
-void loadMesh(const aiScene* scene, const aiNode* node, std::vector<scene::MeshPtr>& meshes, scene::AABB& aabb, rhi::DevicePtr device) {
+void loadMesh(const aiScene* scene,
+              const aiNode* node,
+              scene::Model& model,
+              const std::vector<scene::TechniquePtr>& techs,
+              rhi::DevicePtr device) {
+    auto& aabb = model.aabb();
+    // auto& meshes = model.meshes();
     for (size_t i = 0; i < node->mNumMeshes; ++i) {
+        auto newMesh = std::make_shared<scene::Mesh>();
         uint32_t location{0};
         const auto* mesh = scene->mMeshes[node->mMeshes[i]];
         expand(aabb, mesh->mAABB);
+        auto localMatIndex = mesh->mMaterialIndex;
 
-        auto& newMesh = meshes.emplace_back(scene::makeMesh());
-        newMesh->materialID = mesh->mMaterialIndex;
-
-        auto& meshData = newMesh->data;
+        auto& meshData = newMesh->meshData();
+        meshData.vertexCount = mesh->mNumVertices;
+        auto& vertexLayout = meshData.vertexLayout;
 
         std::vector<float> rawData;
         auto& meshVert = rawData;
         uint32_t stride{0};
         // pos
-        stride += 3;
-        meshData.attributes.emplace_back(rhi::VertexAttribute{
+        vertexLayout.vertexAttrs.emplace_back(rhi::VertexAttribute{
             location++,
             0,
             rhi::Format::RGB32_SFLOAT,
+            stride * static_cast<uint32_t>(sizeof(float)),
         });
+        stride += 3;
 
         meshData.shaderAttrs = scene::ShaderAttribute::POSITION;
 
         const aiVector3D* normal{nullptr};
         if (mesh->HasNormals()) {
-            stride += 3;
             normal = mesh->mNormals;
-            meshData.attributes.emplace_back(rhi::VertexAttribute{
+            vertexLayout.vertexAttrs.emplace_back(rhi::VertexAttribute{
                 location++,
                 0,
                 rhi::Format::RGB32_SFLOAT,
+                stride * static_cast<uint32_t>(sizeof(float)),
             });
             meshData.shaderAttrs |= scene::ShaderAttribute::NORMAL;
+            stride += 3;
         }
         if (mesh->HasTextureCoords(0)) {
-            stride += 2;
-            meshData.attributes.emplace_back(rhi::VertexAttribute{
+            vertexLayout.vertexAttrs.emplace_back(rhi::VertexAttribute{
                 location++,
                 0,
                 rhi::Format::RG32_SFLOAT,
+                stride * static_cast<uint32_t>(sizeof(float)),
             });
+            stride += 2;
             meshData.shaderAttrs |= scene::ShaderAttribute::UV;
         }
         if (mesh->HasTangentsAndBitangents()) {
+            vertexLayout.vertexAttrs.emplace_back(rhi::VertexAttribute{
+                location++,
+                0,
+                rhi::Format::RGB32_SFLOAT,
+                stride * static_cast<uint32_t>(sizeof(float)),
+            });
+            vertexLayout.vertexAttrs.emplace_back(rhi::VertexAttribute{
+                location++,
+                0,
+                rhi::Format::RGB32_SFLOAT,
+                stride * static_cast<uint32_t>(sizeof(float)),
+            });
             stride += 3 + 3;
-            meshData.attributes.emplace_back(rhi::VertexAttribute{
-                location++,
-                0,
-                rhi::Format::RGB32_SFLOAT,
-            });
-            meshData.attributes.emplace_back(rhi::VertexAttribute{
-                location++,
-                0,
-                rhi::Format::RGB32_SFLOAT,
-            });
             meshData.shaderAttrs |= scene::ShaderAttribute::BI_TANGENT;
         }
         const aiColor4D* color{nullptr};
         if (mesh->HasVertexColors(0)) {
             color = mesh->mColors[0];
-            stride += 4;
-            meshData.attributes.emplace_back(rhi::VertexAttribute{
+            vertexLayout.vertexAttrs.emplace_back(rhi::VertexAttribute{
                 location++,
                 0,
                 rhi::Format::RGBA32_SFLOAT,
+                stride * static_cast<uint32_t>(sizeof(float)),
             });
+            stride += 4;
         }
         meshVert.resize(stride * mesh->mNumVertices);
 
@@ -132,9 +150,9 @@ void loadMesh(const aiScene* scene, const aiNode* node, std::vector<scene::MeshP
             }
         }
 
+        uint32_t indexNum{0};
         if (mesh->HasFaces()) {
             std::vector<uint8_t> indices;
-            uint32_t indexNum{0};
             indexNum = std::accumulate(mesh->mFaces, mesh->mFaces + mesh->mNumFaces, indexNum, [](uint32_t curr, const aiFace& face) {
                 return curr + face.mNumIndices;
             });
@@ -146,6 +164,8 @@ void loadMesh(const aiScene* scene, const aiNode* node, std::vector<scene::MeshP
                 meshData.indexBuffer.type = rhi::IndexType::HALF;
                 indices.resize(indexNum * 2);
             }
+
+            meshData.indexCount = indexNum;
             auto* indexData = indices.data();
 
             uint32_t count{0};
@@ -167,36 +187,43 @@ void loadMesh(const aiScene* scene, const aiNode* node, std::vector<scene::MeshP
             };
             meshData.indexBuffer.buffer = device->createBuffer(bufferInfo);
         }
-        auto& bufferAttribute = meshData.bufferAttribute;
+        auto& bufferAttribute = vertexLayout.vertexBufferAttrs.emplace_back();
         bufferAttribute.binding = 0;
         bufferAttribute.rate = rhi::InputRate::PER_VERTEX;
-        bufferAttribute.stride = stride;
+        bufferAttribute.stride = stride * static_cast<uint32_t>(sizeof(float));
 
-        rhi::BufferInfo bufferInfo {
+        rhi::BufferInfo bufferInfo{
             .memUsage = rhi::MemoryUsage::DEVICE_ONLY,
             .bufferUsage = rhi::BufferUsage::VERTEX,
             .size = static_cast<uint32_t>(meshVert.size()),
         };
 
         meshData.vertexBuffer.buffer = device->createBuffer(bufferInfo);
+
+        auto meshRenderer = model.meshRenderers().emplace_back(std::make_shared<scene::MeshRenderer>(newMesh));
+        meshRenderer->addTechnique(techs[localMatIndex]);
+        meshRenderer->setVertexInfo(0, mesh->mNumVertices, indexNum);
     }
 
     for (size_t i = 0; i < node->mNumChildren; ++i) {
-        loadMesh(scene, node->mChildren[i], meshes, aabb, device);
+        loadMesh(scene, node->mChildren[i], model, techs, device);
     }
 }
 
 void loadMaterial(const aiScene* scene,
-                  std::vector<scene::MaterialDataPtr>& mats,
+                  scene::ModelPtr model,
+                  std::vector<scene::TechniquePtr>& techs,
                   std::filesystem::path file,
+                  rhi::CommandBufferPtr cmdBuffer,
                   rhi::DevicePtr& device) {
+    auto blitEncoder = rhi::BlitEncoderPtr(cmdBuffer->makeBlitEncoder());
     for (size_t i = 0; i < scene->mNumMaterials; ++i) {
         const auto* material = scene->mMaterials[i];
-        auto& matData = mats.emplace_back(scene::makeMaterialData());
-        matData->name = material->GetName().C_Str();
-        if (matData->name.empty()) {
-            matData->name = (file / std::to_string(i)).string();
-        }
+        scene::MaterialTemplatePtr matTemplate = scene::getOrCreateMaterialTemplate("asset/layout/simple");
+        scene::MaterialPtr mat = matTemplate->instantiate(scene::MaterialType::PBR);
+        auto pbrMat = std::static_pointer_cast<scene::PBRMaterial>(mat);
+        techs.emplace_back(std::make_shared<scene::Technique>(mat, "default"));
+
         auto entry = file.parent_path();
         aiString texturePath;
         constexpr uint32_t enumOffset = 1;
@@ -214,6 +241,7 @@ void loadMaterial(const aiScene* scene,
 
                     rhi::ImageInfo info{};
                     info.extent = {imgAsset.width, imgAsset.height, 1};
+                    info.usage = rhi::ImageUsage::TRANSFER_DST | rhi::ImageUsage::SAMPLED;
                     if (imgAsset.channels == 4) {
                         info.format = rhi::Format::RGBA8_UNORM;
                     } else if (imgAsset.channels == 3) {
@@ -222,7 +250,82 @@ void loadMaterial(const aiScene* scene,
                         raum_check(false, "unsupported image format");
                     }
 
-                    matData->images[i] = std::shared_ptr<rhi::RHIImage>(device->createImage(info));
+                    auto img = rhi::ImagePtr(device->createImage(info));
+
+                    rhi::ImageBarrierInfo barrierInfo{
+                        .image = img.get(),
+                        .dstStage = rhi::PipelineStage::TRANSFER,
+                        .newLayout = rhi::ImageLayout::TRANSFER_DST_OPTIMAL,
+                        .dstAccessFlag = rhi::AccessFlags::TRANSFER_WRITE,
+                        .range = {
+                            .aspect = rhi::AspectMask::COLOR,
+                            .sliceCount = 1,
+                            .mipCount = 1,
+                        },
+                    };
+                    cmdBuffer->appendImageBarrier(barrierInfo);
+                    cmdBuffer->applyBarrier({});
+
+                    auto bufferSize = imgAsset.width * imgAsset.height * rhi::getFormatSize(info.format);
+                    rhi::BufferSourceInfo bufferInfo{
+                        .bufferUsage = rhi::BufferUsage::TRANSFER_SRC,
+                        .size = bufferSize,
+                        .data = imgAsset.data,
+                    };
+                    auto stagingBuffer = rhi::BufferPtr(device->createBuffer(bufferInfo));
+                    rhi::BufferImageCopyRegion region{
+                        .bufferSize = bufferSize,
+                        .bufferOffset = 0,
+                        .bufferRowLength = 0,
+                        .bufferImageHeight = 0,
+                        .imageAspect = rhi::AspectMask::COLOR,
+                        .imageExtent = {
+                            imgAsset.width,
+                            imgAsset.height,
+                            1,
+                        },
+                    };
+                    blitEncoder->copyBufferToImage(stagingBuffer.get(),
+                                                   img.get(),
+                                                   rhi::ImageLayout::TRANSFER_DST_OPTIMAL,
+                                                   &region,
+                                                   1);
+                    barrierInfo.oldLayout = rhi::ImageLayout::TRANSFER_DST_OPTIMAL;
+                    barrierInfo.newLayout = rhi::ImageLayout::SHADER_READ_ONLY_OPTIMAL;
+                    barrierInfo.srcAccessFlag = rhi::AccessFlags::TRANSFER_WRITE;
+                    barrierInfo.dstAccessFlag = rhi::AccessFlags::SHADER_READ;
+                    barrierInfo.srcStage = rhi::PipelineStage::TRANSFER;
+                    barrierInfo.dstStage = rhi::PipelineStage::VERTEX_SHADER;
+                    cmdBuffer->appendImageBarrier(barrierInfo);
+                    cmdBuffer->applyBarrier({});
+
+                    rhi::ImageViewInfo viewInfo{};
+                    viewInfo.type = rhi::ImageViewType::IMAGE_VIEW_2D;
+                    viewInfo.image = img.get();
+                    viewInfo.format = info.format;
+                    viewInfo.range = {
+                        .aspect = rhi::AspectMask::COLOR,
+                        .firstSlice = 0,
+                        .sliceCount = 1,
+                        .firstMip = 0,
+                        .mipCount = 1};
+
+                    auto imgView = rhi::ImageViewPtr(device->createImageView(viewInfo));
+                    if (texType == aiTextureType_DIFFUSE) {
+                        pbrMat->add(scene::Texture{"mainTexture", img, imgView});
+                        pbrMat->add(scene::Sampler{"mainSampler",
+                                                   {
+                                                       .magFilter = rhi::Filter::LINEAR,
+                                                       .minFilter = rhi::Filter::LINEAR,
+                                                   }});
+                    }
+                    cmdBuffer->onComplete([stagingBuffer, img, imgView]() mutable {
+                        stagingBuffer.reset();
+                        img.reset();
+                        imgView.reset();
+                    });
+
+                    imgLoader.free(std::move(imgAsset));
                 }
             }
         }
@@ -248,12 +351,49 @@ void loadMaterial(const aiScene* scene,
                         raum_check(false, "unsupported image format");
                     }
 
-                    matData->images[i] = std::shared_ptr<rhi::RHIImage>(device->createImage(info));
+                    auto img = rhi::ImagePtr(device->createImage(info));
+
+                    rhi::ImageViewInfo viewInfo{};
+                    viewInfo.type = rhi::ImageViewType::IMAGE_VIEW_2D;
+                    viewInfo.image = img.get();
+                    viewInfo.format = info.format;
+                    viewInfo.range = {
+                        .aspect = rhi::AspectMask::COLOR,
+                        .firstSlice = 0,
+                        .sliceCount = 1,
+                        .firstMip = 0,
+                        .mipCount = 1};
+
+                    auto imgView = rhi::ImageViewPtr(device->createImageView(viewInfo));
+                    pbrMat->add(scene::Texture{"", img, imgView});
                 }
             }
         }
-
     }
+}
+
+void defaultResourceTransition(rhi::CommandBufferPtr commandBuffer, rhi::DevicePtr device) {
+    auto sampledImage = rhi::defaultSampledImage(device);
+    rhi::ImageBarrierInfo transition {
+        .image = sampledImage.get(),
+        .dstStage = rhi::PipelineStage::VERTEX_SHADER,
+        .newLayout = rhi::ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+        .dstAccessFlag = rhi::AccessFlags::SHADER_READ,
+        .range = {
+            .aspect = rhi::AspectMask::COLOR,
+            .sliceCount = 1,
+            .mipCount = 1,
+        }
+    };
+    commandBuffer->appendImageBarrier(transition);
+
+    auto storageImage = rhi::defaultStorageImage(device);
+    transition.image = storageImage.get();
+    transition.newLayout = rhi::ImageLayout::GENERAL;
+    transition.dstAccessFlag = rhi::AccessFlags::SHADER_WRITE;
+    transition.dstStage = rhi::PipelineStage::VERTEX_SHADER | rhi::PipelineStage::COMPUTE_SHADER;
+    commandBuffer->appendImageBarrier(transition);
+    commandBuffer->applyBarrier({});
 }
 
 } // namespace
@@ -276,9 +416,22 @@ void SceneLoader::loadFlat(const std::filesystem::path& filePath) {
 
     raum_check(scene, "failed to load file {}", filePath.string());
 
-    _data = scene::makeModel();
-    loadMesh(scene, scene->mRootNode, _data->meshes, _data->aabb, _device);
-    loadMaterial(scene, _data->materials, filePath, _device);
+    _data = std::make_shared<scene::Model>();
+
+    auto commandPool = rhi::CommandPoolPtr(_device->createCoomandPool({}));
+    auto commandBuffer = rhi::CommandBufferPtr(commandPool->makeCommandBuffer({}));
+    auto* queue = _device->getQueue({rhi::QueueType::GRAPHICS});
+    commandBuffer->enqueue(queue);
+    commandBuffer->begin({});
+
+    std::vector<scene::TechniquePtr> defaultTechs;
+    loadMaterial(scene, _data, defaultTechs, filePath, commandBuffer, _device);
+    loadMesh(scene, scene->mRootNode, *_data, defaultTechs, _device);
+
+    defaultResourceTransition(commandBuffer, _device);
+
+    commandBuffer->commit();
+    queue->submit();
 }
 
-} // namespace
+} // namespace raum::asset

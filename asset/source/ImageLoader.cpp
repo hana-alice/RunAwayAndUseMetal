@@ -26,7 +26,7 @@ ImageAsset::ImageAsset(ImageAsset&& rhs) {
     rhs = ImageAsset();
 }
 
-const ImageAsset ImageLoader::load(const std::string_view path) {
+ImageAsset ImageLoader::load(const std::string_view path) {
     ImageAsset img;
     img.data = stbi_load(path.data(), &img.width, &img.height, &img.channels, 0);
     return img;

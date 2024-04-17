@@ -1,11 +1,7 @@
 #include "ShaderGraph.h"
 #include "RHIDescriptorSetLayout.h"
-#include "RHIDescriptorPool.h"
-#include <fstream>
-
 #include "RHIDefine.h"
 #include "RHIUtils.h"
-#include "Serialization.h"
 #include "boost/graph/depth_first_search.hpp"
 #include "RHIDevice.h"
 
@@ -32,7 +28,7 @@ void ShaderGraph::addVertex(const std::filesystem::path &logicPath, ShaderResour
     _resources.emplace(logicPath.string(), std::forward<ShaderResource>(shaderResource));
 }
 
-ShaderGraph::ShaderGraph(rhi::RHIDevice *device):_device(device) {
+ShaderGraph::ShaderGraph(rhi::DevicePtr device):_device(device) {
     auto v = add_vertex("", _impl);
 }
 
@@ -45,6 +41,41 @@ std::unordered_map<std::string_view, rhi::ShaderStage> str2ShaderStage = {
     {".mesh", rhi::ShaderStage::MESH},
     {".task", rhi::ShaderStage::TASK},
 };
+
+void generateDescriptorSetLayouts(ShaderResource& resource, rhi::DevicePtr device) {
+    std::array<rhi::DescriptorSetLayoutInfo, rhi::BindingRateCount> infos;
+    auto& layouts = resource.descriptorLayouts;
+    for(const auto& binding : resource.bindings) {
+        const auto& bindingDesc = binding.second;
+        auto index = static_cast<uint32_t>(bindingDesc.rate);
+        rhi::DescriptorSetLayoutPtr& layout = layouts[index];
+        rhi::DescriptorType type{rhi::DescriptorType::UNIFORM_BUFFER};
+        uint32_t count{1};
+        switch (bindingDesc.type) {
+            case BindingType::BUFFER:
+                type = bindingDesc.buffer.type;
+                count = bindingDesc.buffer.count;
+                break;
+            case BindingType::IMAGE:
+                type = bindingDesc.image.type;
+                count = bindingDesc.image.arraySize;
+                break;
+            case BindingType::SAMPLER:
+                type = rhi::DescriptorType::SAMPLER;
+        }
+        infos[index].descriptorBindings.emplace_back(bindingDesc.binding, type, count, bindingDesc.visibility, std::vector<rhi::RHISampler*>());
+    }
+
+    std::vector<rhi::RHIDescriptorSetLayout*> descriptors;
+    for (size_t i = 0; i < rhi::BindingRateCount; ++i) {
+        if (!infos[i].descriptorBindings.empty()) {
+            layouts[i] = rhi::getOrCreateDescriptorSetLayout(infos[i], device);
+            descriptors.emplace_back(layouts[i].get());
+        }
+    }
+
+    resource.pipelineLayout = rhi::getOrCreatePipelineLayout({{}, descriptors}, device);
+}
 
 struct ShaderVisitor: public boost::dfs_visitor<>{
     void discover_vertex(const ShaderGraphImpl::vertex_descriptor u, const ShaderGraphImpl& g) {
@@ -65,18 +96,15 @@ struct ShaderVisitor: public boost::dfs_visitor<>{
                     src,
                 }
             };
-            auto* shader = device->createShader(info);
-            resource.shaders.emplace(stage, shader);
+            auto shaderPtr = rhi::ShaderPtr(device->createShader(info));
+            resource.shaders.emplace(stage, shaderPtr);
         }
 
-        rhi::DescriptorSetLayoutInfo info{};
-        for (const auto& [_, binding] : resource.bindings) {
-            info.descriptorBindings.emplace_back();
-        }
+        generateDescriptorSetLayouts(resource, device);
     }
 
     ShaderResources& resources;
-    rhi::RHIDevice* device{nullptr};
+    rhi::DevicePtr device{nullptr};
 };
 
 }
@@ -97,9 +125,9 @@ void ShaderGraph::compile(std::string_view name) {
     boost::depth_first_visit(_impl, vert, visitor, colorMap);
 }
 
-rhi::RHIDescriptorSetLayout* ShaderGraph::getLayout(std::string_view name) {
-    return nullptr;
-}
+//rhi::DescriptorSetLayoutInfo ShaderGraph::layoutInfo(std::string_view name, Rate rate) {
+//    return _resources.at(name.data()).descriptorLayouts[static_cast<uint32_t>(rate)];
+//}
 
 void ShaderGraph::addCustomLayout(ShaderResource&& layout, std::string_view name) {
     if(_resources.contains(name)) {

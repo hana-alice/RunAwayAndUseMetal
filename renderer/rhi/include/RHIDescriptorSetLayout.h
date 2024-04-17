@@ -8,7 +8,7 @@ public:
 
     virtual ~RHIDescriptorSetLayout() = 0;
 
-    const DescriptorSetLayoutInfo info() const { return _info; }
+    const DescriptorSetLayoutInfo& info() const { return _info; }
 
 protected:
     const DescriptorSetLayoutInfo _info;

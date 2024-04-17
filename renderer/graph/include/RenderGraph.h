@@ -36,12 +36,13 @@ using RenderGraphImpl = boost::adjacency_list<boost::vecS, boost::vecS, boost::d
 class RenderQueue {
 public:
     RenderQueue() = delete;
-    RenderQueue(RenderGraphImpl ::vertex_descriptor id, RenderGraphImpl& graph) : _id(id), _graph(graph){};
+    RenderQueue(RenderGraphImpl ::vertex_descriptor renderPassID, RenderGraphImpl& graph) : _id(renderPassID), _graph(graph){};
 
     RenderQueue& addCamera(scene::Camera* camera);
     //    RenderQueue& addQuad();
     //RenderQueue& addScene(scene::Scene* scene);
     RenderQueue& setViewport(int32_t x, int32_t y, uint32_t w, uint32_t h, float minDepth, float maxDepth);
+    RenderQueue& addUniformBuffer(std::string_view name, std::string_view bindingName);
 
 private:
     RenderGraphImpl::vertex_descriptor _id{0};
@@ -121,7 +122,9 @@ public:
     ComputePass addComputePass(std::string_view name);
     CopyPass addCopyPass(std::string_view name);
 
-    auto& impl() const { return _graph; }
+    void clear();
+
+    auto& impl() { return _graph; }
 
     using VertexType = RenderGraphImpl::vertex_descriptor;
 

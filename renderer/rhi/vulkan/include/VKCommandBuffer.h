@@ -23,11 +23,12 @@ public:
     RHIComputeEncoder* makeComputeEncoder() override;
     void begin(const CommandBufferBeginInfo& info) override;
     void enqueue(RHIQueue*) override;
-    void commit(RHIQueue*) override;
+    void commit() override;
     void reset() override;
     void appendImageBarrier(const ImageBarrierInfo& info) override;
     void appendBufferBarrier(const BufferBarrierInfo& info) override;
     void applyBarrier(DependencyFlags flags) override;
+    void onComplete(const std::function<void()>&) override;
 
     CommandBufferType type() const { return _info.type; }
 
@@ -39,6 +40,7 @@ private:
     bool _enqueued{false};
     CommandBufferStatus _status{CommandBufferStatus::AVAILABLE};
     Device* _device{nullptr};
+    Queue* _queue{nullptr};
     CommandPool* _commandPool;
     CommandBufferInfo _info;
     std::vector<ImageBarrierInfo> _imageBarriers;

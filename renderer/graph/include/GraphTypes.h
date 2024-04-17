@@ -36,12 +36,14 @@ enum class ResourceType : uint8_t {
 using LoadOp = rhi::LoadOp;
 using StoreOp = rhi::StoreOp;
 using ClearValue = rhi::ClearValue;
+using ShaderStage = rhi::ShaderStage;
+using BufferUsage = rhi::BufferUsage;
 
 struct RenderingResource {
     std::string name{};
     std::string bindingName{};
     Access access{Access::READ};
-    ResourceType type{ResourceType::COLOR};
+    ShaderStage visibility{ShaderStage::FRAGMENT};
 };
 
 struct AttachmentResource {
@@ -60,6 +62,7 @@ struct RenderPassData {
     std::vector<AttachmentResource> attachments;
     rhi::RenderPassPtr renderpass;
     rhi::FrameBufferPtr framebuffer;
+    rhi::Rect2D renderArea;
 };
 
 struct SubRenderPassData {
@@ -69,9 +72,8 @@ struct SubRenderPassData {
 struct RenderQueueData {
     scene::Camera* camera{nullptr};
     rhi::Viewport viewport{};
-    std::string phase{};
-    std::map<uint32_t, scene::RenderablePtr> renderables;
     std::vector<RenderingResource> resources;
+    scene::BindGroupPtr bindGroup;
 };
 
 struct ComputePassData {
@@ -85,7 +87,7 @@ struct CopyPair {
 };
 
 struct UploadPair {
-    uint8_t* data{nullptr};
+    const void* data{nullptr};
     uint32_t size{0};
     std::uint32_t offset{0};
     std::string_view name;
@@ -98,24 +100,24 @@ struct CopyPassData {
 
 struct BufferData {
     rhi::BufferInfo info{};
-    rhi::RHIBuffer* buffer{nullptr};
+    rhi::BufferPtr buffer;
 };
 
 struct BufferViewData {
     std::string origin{};
     rhi::BufferViewInfo info{};
-    rhi::RHIBufferView* bufferView{nullptr};
+    rhi::BufferViewPtr bufferView;
 };
 
 struct ImageData {
     rhi::ImageInfo info{};
-    rhi::RHIImage* image{nullptr};
+    rhi::ImagePtr image;
 };
 
 struct ImageViewData {
     std::string origin{};
     rhi::ImageViewInfo info{};
-    rhi::RHIImageView* imageView{nullptr};
+    rhi::ImageViewPtr imageView;
 };
 
 enum class BindingType :uint8_t {
@@ -148,9 +150,17 @@ struct SamplerBinding {
     bool immutable{false};
 };
 
+enum class Rate {
+    PER_PASS,
+    PER_BATCH,
+    PER_INSTANCE,
+    PER_DRAW,
+};
+
 struct ShaderBindingDesc {
     BindingType type{BindingType::BUFFER};
     rhi::ShaderStage visibility{rhi::ShaderStage::NONE};
+    Rate rate{Rate::PER_PASS};
     uint32_t binding{0};
     BufferBinding buffer{};
     ImageBinding image{};
@@ -159,9 +169,10 @@ struct ShaderBindingDesc {
 
 struct ShaderResource {
     std::unordered_map<std::string, ShaderBindingDesc, hash_string, std::equal_to<>> bindings;
-    rhi::RHIDescriptorSetLayout* layout{nullptr};
+    std::array<rhi::DescriptorSetLayoutPtr, rhi::BindingRateCount> descriptorLayouts;
+    rhi::PipelineLayoutPtr pipelineLayout;
     boost::container::flat_map<std::string, std::string> shaderSources;
-    boost::container::flat_map<rhi::ShaderStage, rhi::RHIShader*> shaders;
+    boost::container::flat_map<rhi::ShaderStage, rhi::ShaderPtr> shaders;
 };
 
 using ShaderResources = std::unordered_map<std::string, ShaderResource, hash_string, std::equal_to<>>;

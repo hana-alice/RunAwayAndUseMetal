@@ -46,9 +46,6 @@ Queue::~Queue() {
         for (auto sem : _commandSemaphores) {
             vkDestroySemaphore(_device->device(), sem, nullptr);
         }
-        for (auto sem : _presentSemaphores) {
-            vkDestroySemaphore(_device->device(), sem, nullptr);
-        }
         for (auto fence : _frameFence) {
             vkDestroyFence(_device->device(), fence, nullptr);
         }
@@ -56,12 +53,7 @@ Queue::~Queue() {
 }
 
 void Queue::initPresentQueue(uint32_t presentCount) {
-    _presentSemaphores.resize(presentCount);
-    for (auto& sem : _presentSemaphores) {
-        VkSemaphoreCreateInfo info{};
-        info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-        vkCreateSemaphore(_device->device(), &info, nullptr, &sem);
-    }
+    _presentSemaphores.resize(presentCount, VK_NULL_HANDLE);
 }
 
 void Queue::initCommandQueue() {
@@ -87,7 +79,6 @@ void Queue::enqueue(RHICommandBuffer* cmdBuffer) {
 void Queue::submit() {
     VkSubmitInfo info{};
     info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    VkPipelineStageFlags dstStage{};
 
     std::vector<VkCommandBuffer> cmdBuffers(_commandBuffers.size());
     for (size_t i = 0; i < _commandBuffers.size(); ++i) {
@@ -96,17 +87,27 @@ void Queue::submit() {
     info.commandBufferCount = static_cast<uint32_t>(_commandBuffers.size());
     info.pCommandBuffers = cmdBuffers.data();
 
-    if (!_presentSemaphores.empty()) {
-        auto swapchainCount = static_cast<uint32_t>(_presentSemaphores.size());
-        info.waitSemaphoreCount = 1;
-        info.pWaitSemaphores = &_presentSemaphores[_currFrameIndex % swapchainCount];
-        dstStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-        info.pWaitDstStageMask = &dstStage;
-        info.commandBufferCount = static_cast<uint32_t>(_commandBuffers.size());
-        info.signalSemaphoreCount = 1;
-        info.pSignalSemaphores = &_commandSemaphores[_currFrameIndex];
-        _currCommandSemaphore = _commandSemaphores[_currFrameIndex];
+    // image available & pre task
+    std::vector<VkSemaphore> waitSems;
+    std::vector<VkPipelineStageFlags> waitStages;
+    auto presentSem = _presentSemaphores[_currFrameIndex];
+    if (presentSem != VK_NULL_HANDLE) {
+        waitSems.emplace_back(presentSem);
+        waitStages.emplace_back(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
+        _presentSemaphores[_currFrameIndex] = VK_NULL_HANDLE;
     }
+    auto preTaskSem = popCommandSemaphore();
+    if(preTaskSem != VK_NULL_HANDLE) {
+        waitStages.emplace_back(VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
+        waitSems.emplace_back(preTaskSem);
+    }
+    info.waitSemaphoreCount = waitSems.size();
+    info.pWaitSemaphores = waitSems.data();
+    info.pWaitDstStageMask = waitStages.data();
+    info.commandBufferCount = static_cast<uint32_t>(_commandBuffers.size());
+    info.signalSemaphoreCount = 1;
+    info.pSignalSemaphores = &_commandSemaphores[_currFrameIndex];
+    _currCommandSemaphore = _commandSemaphores[_currFrameIndex];
 
     VkFence lastFence = _frameFence[(_currFrameIndex - 1 + FRAMES_IN_FLIGHT) % FRAMES_IN_FLIGHT];
     vkQueueSubmit(_vkQueue, 1, &info, lastFence);
@@ -114,20 +115,25 @@ void Queue::submit() {
     vkResetFences(_device->device(), 1, &_frameFence[_currFrameIndex]);
 
     _currFrameIndex = (_currFrameIndex + 1) % FRAMES_IN_FLIGHT;
+    for(auto& completeFunc : _completeHandlers[_currFrameIndex]) {
+        completeFunc();
+    }
+    _completeHandlers[_currFrameIndex].clear();
     _commandBuffers.clear();
 }
 
-VkSemaphore Queue::presentSemaphore() {
-    RAUM_CRITICAL_IF(_presentSemaphores.empty(), "Trying to get a present semaphore while queue is not the presentation queue; or swapchain not init");
-
-    auto swapchainCount = static_cast<uint32_t>(_presentSemaphores.size());
-    return _presentSemaphores[_currFrameIndex % swapchainCount];
+void Queue::setPresentSemaphore(VkSemaphore semaphore) {
+    _presentSemaphores[_currFrameIndex] = semaphore;
 }
 
 VkSemaphore Queue::popCommandSemaphore() {
     VkSemaphore res = _currCommandSemaphore;
     _currCommandSemaphore = VK_NULL_HANDLE;
     return res;
+}
+
+void Queue::addCompleteHandler(const std::function<void()>& func) {
+    _completeHandlers[_currFrameIndex].emplace_back(func);
 }
 
 } // namespace raum::rhi

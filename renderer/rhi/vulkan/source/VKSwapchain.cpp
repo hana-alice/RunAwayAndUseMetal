@@ -13,7 +13,7 @@
 
 namespace raum::rhi {
 Swapchain::Swapchain(const SwapchainInfo& info, Device* device)
-: RHISwapchain(info, device), _device(static_cast<Device*>(device)) {
+: RHISwapchain(info, device), _device(static_cast<Device*>(device)), _info(info) {
 #ifdef RAUM_WINDOWS
     VkWin32SurfaceCreateInfoKHR surfaceInfo{};
     surfaceInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
@@ -57,7 +57,7 @@ Swapchain::Swapchain(const SwapchainInfo& info, Device* device)
         }
     }
 
-    _preferredFormat = preferred.format;
+    _preferredFormat = mapSwapchainFormat(preferred.format);
 
     VkPresentModeKHR mode{VK_PRESENT_MODE_FIFO_KHR};
     VkPresentModeKHR hint{VK_PRESENT_MODE_FIFO_KHR};
@@ -113,42 +113,25 @@ Swapchain::Swapchain(const SwapchainInfo& info, Device* device)
     RAUM_CRITICAL_IF(res != VK_SUCCESS, "failed to create swapchain");
 
     vkGetSwapchainImagesKHR(device->device(), _swapchain, &imageCount, nullptr);
-    std::vector<VkImage> scImage(imageCount);
-    vkGetSwapchainImagesKHR(device->device(), _swapchain, &imageCount, scImage.data());
+    _vkImages.resize(imageCount);
+    vkGetSwapchainImagesKHR(device->device(), _swapchain, &imageCount, _vkImages.data());
 
-    for (auto img : scImage) {
-        ImageInfo imageInfo{};
-        imageInfo.type = ImageType::IMAGE_2D;
-        imageInfo.format = mapSwapchainFormat(_preferredFormat);
-        imageInfo.usage = ImageUsage::COLOR_ATTACHMENT | ImageUsage::TRANSFER_DST;
-        imageInfo.intialLayout = ImageLayout::UNDEFINED;
-        imageInfo.sliceCount = 1;
-        imageInfo.mipCount = 1;
-        imageInfo.sampleCount = 1;
-        imageInfo.extent = {info.width, info.height, 1};
-        auto* kImage = _swapchainImages.emplace_back(static_cast<Image*>(new Image(imageInfo, _device, img)));
-
-        ImageViewInfo imageViewInfo{};
-        imageViewInfo.format = mapSwapchainFormat(_preferredFormat);
-        imageViewInfo.image = kImage;
-        imageViewInfo.range = ImageSubresourceRange{
-            AspectMask::COLOR,
-            0,
-            1,
-            0,
-            1,
-        };
-        imageViewInfo.type = ImageViewType::IMAGE_VIEW_2D;
-        _swapchainImageViews.emplace_back(static_cast<ImageView*>(_device->createImageView(imageViewInfo)));
-    }
 #else
     #pragma error Run Away
 #endif
+
+    _presentSemaphores.resize(imageCount);
+    for (auto& sem : _presentSemaphores) {
+        VkSemaphoreCreateInfo info{};
+        info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+        vkCreateSemaphore(_device->device(), &info, nullptr, &sem);
+    }
 }
 
 bool Swapchain::aquire() {
-    VkSemaphore presentSemaphore = _presentQueue->presentSemaphore();
-    return vkAcquireNextImageKHR(_device->device(), _swapchain, UINT64_MAX, presentSemaphore, VK_NULL_HANDLE, &_imageIndex) == VK_SUCCESS;
+    VkSemaphore imageAvailableSem = _presentSemaphores[_imageIndex];
+    _presentQueue->setPresentSemaphore(imageAvailableSem);
+    return vkAcquireNextImageKHR(_device->device(), _swapchain, UINT64_MAX, imageAvailableSem, VK_NULL_HANDLE, &_imageIndex) == VK_SUCCESS;
 }
 
 void Swapchain::present() {
@@ -163,22 +146,35 @@ void Swapchain::present() {
     presentInfo.pImageIndices = &_imageIndex;
     presentInfo.pResults = nullptr;
     vkQueuePresentKHR(_presentQueue->_vkQueue, &presentInfo);
+    _imageIndex = (_imageIndex + 1) % static_cast<uint32_t>(_vkImages.size());
 }
 
 Swapchain::~Swapchain() {
-    for (auto imgView : _swapchainImageViews) {
-        delete imgView;
-    }
     vkDestroySwapchainKHR(_device->device(), _swapchain, nullptr);
     vkDestroySurfaceKHR(_device->instance(), _surface, nullptr);
 }
 
-RHIImageView* Swapchain::swapchainImageView() const {
-    return _swapchainImageViews[_imageIndex];
+RHIImage* Swapchain::allocateImage(uint32_t index) {
+    auto img = _vkImages[index];
+
+    ImageInfo imageInfo{};
+    imageInfo.type = ImageType::IMAGE_2D;
+    imageInfo.format = _preferredFormat;
+    imageInfo.usage = ImageUsage::COLOR_ATTACHMENT | ImageUsage::TRANSFER_DST;
+    imageInfo.intialLayout = ImageLayout::UNDEFINED;
+    imageInfo.sliceCount = 1;
+    imageInfo.mipCount = 1;
+    imageInfo.sampleCount = 1;
+    imageInfo.extent = {_info.width, _info.height, 1};
+    return new Image(imageInfo, _device, img);
 }
 
 uint32_t Swapchain::imageCount() const {
-    return static_cast<uint32_t>(_swapchainImages.size());
+    return static_cast<uint32_t>(_vkImages.size());
+}
+
+uint32_t Swapchain::imageIndex() const {
+    return _imageIndex;
 }
 
 } // namespace raum::rhi

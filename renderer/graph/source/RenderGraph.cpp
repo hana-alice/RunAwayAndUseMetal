@@ -9,6 +9,7 @@ using boost::get;
 using boost::out_degree;
 using boost::vertex;
 using boost::vertices;
+using boost::add_edge;
 
 namespace raum::graph {
 RenderPass RenderGraph::addRenderPass(std::string_view name) {
@@ -27,6 +28,10 @@ CopyPass RenderGraph::addCopyPass(std::string_view name) {
     auto id = add_vertex(std::string{name}, _graph);
     _graph[id].data = CopyPassData{};
     return CopyPass{std::get<CopyPassData>(_graph[id].data)};
+}
+
+void RenderGraph::clear() {
+    _graph.clear();
 }
 
 RenderPass& RenderPass::addColor(std::string_view name, LoadOp loadOp, StoreOp storeOp, const ClearValue& color) {
@@ -50,8 +55,9 @@ RenderPass& RenderPass::addShadingRate(std::string_view name) {
 
 RenderQueue RenderPass::addQueue(std::string_view name) {
     auto outs = out_degree(_id, _graph);
-    auto id = add_vertex(_graph[_id].name.append("_").append(name), _graph);
+    auto id = add_vertex(name.data(), _graph);
     _graph[id].data = RenderQueueData{};
+    add_edge(_id, id, _graph);
     return RenderQueue{id, _graph};
 }
 
@@ -70,6 +76,15 @@ RenderQueue RenderPass::addQueue(std::string_view name) {
 RenderQueue& RenderQueue::addCamera(scene::Camera* camera) {
     auto& data = std::get<RenderQueueData>(_graph[_id].data);
     data.camera = camera;
+    return *this;
+}
+
+RenderQueue& RenderQueue::addUniformBuffer(std::string_view name, std::string_view bindingName) {
+    auto& data = std::get<RenderQueueData>(_graph[_id].data);
+    auto& resource = data.resources.emplace_back();
+    resource.name = name;
+    resource.bindingName = bindingName;
+    resource.access = Access::READ;
     return *this;
 }
 

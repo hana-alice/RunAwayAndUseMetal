@@ -354,4 +354,22 @@ static const std::unordered_map<Format, std::string_view> format2str{
     {Format::ASTC_6x5_UNORM, "astc_6x5_unorm"},
 };
 
+uint32_t getFormatSize(Format format);
+
+rhi::DescriptorSetLayoutPtr getOrCreateDescriptorSetLayout(const rhi::DescriptorSetLayoutInfo& info, rhi::DevicePtr device);
+rhi::PipelineLayoutPtr getOrCreatePipelineLayout(const rhi::PipelineLayoutInfo& info, rhi::DevicePtr device);
+
+bool hasDepth(Format format);
+bool hasStencil(Format format);
+
+ImagePtr defaultSampledImage(DevicePtr);
+ImagePtr defaultStorageImage(DevicePtr);
+ImageViewPtr defaultSampledImageView(DevicePtr);
+ImageViewPtr defaultStorageImageView(DevicePtr);
+BufferPtr defaultUniformBuffer(DevicePtr);
+BufferPtr defaultStorageBuffer(DevicePtr);
+BufferViewPtr defaultUniformBufferView(DevicePtr);
+BufferViewPtr defaultStorageBufferView(DevicePtr);
+SamplerInfo defaultLinearSampler(DevicePtr);
+
 } // namespace raum::rhi

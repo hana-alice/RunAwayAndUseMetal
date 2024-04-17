@@ -21,11 +21,13 @@ public:
     Size pixelSize();
 
 private:
+    void update();
     QMainWindow* _window{nullptr};
     uintptr_t _hwnd;
 
     std::vector<TickFunction> _tickFunc;
     QApplication* _app{nullptr};
+    QTimer* _timer{nullptr};
 };
 
 using NativeWindowPtr = std::shared_ptr<NativeWindow>;

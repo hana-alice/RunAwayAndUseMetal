@@ -123,6 +123,10 @@ FormatInfo formatInfo(Format format) {
     return formatMap.at(format);
 }
 
+uint32_t getFormatSize(Format format) {
+    return formatMap.at(format).size;
+}
+
 VkVertexInputRate mapRate(InputRate rate) {
     switch (rate) {
         case InputRate::PER_VERTEX:
@@ -1256,7 +1260,7 @@ inline void hash_combine(std::size_t& s, const T& v) {
     s ^= h(v) + 0x9e3779b9 + (s << 6) + (s >> 2);
 }
 
-template <>
+/*template <>
 size_t RHIHash<SamplerInfo>::operator()(const SamplerInfo& info) const {
     std::size_t res{0};
     hash_combine(res, info.anisotropyEnable);
@@ -1275,6 +1279,6 @@ size_t RHIHash<SamplerInfo>::operator()(const SamplerInfo& info) const {
     hash_combine(res, info.maxLod);
     hash_combine(res, info.borderColor);
     return res;
-}   
+}  */ 
 
 } // namespace raum::rhi

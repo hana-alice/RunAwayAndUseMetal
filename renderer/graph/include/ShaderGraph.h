@@ -36,13 +36,13 @@ using ShaderGraphImpl = boost::adjacency_list<boost::vecS, boost::vecS, boost::d
 
 class ShaderGraph {
 public:
-    ShaderGraph(rhi::RHIDevice* device);
+    ShaderGraph(rhi::DevicePtr device);
 
     // compile shader and generate descriptorset layout, name can be a parent node which typed by directory,
     // in this case all children of 'name' will be compiled. [grouped multithreading]
     void compile(std::string_view name);
 
-    rhi::RHIDescriptorSetLayout* getLayout(std::string_view name);
+//    rhi::DescriptorSetLayoutInfo layoutInfo(std::string_view name, Rate rate);
 
     const ShaderResource& layout(std::string_view name) const;
 
@@ -50,7 +50,7 @@ public:
 
     void addVertex(const std::filesystem::path &logicPath, ShaderResource&& shaderResource);
 private:
-    rhi::RHIDevice* _device{nullptr};
+    rhi::DevicePtr _device;
     ShaderResources _resources;
     ShaderGraphImpl _impl;
 };

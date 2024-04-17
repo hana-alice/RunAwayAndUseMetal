@@ -49,13 +49,10 @@ void CommandBuffer::begin(const CommandBufferBeginInfo& info) {
 void CommandBuffer::enqueue(RHIQueue* queue) {
     queue->enqueue(this);
     _enqueued = true;
+    _queue = static_cast<Queue*>(queue);
 }
 
-void CommandBuffer::commit(RHIQueue* queue) {
-    if (!_enqueued) {
-        queue->enqueue(this);
-    }
-    _status = CommandBufferStatus::COMITTED;
+void CommandBuffer::commit() {
     vkEndCommandBuffer(_commandBuffer);
 }
 
@@ -113,6 +110,10 @@ void CommandBuffer::applyBarrier(DependencyFlags flags) {
                          static_cast<uint32_t>(imageBarriers.size()), imageBarriers.data());
     _bufferBarriers.clear();
     _imageBarriers.clear();
+}
+
+void CommandBuffer::onComplete(const std::function<void()>& func) {
+    _queue->addCompleteHandler(func);
 }
 
 } // namespace raum::rhi
