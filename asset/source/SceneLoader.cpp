@@ -180,25 +180,25 @@ void loadMesh(const aiScene* scene,
                 }
             }
 
-            rhi::BufferInfo bufferInfo{
-                .memUsage = rhi::MemoryUsage::DEVICE_ONLY,
+            rhi::BufferSourceInfo bufferSourceInfo{
                 .bufferUsage = rhi::BufferUsage::INDEX,
                 .size = static_cast<uint32_t>(indices.size()),
+                .data = indices.data(),
             };
-            meshData.indexBuffer.buffer = device->createBuffer(bufferInfo);
+            meshData.indexBuffer.buffer = device->createBuffer(bufferSourceInfo);
         }
         auto& bufferAttribute = vertexLayout.vertexBufferAttrs.emplace_back();
         bufferAttribute.binding = 0;
         bufferAttribute.rate = rhi::InputRate::PER_VERTEX;
         bufferAttribute.stride = stride * static_cast<uint32_t>(sizeof(float));
 
-        rhi::BufferInfo bufferInfo{
-            .memUsage = rhi::MemoryUsage::DEVICE_ONLY,
+        rhi::BufferSourceInfo bufferSourceInfo{
             .bufferUsage = rhi::BufferUsage::VERTEX,
-            .size = static_cast<uint32_t>(meshVert.size()),
+            .size = static_cast<uint32_t>(meshVert.size() * sizeof(float)),
+            .data = meshVert.data(),
         };
 
-        meshData.vertexBuffer.buffer = device->createBuffer(bufferInfo);
+        meshData.vertexBuffer.buffer = device->createBuffer(bufferSourceInfo);
 
         auto meshRenderer = model.meshRenderers().emplace_back(std::make_shared<scene::MeshRenderer>(newMesh));
         meshRenderer->addTechnique(techs[localMatIndex]);

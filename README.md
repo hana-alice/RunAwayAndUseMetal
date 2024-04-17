@@ -9,4 +9,6 @@ cd .. && cmake --preset debug
 ```
 
 TODO:
+ - [ ] Graph cpu buffer upload
  - [ ] Multi Device Queue
+

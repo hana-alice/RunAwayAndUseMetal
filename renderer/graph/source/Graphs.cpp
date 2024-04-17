@@ -306,7 +306,7 @@ void visitRenderGraph(T& visitor, RenderGraph& renderGraph) {
     auto colorMap = boost::make_vector_property_map<boost::default_color_type>(indexMap);
 
     for (auto vertex : boost::make_iterator_range(boost::vertices(g))) {
-        if (std::holds_alternative<RenderPassData>(g[vertex].data)) {
+        if (!std::holds_alternative<RenderQueueData>(g[vertex].data)) {
             boost::depth_first_visit(g, vertex, visitor, colorMap);
         }
     }

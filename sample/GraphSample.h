@@ -78,7 +78,7 @@ void GraphSample::show() {
     auto& renderGraph = _graphScheduler->renderGraph();
     auto uploadPass = renderGraph.addCopyPass("cambufferUpdate");
     auto& eye = _cam->eye();
-    auto modelMat = Mat4();
+    auto modelMat = Mat4(1.0);
     uploadPass.uploadBuffer(graph::UploadPair{
         .data = &modelMat[0],
         .size = 64,
