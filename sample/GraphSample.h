@@ -56,9 +56,8 @@ GraphSample::GraphSample(rhi::DevicePtr device, rhi::SwapchainPtr swapchain)
     scene::Frustum frustum{45.0f, width / (float)height, 0.1, 2 * far};
     _cam = std::make_shared<scene::Camera>(frustum, scene::Projection::PERSPECTIVE);
     auto& eye = _cam->eye();
-    eye.setPosition(0.0f, 1.0f, far * 0.5f);
-    eye.lookAt({}, {0.0f, 1.0f, 0.0f});
-
+    eye.setPosition(0.0f, 30.0f, 0.0);
+    eye.lookAt({100.0, 30.0, 0.0}, {0.0f, 1.0f, 0.0f});
 
     auto& resourceGraph = _graphScheduler->resourceGraph();
     if(!resourceGraph.contains(_forwardRT)) {
@@ -69,7 +68,7 @@ GraphSample::GraphSample(rhi::DevicePtr device, rhi::SwapchainPtr swapchain)
         resourceGraph.addImage(_forwardDS, rhi::ImageUsage::DEPTH_STENCIL_ATTACHMENT, width, height, rhi::Format::D24_UNORM_S8_UINT);
     }
     if(!resourceGraph.contains(_camBuffer)) {
-        resourceGraph.addBuffer(_camBuffer, 128, graph::BufferUsage ::UNIFORM | graph::BufferUsage ::TRANSFER_DST);
+        resourceGraph.addBuffer(_camBuffer, 192, graph::BufferUsage ::UNIFORM | graph::BufferUsage ::TRANSFER_DST);
     }
     
 }
@@ -77,7 +76,9 @@ GraphSample::GraphSample(rhi::DevicePtr device, rhi::SwapchainPtr swapchain)
 void GraphSample::show() {
     auto& renderGraph = _graphScheduler->renderGraph();
     auto uploadPass = renderGraph.addCopyPass("cambufferUpdate");
+
     auto& eye = _cam->eye();
+//    eye.translate(0.0, -2.0,  0.0);
     auto modelMat = Mat4(1.0);
     uploadPass.uploadBuffer(graph::UploadPair{
         .data = &modelMat[0],
@@ -85,11 +86,18 @@ void GraphSample::show() {
         .offset = 0,
         .name = _camBuffer,
     });
+    auto viewMat = eye.attitude();
+    uploadPass.uploadBuffer(graph::UploadPair{
+        .data = &viewMat[0],
+        .size = 64,
+        .offset = 64,
+        .name = _camBuffer,
+    });
     const auto& projMat = eye.projection();
     uploadPass.uploadBuffer(graph::UploadPair{
         .data = &projMat[0],
         .size = 64,
-        .offset = 64,
+        .offset = 128,
         .name = _camBuffer,
     });
 

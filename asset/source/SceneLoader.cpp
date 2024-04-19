@@ -222,7 +222,13 @@ void loadMaterial(const aiScene* scene,
         scene::MaterialTemplatePtr matTemplate = scene::getOrCreateMaterialTemplate("asset/layout/simple");
         scene::MaterialPtr mat = matTemplate->instantiate(scene::MaterialType::PBR);
         auto pbrMat = std::static_pointer_cast<scene::PBRMaterial>(mat);
-        techs.emplace_back(std::make_shared<scene::Technique>(mat, "default"));
+        auto& tech = techs.emplace_back(std::make_shared<scene::Technique>(mat, "default"));
+        auto& ds = tech->depthStencilInfo();
+        ds.depthTestEnable = true;
+        ds.depthWriteEnable = true;
+        auto& rs = tech->rasterizationInfo();
+        rs.cullMode = rhi::FaceMode::BACK;
+        tech->setPrimitiveType(rhi::PrimitiveType::TRIANGLE_LIST);
 
         auto entry = file.parent_path();
         aiString texturePath;

@@ -188,7 +188,7 @@ void Device::initInstance() {
             requiredExts.emplace_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
         }
 #ifdef RAUM_WINDOWS
-        requiredExts.emplace_back("VK_KHR_surface");
+        requiredExts.emplace_back(VK_KHR_SURFACE_EXTENSION_NAME);
         requiredExts.emplace_back("VK_KHR_win32_surface");
 #endif
 
@@ -246,6 +246,7 @@ void Device::initDevice() {
 
     std::vector<const char*> exts{};
     exts.emplace_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
+    exts.emplace_back(VK_KHR_MAINTENANCE1_EXTENSION_NAME);
 
     uint32_t extNum{0};
     vkEnumerateDeviceExtensionProperties(_physicalDevice, nullptr, &extNum, nullptr);

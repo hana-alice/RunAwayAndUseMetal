@@ -40,6 +40,10 @@ rhi::GraphicsPipelinePtr Technique::pipelineState() {
     return _pso;
 }
 
+void Technique::setPrimitiveType(rhi::PrimitiveType type) {
+    _primitiveType = type;
+}
+
 void Technique::bake(rhi::RenderPassPtr renderpass,
                      rhi::PipelineLayoutPtr pplLayout,
                      rhi::VertexLayout vertexLayout,
