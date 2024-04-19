@@ -16,7 +16,7 @@ NativeWindow::NativeWindow(int argc, char** argv, uint32_t w, uint32_t h) {
     _hwnd = _window->winId();
 
     _timer = new QTimer();
-    _timer->setInterval(std::chrono::milliseconds(33));
+    _timer->setInterval(std::chrono::milliseconds(16));
     QObject::connect(_timer, &QTimer::timeout, [&](){
         this->update();
     });
