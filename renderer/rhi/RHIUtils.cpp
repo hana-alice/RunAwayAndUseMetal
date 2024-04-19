@@ -3,6 +3,7 @@
 #include "RHIDefine.h"
 #include "RHIDevice.h"
 #include <unordered_set>
+#include "RHIBufferView.h"
 
 namespace raum::rhi {
 bool operator==(const SamplerInfo& lhs, const SamplerInfo& rhs) {

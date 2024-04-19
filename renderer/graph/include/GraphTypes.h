@@ -87,10 +87,10 @@ struct CopyPair {
 };
 
 struct UploadPair {
-    const void* data{nullptr};
+    std::vector<uint8_t> data;
     uint32_t size{0};
     std::uint32_t offset{0};
-    std::string_view name;
+    std::string name;
 };
 
 struct CopyPassData {

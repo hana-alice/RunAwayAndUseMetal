@@ -1,6 +1,7 @@
 #pragma once
 #include "RHIQueue.h"
 #include "VKDefine.h"
+#include "VKBuffer.h"
 namespace raum::rhi {
 
 class Device;
@@ -42,6 +43,8 @@ private:
     VkSemaphore _currCommandSemaphore;
 
     std::array<std::vector<std::function<void()>>, FRAMES_IN_FLIGHT> _completeHandlers;
+
+    StagingBuffer* _stagingBuffer{nullptr};
 
     friend class Device;
     friend class Swapchain;

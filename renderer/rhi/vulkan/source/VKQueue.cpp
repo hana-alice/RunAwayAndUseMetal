@@ -6,9 +6,8 @@
 #include "VKUtils.h"
 namespace raum::rhi {
 Queue::Queue(const QueueInfo& info, Device* device)
-: RHIQueue(info, device), 
-    _device(static_cast<Device*>(device)), 
-    _currCommandSemaphore(VK_NULL_HANDLE){
+: _device(static_cast<Device*>(device)),
+  _currCommandSemaphore(VK_NULL_HANDLE) {
     _info = info;
 
     uint32_t queueFamilyCount{0};
@@ -97,7 +96,7 @@ void Queue::submit() {
         _presentSemaphores[_currFrameIndex] = VK_NULL_HANDLE;
     }
     auto preTaskSem = popCommandSemaphore();
-    if(preTaskSem != VK_NULL_HANDLE) {
+    if (preTaskSem != VK_NULL_HANDLE) {
         waitStages.emplace_back(VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
         waitSems.emplace_back(preTaskSem);
     }
@@ -115,7 +114,7 @@ void Queue::submit() {
     vkResetFences(_device->device(), 1, &_frameFence[_currFrameIndex]);
 
     _currFrameIndex = (_currFrameIndex + 1) % FRAMES_IN_FLIGHT;
-    for(auto& completeFunc : _completeHandlers[_currFrameIndex]) {
+    for (auto& completeFunc : _completeHandlers[_currFrameIndex]) {
         completeFunc();
     }
     _completeHandlers[_currFrameIndex].clear();

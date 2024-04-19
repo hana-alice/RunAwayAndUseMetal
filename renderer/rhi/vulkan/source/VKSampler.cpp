@@ -2,9 +2,8 @@
 #include "VKDevice.h"
 #include "VKUtils.h"
 namespace raum::rhi {
-Sampler::Sampler(const SamplerInfo& samplerInfo, RHIDevice* device) 
-	: RHISampler(samplerInfo, device),
-	_device(static_cast<Device*>(device)) {
+Sampler::Sampler(const SamplerInfo& samplerInfo, RHIDevice* device)
+: _device(static_cast<Device*>(device)) {
     VkSamplerCreateInfo info{};
     info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
     info.magFilter = mapFilter(samplerInfo.magFilter);
@@ -30,4 +29,4 @@ Sampler::~Sampler() {
     vkDestroySampler(_device->device(), _sampler, nullptr);
 }
 
-}
+} // namespace raum::rhi

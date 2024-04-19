@@ -1,5 +1,4 @@
 #pragma once
-#include <QMainWindow.h>
 #include <functional>
 #include <vector>
 #include <QApplication>
@@ -22,7 +21,8 @@ public:
 
 private:
     void update();
-    QMainWindow* _window{nullptr};
+    QWindow* _window{nullptr};
+    QWidget* _engineCanvas{nullptr};
     uintptr_t _hwnd;
 
     std::vector<TickFunction> _tickFunc;

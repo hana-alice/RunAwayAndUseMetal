@@ -1,12 +1,18 @@
 #include "window.h"
 #include <QTimer>
+#include <QGridLayout>
+#include <QSizePolicy>
+#include <QWindow>
+#include <QWidget>
 
 namespace raum::platform {
 NativeWindow::NativeWindow(int argc, char** argv, uint32_t w, uint32_t h) {
     _app = new QApplication(argc, argv);
-    _window = new QMainWindow(nullptr, Qt::Window);
-    _window->addToolBar("raum");
-    _window->resize(w,h);
+    _window = new QWindow();
+    _window->resize(w, h);
+    _engineCanvas = QWidget::createWindowContainer(_window);
+    _engineCanvas->resize(w, h);
+
     _hwnd = _window->winId();
 
     _timer = new QTimer();
@@ -35,6 +41,7 @@ void NativeWindow::update() {
 }
 
 void NativeWindow::mainLoop() {
+    _engineCanvas->show();
     _window->show();
     _timer->start();
     _app->exec();

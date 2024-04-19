@@ -248,7 +248,7 @@ struct RenderGraphVisitor : public boost::dfs_visitor<> {
                                if(!_blitEncoder) {
                                    _blitEncoder = rhi::BlitEncoderPtr(_commandBuffer->makeBlitEncoder());
                                }
-                               _blitEncoder->updateBuffer(buffer.get(), upload.offset, upload.data, upload.size);
+                               _blitEncoder->updateBuffer(buffer.get(), upload.offset, upload.data.data(), upload.size);
                            }
                        },
                        [&](auto _) {

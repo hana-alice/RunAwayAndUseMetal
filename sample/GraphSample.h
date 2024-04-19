@@ -80,26 +80,11 @@ void GraphSample::show() {
     auto& eye = _cam->eye();
 //    eye.translate(0.0, -2.0,  0.0);
     auto modelMat = Mat4(1.0);
-    uploadPass.uploadBuffer(graph::UploadPair{
-        .data = &modelMat[0],
-        .size = 64,
-        .offset = 0,
-        .name = _camBuffer,
-    });
+    uploadPass.uploadBuffer(&modelMat[0], 64, _camBuffer, 0);
     auto viewMat = eye.attitude();
-    uploadPass.uploadBuffer(graph::UploadPair{
-        .data = &viewMat[0],
-        .size = 64,
-        .offset = 64,
-        .name = _camBuffer,
-    });
+    uploadPass.uploadBuffer(&viewMat[0], 64, _camBuffer, 64);
     const auto& projMat = eye.projection();
-    uploadPass.uploadBuffer(graph::UploadPair{
-        .data = &projMat[0],
-        .size = 64,
-        .offset = 128,
-        .name = _camBuffer,
-    });
+    uploadPass.uploadBuffer(&projMat[0], 64, _camBuffer, 128);
 
     auto renderPass = renderGraph.addRenderPass("forward");
     renderPass.addColor(_forwardRT, graph::LoadOp::CLEAR, graph::StoreOp::STORE, {0.8, 0.1, 0.3, 1.0})

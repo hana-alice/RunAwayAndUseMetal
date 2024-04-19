@@ -104,8 +104,10 @@ CopyPass& CopyPass::addPair(const CopyPair& pair) {
     return *this;
 }
 
-CopyPass& CopyPass::uploadBuffer(const UploadPair& pair) {
-    _data.uploads.emplace_back(pair);
+CopyPass& CopyPass::uploadBuffer(const void* const data, uint32_t size, std::string_view name, uint32_t dstOffset) {
+    std::vector<uint8_t> dataIn(size);
+    memcpy(dataIn.data(), data, size);
+    _data.uploads.emplace_back(dataIn, size, dstOffset, name.data());
     return *this;
 }
 
