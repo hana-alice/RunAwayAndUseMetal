@@ -219,7 +219,7 @@ void loadMaterial(const aiScene* scene,
     auto blitEncoder = rhi::BlitEncoderPtr(cmdBuffer->makeBlitEncoder());
     for (size_t i = 0; i < scene->mNumMaterials; ++i) {
         const auto* material = scene->mMaterials[i];
-        scene::MaterialTemplatePtr matTemplate = scene::getOrCreateMaterialTemplate("asset/layout/simple");
+        scene::MaterialTemplatePtr matTemplate = scene::getOrCreateMaterialTemplate("asset/layout/cook-torrance");
         scene::MaterialPtr mat = matTemplate->instantiate(scene::MaterialType::PBR);
         auto pbrMat = std::static_pointer_cast<scene::PBRMaterial>(mat);
         auto& tech = techs.emplace_back(std::make_shared<scene::Technique>(mat, "default"));
@@ -317,13 +317,19 @@ void loadMaterial(const aiScene* scene,
                         .mipCount = 1};
 
                     auto imgView = rhi::ImageViewPtr(device->createImageView(viewInfo));
-                    if (texType == aiTextureType_DIFFUSE) {
-                        pbrMat->add(scene::Texture{"mainTexture", img, imgView});
-                        pbrMat->add(scene::Sampler{"mainSampler",
-                                                   {
-                                                       .magFilter = rhi::Filter::LINEAR,
-                                                       .minFilter = rhi::Filter::LINEAR,
-                                                   }});
+                    switch (texType) {
+                        case aiTextureType_BASE_COLOR:
+                            pbrMat->add(scene::Texture{"albedoMap", img, imgView});
+                            break;
+                        case aiTextureType_DIFFUSE_ROUGHNESS:
+                            pbrMat->add(scene::Texture{"roughnessMap", img, imgView});
+                            break;
+                        case aiTextureType_NORMALS:
+                            pbrMat->add(scene::Texture{"normalMap", img, imgView});
+                            break;
+                        case aiTextureType_METALNESS:
+                            pbrMat->add(scene::Texture{"metallicMap", img, imgView});
+                            break;
                     }
                     cmdBuffer->onComplete([stagingBuffer, img, imgView]() mutable {
                         stagingBuffer.reset();
@@ -335,6 +341,10 @@ void loadMaterial(const aiScene* scene,
                 }
             }
         }
+        rhi::SamplerInfo pointSampler{
+            .mipmapMode = rhi::MipmapMode::NEAREST,
+        };
+        pbrMat->add(scene::Sampler{"pointSampler", pointSampler});
 
         for (size_t i = aiTextureType_SHEEN; i <= static_cast<uint32_t>(aiTextureType_TRANSMISSION); ++i) {
             auto texType = static_cast<aiTextureType>(aiTextureType_SHEEN + i);

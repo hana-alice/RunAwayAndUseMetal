@@ -7,6 +7,7 @@
 #include "RHIDevice.h"
 #include "Camera.h"
 #include "PBRMaterial.h"
+#include "math.h"
 namespace raum::sample {
 class GraphSample : public SampleBase {
 public:
@@ -25,6 +26,8 @@ private:
     const std::string _forwardRT = "forwardRT";
     const std::string _forwardDS = "forwardDS";
     const std::string _camBuffer = "camBuffer";
+    const std::string _camPose = "camPose";
+    const std::string _light = "light";
 };
 
 GraphSample::GraphSample(rhi::DevicePtr device, rhi::SwapchainPtr swapchain)
@@ -34,7 +37,7 @@ GraphSample::GraphSample(rhi::DevicePtr device, rhi::SwapchainPtr swapchain)
 
     const auto& resourcePath = utils::resourceDirectory();
 
-    graph::deserialize(resourcePath / "shader", "simple", shaderGraph);
+    graph::deserialize(resourcePath / "shader", "cook-torrance", shaderGraph);
     shaderGraph.compile("asset");
 
     asset::SceneLoader loader(device);
@@ -53,11 +56,11 @@ GraphSample::GraphSample(rhi::DevicePtr device, rhi::SwapchainPtr swapchain)
 
     auto width = _swapchain->width();
     auto height = _swapchain->height();
-    scene::Frustum frustum{45.0f, width / (float)height, 0.1, 2 * far};
+    scene::Frustum frustum{45.0f, width / (float)height, 0.1, 10 * far};
     _cam = std::make_shared<scene::Camera>(frustum, scene::Projection::PERSPECTIVE);
     auto& eye = _cam->eye();
-    eye.setPosition(0.0f, 30.0f, 0.0);
-    eye.lookAt({100.0, 30.0, 0.0}, {0.0f, 1.0f, 0.0f});
+    eye.setPosition(0.0f, 50.0f, 0.0);
+    eye.lookAt({100.0, 50.0, 0.0}, {0.0f, 1.0f, 0.0f});
 
     auto& resourceGraph = _graphScheduler->resourceGraph();
     if(!resourceGraph.contains(_forwardRT)) {
@@ -69,6 +72,8 @@ GraphSample::GraphSample(rhi::DevicePtr device, rhi::SwapchainPtr swapchain)
     }
     if(!resourceGraph.contains(_camBuffer)) {
         resourceGraph.addBuffer(_camBuffer, 192, graph::BufferUsage ::UNIFORM | graph::BufferUsage ::TRANSFER_DST);
+        resourceGraph.addBuffer(_camPose, 12, graph::BufferUsage ::UNIFORM | graph::BufferUsage ::TRANSFER_DST);
+        resourceGraph.addBuffer(_light, 32, graph::BufferUsage ::UNIFORM | graph::BufferUsage ::TRANSFER_DST);
     }
     
 }
@@ -78,13 +83,19 @@ void GraphSample::show() {
     auto uploadPass = renderGraph.addCopyPass("cambufferUpdate");
 
     auto& eye = _cam->eye();
-//    eye.translate(0.0, -2.0,  0.0);
+    eye.translate(1.0, 0.0,  0.0);
     auto modelMat = Mat4(1.0);
     uploadPass.uploadBuffer(&modelMat[0], 64, _camBuffer, 0);
     auto viewMat = eye.attitude();
     uploadPass.uploadBuffer(&viewMat[0], 64, _camBuffer, 64);
     const auto& projMat = eye.projection();
     uploadPass.uploadBuffer(&projMat[0], 64, _camBuffer, 128);
+
+    uploadPass.uploadBuffer(&eye.getPosition()[0], 12, _camPose, 0);
+    Vec4f color{1.0, 1.0, 1.0, 1.0};
+    Vec4f lightPos{10.0, 100.0, 0.0, 1.0};
+    uploadPass.uploadBuffer(&lightPos[0], 16, _light, 0);
+    uploadPass.uploadBuffer(&color[0], 16, _light, 16);
 
     auto renderPass = renderGraph.addRenderPass("forward");
     renderPass.addColor(_forwardRT, graph::LoadOp::CLEAR, graph::StoreOp::STORE, {0.8, 0.1, 0.3, 1.0})
@@ -95,7 +106,9 @@ void GraphSample::show() {
     auto height = _swapchain->height();
     queue.setViewport(0, 0, width, height, 0.0f, 1.0f)
         .addCamera(_cam.get())
-        .addUniformBuffer(_camBuffer, "Mat");
+        .addUniformBuffer(_camBuffer, "Mat")
+        .addUniformBuffer(_camPose, "CamPos")
+        .addUniformBuffer(_light, "Light");
 
     _graphScheduler->execute();
 

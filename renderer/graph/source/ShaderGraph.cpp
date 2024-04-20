@@ -100,6 +100,20 @@ struct ShaderVisitor: public boost::dfs_visitor<>{
             resource.shaders.emplace(stage, shaderPtr);
         }
 
+        for(const auto& [idName, src] : resource.shaderSourceSpvs) {
+            std::string_view ext(&idName[idName.length() - 5], 5);
+            auto stage  = str2ShaderStage.at(ext);
+            rhi::ShaderBinaryInfo info {
+                idName,
+                {
+                    stage,
+                    src,
+                }
+            };
+            auto shaderPtr = rhi::ShaderPtr(device->createShader(info));
+            resource.shaders.emplace(stage, shaderPtr);
+        }
+
         generateDescriptorSetLayouts(resource, device);
     }
 

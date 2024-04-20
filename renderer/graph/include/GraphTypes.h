@@ -172,6 +172,7 @@ struct ShaderResource {
     std::array<rhi::DescriptorSetLayoutPtr, rhi::BindingRateCount> descriptorLayouts;
     rhi::PipelineLayoutPtr pipelineLayout;
     boost::container::flat_map<std::string, std::string> shaderSources;
+    boost::container::flat_map<std::string, std::vector<uint32_t>> shaderSourceSpvs;
     boost::container::flat_map<rhi::ShaderStage, rhi::ShaderPtr> shaders;
 };
 

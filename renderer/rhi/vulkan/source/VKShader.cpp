@@ -46,6 +46,22 @@ Shader::Shader(const ShaderSourceInfo& shaderInfo, RHIDevice* device)
     RAUM_ERROR_IF(res != VK_SUCCESS, "Failed to create shader module");
 }
 
+Shader::Shader(const raum::rhi::ShaderBinaryInfo& shaderInfo, raum::rhi::RHIDevice* device)
+: RHIShader(shaderInfo, device), _device(static_cast<Device*>(device)) {
+    _stage = shaderInfo.stage.stage;
+
+
+    const auto& stage = shaderInfo.stage;
+
+    VkShaderModuleCreateInfo createInfo{};
+    createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+    createInfo.codeSize = shaderInfo.stage.spv.size() * 4;
+    createInfo.pCode = shaderInfo.stage.spv.data();
+    VkResult res = vkCreateShaderModule(_device->device(), &createInfo, nullptr, &_shaderModule);
+
+    RAUM_ERROR_IF(res != VK_SUCCESS, "Failed to create shader module");
+}
+
 Shader::~Shader() {
     vkDestroyShaderModule(_device->device(), _shaderModule, nullptr);
 }

@@ -29,13 +29,12 @@ DescriptorSet::DescriptorSet(const DescriptorSetInfo& info, DescriptorPool* pool
 
 void DescriptorSet::update(const BindingInfo& bindingInfo) {
     std::vector<VkWriteDescriptorSet> writes;
-    std::vector<VkDescriptorBufferInfo> buffers;
-    std::vector<VkDescriptorImageInfo> images;
-    std::vector<VkDescriptorImageInfo> samplers;
-    std::vector<VkBufferView> texelBuffers;
+    std::vector<VkDescriptorBufferInfo> buffers(bindingInfo.bufferBindings.size());
+    std::vector<VkDescriptorImageInfo> images(bindingInfo.imageBindings.size());
+    std::vector<VkDescriptorImageInfo> samplers(bindingInfo.samplerBindings.size());
+    std::vector<VkBufferView> texelBuffers(bindingInfo.texelBufferBindings.size());
     for (const auto& bufferBinding : bindingInfo.bufferBindings) {
         auto& write = writes.emplace_back();
-        auto ptrOffset = buffers.size();
         write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         write.dstSet = _descriptorSet;
         write.dstBinding = bufferBinding.binding;
@@ -43,17 +42,16 @@ void DescriptorSet::update(const BindingInfo& bindingInfo) {
         write.descriptorCount = static_cast<uint32_t>(bufferBinding.buffers.size());
         write.descriptorType = descriptorType(bufferBinding.type);
         for (const auto& v : bufferBinding.buffers) {
-            auto& dbInfo = buffers.emplace_back();
+            auto& dbInfo = buffers[&v - &bufferBinding.buffers[0]];
             dbInfo.buffer = static_cast<Buffer*>(v.buffer)->buffer();
             dbInfo.offset = v.offset;
             dbInfo.range = v.size;
         }
-        write.pBufferInfo = &buffers[ptrOffset];
+        write.pBufferInfo = &buffers[0];
     }
 
     for (const auto& imageBinding : bindingInfo.imageBindings) {
         auto& write = writes.emplace_back();
-        auto ptrOffset = images.size();
         write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         write.dstSet = _descriptorSet;
         write.dstBinding = imageBinding.binding;
@@ -62,16 +60,15 @@ void DescriptorSet::update(const BindingInfo& bindingInfo) {
         write.descriptorType = descriptorType(imageBinding.type);
 
         for (const auto& v : imageBinding.imageViews) {
-            auto& diInfo = images.emplace_back();
+            auto& diInfo = images[&v - &imageBinding.imageViews[0]];
             diInfo.imageView = static_cast<ImageView*>(v.imageView)->imageView();
             diInfo.imageLayout = imageLayout(v.layout);
         }
-        write.pImageInfo = &images[ptrOffset];
+        write.pImageInfo = &images[0];
     }
 
     for (const auto& samplerBinding : bindingInfo.samplerBindings) {
         auto& write = writes.emplace_back();
-        auto ptrOffset = samplers.size();
         write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         write.dstSet = _descriptorSet;
         write.dstBinding = samplerBinding.binding;
@@ -79,24 +76,23 @@ void DescriptorSet::update(const BindingInfo& bindingInfo) {
         write.descriptorCount = static_cast<uint32_t>(samplerBinding.samplers.size());
         write.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
         for (const auto& s : samplerBinding.samplers) {
-            auto& dsInfo = samplers.emplace_back();
+            auto& dsInfo = samplers[&s - &samplerBinding.samplers[0]];
             dsInfo.sampler = static_cast<Sampler*>(s)->sampler();
         }
-        write.pImageInfo = &samplers[ptrOffset];
+        write.pImageInfo = &samplers[0];
     }
 
     for (const auto& texelBufferBinding : bindingInfo.texelBufferBindings) {
         auto& write = writes.emplace_back();
-        auto ptrOffset = texelBuffers.size();
         write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         write.dstSet = _descriptorSet;
         write.dstBinding = texelBufferBinding.binding;
         write.dstArrayElement = texelBufferBinding.arrayElement;
         write.descriptorCount = static_cast<uint32_t>(texelBufferBinding.bufferViews.size());
         for (const auto& bfv : texelBufferBinding.bufferViews) {
-            texelBuffers.emplace_back(static_cast<BufferView*>(bfv)->bufferView());
+            texelBuffers[&bfv - &texelBufferBinding.bufferViews[0]] = static_cast<BufferView*>(bfv)->bufferView();
         }
-        write.pTexelBufferView = &texelBuffers[ptrOffset];
+        write.pTexelBufferView = &texelBuffers[0];
     }
 
     vkUpdateDescriptorSets(_device->device(), static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);

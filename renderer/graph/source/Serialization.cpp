@@ -7,7 +7,7 @@
 #include "boost/lexical_cast.hpp"
 
 namespace raum::graph {
-
+using BindingMap = std::array<std::map<uint32_t, std::string>, rhi::BindingRateCount>;
 using namespace ::boost::json;
 
 std::unordered_map<std::string_view, rhi::DescriptorType, hash_string, std::equal_to<>> bufferBindingMap = {
@@ -125,21 +125,22 @@ Rate tag_invoke( value_to_tag<Rate>, value const& jv ) {
     return rate;
 }
 
-void deserializeBinding(const object& obj, const rhi::ShaderStage stage, ShaderResource& resource, const std::map<uint32_t, std::string>& bindingMap) {
+void deserializeBinding(const object& obj, const rhi::ShaderStage stage, ShaderResource& resource, const BindingMap& bindingMap) {
     if(!obj.contains("bindings")) {
         return;
     }
     raum_check(obj.at("bindings").is_array(), "layout parsing error: bindings not written in array");
     const auto& bindings = obj.at("bindings").as_array();
     for(const auto& binding : bindings) {
+        auto rate = value_to<Rate>(binding);
         const auto& slotValue = binding.at("slot");
         auto slot = slotValue.to_number<uint32_t>();
-        const auto& name = bindingMap.at(slot);
-        auto& resDesc = resource.bindings[name];
+        const auto& name = bindingMap[static_cast<uint32_t>(rate)].at(slot);
+        auto& resDesc = resource.bindings[name.data()];
         resDesc.binding = slot;
         resDesc.visibility = resDesc.visibility | stage;
         resDesc.type = value_to<BindingType>(binding);
-        resDesc.rate = value_to<Rate>(binding);
+        resDesc.rate = rate;
         switch (resDesc.type) {
             case BindingType::BUFFER:
                 resDesc.buffer = value_to<BufferBinding>(binding);
@@ -157,7 +158,7 @@ void deserializeBinding(const object& obj, const rhi::ShaderStage stage, ShaderR
     }
 }
 
-const std::filesystem::path deserialize(const std::filesystem::path &path, ShaderResource& resource, const std::map<uint32_t, std::string>& bindingMap) {
+const std::filesystem::path deserialize(const std::filesystem::path &path, ShaderResource& resource, const BindingMap& bindingMap) {
     raum_check(std::filesystem::exists(path), "failed to read file!");
     std::ifstream f(path);
     const auto& raw = parse(f);
@@ -198,7 +199,29 @@ std::map<std::string, std::string> loadResource(std::filesystem::path dir, std::
     return shaderSrc;
 }
 
-void reflect(const std::string& source, std::map<uint32_t, std::string>& bindingMap) {
+//void reflectBuffer(const std::string& source, BindingMap& bindingMap) {
+//    const char* pattern = R"(layout\(set\s*=\s*(\d)\s*,\s*binding\s*=\s*(\d+)[^;{]+(\{[^}]+\})\s*(\w+)\s*;)";
+//    boost::regex reg(pattern);
+//
+//    boost::cregex_iterator it(source.data(), source.data() + source.length(), reg);
+//    boost::cregex_iterator end;
+//
+//    for (; it != end; ++it) {
+//        std::string_view matchStr((*it)[0].begin(), (*it)[0].end());
+//        const char* setPatt = R"(set\s*=\s*\d)";
+//        boost::regex setReg(setPatt);
+//        boost::cregex_iterator setIt(matchStr.data(), matchStr.data() + matchStr.length(), setReg);
+//
+//        std::string_view bindingStr((*it)[2].begin(), (*it)[2].end());
+//        std::string_view nameStr((*it)[4].begin(), (*it)[4].end());
+//        std::string_view setStr((*it)[1].begin(), (*it)[1].end());
+//        auto set = boost::lexical_cast<uint32_t>(setStr);
+//        auto binding = boost::lexical_cast<uint32_t>(bindingStr);
+//        bindingMap[set].emplace(binding, nameStr);
+//    }
+//}
+
+void reflect(const std::string& source, BindingMap& bindingMap) {
     const char* pattern = R"(\s*layout\([^\)]*binding\s*=\s(\d+)\).*?(\w+)\s*[{;])";
     boost::regex reg(pattern);
 
@@ -206,21 +229,23 @@ void reflect(const std::string& source, std::map<uint32_t, std::string>& binding
     boost::sregex_iterator end;
 
     for (; it != end; ++it) {
-        std::string matchStr((*it)[0].begin(), (*it)[0].end());
-        const char* setPatt = R"(set\s*=\s*\d)";
+        std::string_view matchStr((*it)[0].begin(), (*it)[0].end());
+        const char* setPatt = R"(set\s*=\s*(\d))";
         boost::regex setReg(setPatt);
-        boost::sregex_iterator setIt(matchStr.begin(), matchStr.end(), setReg);
+        boost::cregex_iterator setIt(matchStr.data(), matchStr.data() + matchStr.length(), setReg);
+        auto setStr = std::string_view((*setIt)[1].begin(), (*setIt)[1].end());
         //if (setIt == end) continue; // skip if not set 0
 
         std::string_view bindingStr((*it)[1].begin(), (*it)[1].end());
         std::string_view nameStr((*it)[2].begin(), (*it)[2].end());
+        auto set = boost::lexical_cast<uint32_t>(setStr);
         auto binding = boost::lexical_cast<uint32_t>(bindingStr);
-        bindingMap.emplace(binding, nameStr);
+        bindingMap[set].emplace(binding, nameStr);
     }
 }
 
-std::map<uint32_t, std::string> reflect(const std::map<std::string, std::string>& sources) {
-    std::map<uint32_t, std::string> bindingMap;
+BindingMap reflect(const std::map<std::string, std::string>& sources) {
+    BindingMap bindingMap;
     for(auto source : sources) {
         reflect(source.second, bindingMap);
     }
