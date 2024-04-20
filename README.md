@@ -9,6 +9,10 @@ cd vcpkg
 using Visual Studio or Clion open this folder direclty, IDEs take care of the next step.
 
 TODO:
- - [ ] Graph cpu buffer upload
+ - [ ] InputSystem
+ - [ ] ECS
+ - [ ] Mesh Shader
+ - [ ] RayTracing pass
  - [ ] Multi Device Queue
+ - [ ] too long to write down
 
