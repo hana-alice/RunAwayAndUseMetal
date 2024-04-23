@@ -14,7 +14,7 @@ public:
 
     ~SceneLoader() = default;
 
-    void loadFlat(const std::filesystem::path& filePath);
+    void loadFlat(const std::filesystem::path& filePath, scene::MeshType type = scene::MeshType::VERTEX);
 
     scene::ModelPtr modelData() { return _data; }
 

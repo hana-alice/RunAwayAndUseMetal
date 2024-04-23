@@ -1,0 +1,108 @@
+#version 450 core
+#define MAX_VERTEX_COUNT 64
+#define MAX_PRIMITIVE_COUNT 126
+#define GROUP_SIZE 32
+
+#extension GL_NV_mesh_shader: require
+#extension GL_EXT_shader_explicit_arithmetic_types: require
+
+
+layout(local_size_x = 32, local_size_y = 1, local_size_z = 1) in;
+layout(triangles, max_vertices = 64, max_primitives = 126) out;
+
+// https://developer.nvidia.com/blog/introduction-turing-mesh-shaders/
+layout(location = 0) out gl_MeshPerVertexNV {
+    vec4 gl_Position;
+    float gl_PointSize;
+    float gl_ClipDistance[];
+    float gl_CullDistance[];
+} gl_MeshVerticesNV[];
+
+layout(location = 1) out Interpolant {
+    vec3 worldPos;
+    vec2 uv;
+    uint meshletID;
+} OUT[];
+
+taskNV in Task {
+  uint      baseID;
+  uint8_t   subIDs[GROUP_SIZE];
+} IN;
+
+
+perprimitiveNV layout(location = 2)out gl_MeshPerPrimitiveNV {
+    int gl_PrimitiveID;
+    int gl_Layer;
+    int gl_ViewportIndex;
+    int gl_ViewportMask[];
+} gl_MeshPrimitivesNV[];
+
+struct VertexData {
+    vec4 pos;
+    vec4 uv;
+};
+
+struct MeshletDesc {
+    uint vertexCount;
+    uint primCount;
+    uint vertexBegin;
+    uint primBegin;
+};
+
+layout(set = 0, binding = 0) uniform Mat {
+    mat4 modelMat;
+    mat4 viewMat;
+    mat4 projectMat;
+};
+
+layout(set = 2, binding = 1) readonly buffer Meshlets {
+    MeshletDesc meshlets[];
+};
+
+layout(set = 2, binding = 2) readonly buffer PrimitiveIndices {
+    uint8_t primitiveIndices[];
+};
+
+layout(set = 2, binding = 3) readonly buffer VertexIndices {
+    uint vertexIndices[];
+};
+
+layout(set = 2, binding = 4) readonly buffer Vertices {
+    VertexData vertices[];
+};
+
+
+
+void main() {
+    uint meshletID = IN.baseID + IN.subIDs[gl_WorkGroupID.x];
+    MeshletDesc desc = meshlets[meshletID];
+
+    const uint vertexLoops = (MAX_VERTEX_COUNT + GROUP_SIZE - 1) / GROUP_SIZE;
+    for(uint loop = 0; loop < vertexLoops; ++loop) {
+        uint v = gl_LocalInvocationID.x + loop * GROUP_SIZE;
+
+        v = min(v, desc.vertexCount - 1);
+        uint vertexIndex = vertexIndices[desc.vertexBegin + v];
+        VertexData vertex = vertices[vertexIndex];
+        gl_MeshVerticesNV[v].gl_Position = projectMat * viewMat * modelMat * vec4(vertex.pos.xyz, 1.0f);
+        OUT[v].worldPos = (modelMat * vec4(vertex.pos.xyz, 1.0f)).xyz;
+        OUT[v].uv = vertex.uv.xy;
+        OUT[v].meshletID = meshletID;
+    }
+
+    const uint primLoops = uint((MAX_PRIMITIVE_COUNT + GROUP_SIZE - 1) / GROUP_SIZE);
+    for(uint loop = 0; loop < primLoops; ++loop) {
+        uint p = gl_LocalInvocationID.x + loop * GROUP_SIZE;
+        p = min(p, desc.primCount);
+
+        uint offset = desc.primBegin + p;
+        gl_PrimitiveIndicesNV[p * 3 + 0] = primitiveIndices[offset * 3];
+        gl_PrimitiveIndicesNV[p * 3 + 1] = primitiveIndices[offset * 3 + 1];
+        gl_PrimitiveIndicesNV[p * 3 + 2] = primitiveIndices[offset * 3 + 2];
+    }
+
+    //
+    if(gl_LocalInvocationID.x == 0) {
+        gl_PrimitiveCountNV = desc.primCount;
+    }
+}

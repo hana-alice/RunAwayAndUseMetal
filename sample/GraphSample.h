@@ -37,11 +37,11 @@ GraphSample::GraphSample(rhi::DevicePtr device, rhi::SwapchainPtr swapchain)
 
     const auto& resourcePath = utils::resourceDirectory();
 
-    graph::deserialize(resourcePath / "shader", "cook-torrance", shaderGraph);
+    graph::deserialize(resourcePath / "shader", "cook-torrance_mesh", shaderGraph);
     shaderGraph.compile("asset");
 
     asset::SceneLoader loader(device);
-    loader.loadFlat(resourcePath / "models" / "sponza-gltf-pbr" / "sponza.glb");
+    loader.loadFlat(resourcePath / "models" / "sponza-gltf-pbr" / "sponza.glb", scene::MeshType::MESH);
     auto model = loader.modelData();
     for(auto& meshRenderer : model->meshRenderers()) {
         auto pbrMat = std::static_pointer_cast<raum::scene::PBRMaterial>(meshRenderer->technique(0)->material());
@@ -83,7 +83,7 @@ void GraphSample::show() {
     auto uploadPass = renderGraph.addCopyPass("cambufferUpdate");
 
     auto& eye = _cam->eye();
-    eye.translate(1.0, 0.0,  0.0);
+//    eye.translate(1.0, 0.0,  0.0);
     auto modelMat = Mat4(1.0);
     uploadPass.uploadBuffer(&modelMat[0], 64, _camBuffer, 0);
     auto viewMat = eye.attitude();

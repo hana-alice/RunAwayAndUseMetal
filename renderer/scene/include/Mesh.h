@@ -4,8 +4,12 @@
 #include "Common.h"
 #include "RHIDefine.h"
 #include "Technique.h"
+#include "BindGroup.h"
 
 namespace raum::scene {
+
+constexpr uint32_t MESHLET_VERTEX_COUNT{64};
+constexpr uint32_t MESHLET_PRIM_COUNT{126};
 
 enum class ShaderAttribute : uint8_t {
     NONE = 0,
@@ -25,15 +29,49 @@ struct MeshData {
     uint32_t indexCount{0};
 };
 
+struct MeshletDesc {
+    uint32_t vertexCount{0};
+    uint32_t primCount{0};
+    uint32_t vertexBegin{0};
+    uint32_t primBegin{0};
+};
+
+struct MeshletData {
+    std::vector<MeshletDesc> meshlets;
+    rhi::BufferPtr vertexBuffer;
+    rhi::BufferPtr meshletCountBuffer;
+    rhi::BufferPtr meshletsBuffer;
+    rhi::BufferPtr primIndicesBuffer;
+    rhi::BufferPtr vertexIndicesBuffer;
+    ShaderAttribute shaderAttrs{ShaderAttribute::NONE};
+    rhi::VertexLayout vertexLayout;
+    uint32_t vertexCount{0};
+    uint32_t indexCount{0};
+    BindGroupPtr bindGroup;
+};
+using MeshletDataPtr = std::shared_ptr<MeshletData>;
+
+enum class MeshType : uint8_t {
+    VERTEX, // << vertex shader
+    MESH,   // << mesh shader
+};
+
 class Mesh {
 public:
-    Mesh() = default;
+    Mesh(MeshType type = MeshType::VERTEX);
+
+    const MeshType type() const;
 
     MeshData& meshData();
     const MeshData& meshData() const;
 
+    MeshletData& meshletData();
+    const MeshletData& meshletData() const;
+
 private:
+    MeshType _type;
     MeshData _data;
+    MeshletDataPtr _meshletsData;
 };
 
 using MeshPtr = std::shared_ptr<Mesh>;
@@ -75,6 +113,8 @@ public:
     void setMesh(MeshPtr mesh);
     void setVertexInfo(uint32_t firstVertex, uint32_t vertexCount, uint32_t indexCount);
     void setInstanceInfo(uint32_t firstInstance, uint32_t instanceCount);
+
+    void prepare(rhi::DevicePtr device);
 
     const MeshPtr& mesh() const;
     TechniquePtr technique(uint32_t index);

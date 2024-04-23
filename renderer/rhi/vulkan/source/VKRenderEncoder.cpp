@@ -13,8 +13,8 @@
 #include "VKBuffer.h"
 namespace raum::rhi {
 
-RenderEncoder::RenderEncoder(CommandBuffer* commandBuffer)
-: _commandBuffer(commandBuffer) {
+RenderEncoder::RenderEncoder(CommandBuffer* commandBuffer, Device* device)
+: _commandBuffer(commandBuffer), _device(device) {
 }
 
 RenderEncoder::~RenderEncoder() {
@@ -149,6 +149,13 @@ void RenderEncoder::drawIndirect(RHIBuffer* buffer, uint32_t offset, uint32_t dr
 void RenderEncoder::drawIndexedIndirect(RHIBuffer* buffer, uint32_t offset, uint32_t drawCount, uint32_t stride) {
     auto* kBuffer = static_cast<Buffer*>(buffer);
     vkCmdDrawIndexedIndirect(_commandBuffer->commandBuffer(), kBuffer->buffer(), offset, drawCount, stride);
+}
+
+void RenderEncoder::drawMeshTask(uint32_t taskCount, uint32_t firstTask) {
+    auto* drawMeshTaskFunc = _device->drawMeshTasksFunc();
+    if(drawMeshTaskFunc) {
+        drawMeshTaskFunc(_commandBuffer->commandBuffer(), taskCount, firstTask);
+    }
 }
 
 void RenderEncoder::pushConstants(ShaderStage stage, uint32_t offset, void* data, uint32_t size) {

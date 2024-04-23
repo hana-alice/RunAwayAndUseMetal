@@ -31,6 +31,7 @@ public:
     virtual void drawIndexed(uint32_t indexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t vertexOffset, uint32_t firstInstance) = 0;
     virtual void drawIndirect(RHIBuffer* indirectBuffer, uint32_t offset, uint32_t drawCount, uint32_t stride) = 0;
     virtual void drawIndexedIndirect(RHIBuffer* indirectBuffer, uint32_t offset, uint32_t drawCount, uint32_t stride) = 0;
+    virtual void drawMeshTask(uint32_t taskCount, uint32_t firstTask) = 0;
     virtual void pushConstants(ShaderStage stage, uint32_t offset, void* data, uint32_t size) = 0;
 
     virtual void clearAttachment(uint32_t* attachmentIndices, uint32_t attachmentNum, ClearValue* clearValues, ClearRect* rects, uint32_t recNum) = 0;

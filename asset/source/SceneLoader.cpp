@@ -210,6 +210,221 @@ void loadMesh(const aiScene* scene,
     }
 }
 
+void loadMeshlet(const aiScene* scene,
+                 const aiNode* node,
+                 scene::Model& model,
+                 const std::vector<scene::TechniquePtr>& techs,
+                 rhi::DevicePtr device) {
+    auto& aabb = model.aabb();
+    // auto& meshes = model.meshes();
+    for (size_t i = 0; i < node->mNumMeshes; ++i) {
+        auto newMesh = std::make_shared<scene::Mesh>(scene::MeshType::MESH);
+        uint32_t location{0};
+        const auto* mesh = scene->mMeshes[node->mMeshes[i]];
+        expand(aabb, mesh->mAABB);
+        auto localMatIndex = mesh->mMaterialIndex;
+
+        auto& meshletData = newMesh->meshletData();
+        meshletData.vertexCount = mesh->mNumVertices;
+        auto& vertexLayout = meshletData.vertexLayout;
+
+        std::vector<float> rawData;
+        auto& meshVert = rawData;
+        uint32_t stride{0};
+        // pos
+        vertexLayout.vertexAttrs.emplace_back(rhi::VertexAttribute{
+            location++,
+            0,
+            rhi::Format::RGBA32_SFLOAT,
+            stride * static_cast<uint32_t>(sizeof(float)),
+        });
+        stride += 4;
+
+        meshletData.shaderAttrs = scene::ShaderAttribute::POSITION;
+
+        const aiVector3D* normal{nullptr};
+        if (mesh->HasNormals()) {
+//            normal = mesh->mNormals;
+//            vertexLayout.vertexAttrs.emplace_back(rhi::VertexAttribute{
+//                location++,
+//                0,
+//                rhi::Format::RGB32_SFLOAT,
+//                stride * static_cast<uint32_t>(sizeof(float)),
+//            });
+//            meshletData.shaderAttrs |= scene::ShaderAttribute::NORMAL;
+//            stride += 3;
+        }
+        if (mesh->HasTextureCoords(0)) {
+            vertexLayout.vertexAttrs.emplace_back(rhi::VertexAttribute{
+                location++,
+                0,
+                rhi::Format::RGBA32_SFLOAT,
+                stride * static_cast<uint32_t>(sizeof(float)),
+            });
+            stride += 4;
+            meshletData.shaderAttrs |= scene::ShaderAttribute::UV;
+        }
+        if (mesh->HasTangentsAndBitangents()) {
+//            vertexLayout.vertexAttrs.emplace_back(rhi::VertexAttribute{
+//                location++,
+//                0,
+//                rhi::Format::RGB32_SFLOAT,
+//                stride * static_cast<uint32_t>(sizeof(float)),
+//            });
+//            vertexLayout.vertexAttrs.emplace_back(rhi::VertexAttribute{
+//                location++,
+//                0,
+//                rhi::Format::RGB32_SFLOAT,
+//                stride * static_cast<uint32_t>(sizeof(float)),
+//            });
+//            stride += 3 + 3;
+//            meshletData.shaderAttrs |= scene::ShaderAttribute::BI_TANGENT;
+        }
+        const aiColor4D* color{nullptr};
+        if (mesh->HasVertexColors(0)) {
+//            color = mesh->mColors[0];
+//            vertexLayout.vertexAttrs.emplace_back(rhi::VertexAttribute{
+//                location++,
+//                0,
+//                rhi::Format::RGBA32_SFLOAT,
+//                stride * static_cast<uint32_t>(sizeof(float)),
+//            });
+//            stride += 4;
+        }
+        meshVert.resize(stride * mesh->mNumVertices);
+
+        for (size_t j = 0; j < mesh->mNumVertices; ++j) {
+            uint32_t accStride{4};
+            auto* vertData = meshVert.data() + j * stride;
+
+            const auto& vertex = mesh->mVertices[j];
+            vertData[0] = vertex.x;
+            vertData[1] = vertex.y;
+            vertData[2] = vertex.z;
+
+            if (normal) {
+//                auto* normalData = vertData + accStride;
+//                normalData[0] = normal[j].x;
+//                normalData[1] = normal[j].y;
+//                normalData[2] = normal[j].z;
+//                accStride += 3;
+            }
+
+            if (mesh->mTextureCoords[0]) {
+                const auto& uv = mesh->mTextureCoords[0][j];
+                auto* uvData = vertData + accStride;
+                uvData[0] = uv.x;
+                uvData[1] = uv.y;
+                accStride += 4;
+            }
+
+            if (mesh->HasTangentsAndBitangents()) {
+//                const auto& tangent = mesh->mTangents[j];
+//                auto* tangentData = vertData + accStride;
+//                tangentData[0] = tangent.x;
+//                tangentData[1] = tangent.y;
+//                tangentData[2] = tangent.z;
+//                accStride += 3;
+//
+//                const auto& bitangent = mesh->mBitangents[j];
+//                auto* bitangentData = vertData + accStride;
+//                bitangentData[0] = bitangent.x;
+//                bitangentData[1] = bitangent.y;
+//                bitangentData[2] = bitangent.z;
+//                accStride += 3;
+            }
+        }
+
+        uint32_t indexNum{0};
+        std::vector<uint32_t> indices;
+        if (mesh->HasFaces()) {
+            indexNum = std::accumulate(mesh->mFaces, mesh->mFaces + mesh->mNumFaces, indexNum, [](uint32_t curr, const aiFace& face) {
+                return curr + face.mNumIndices;
+            });
+            indices.resize(indexNum);
+            meshletData.indexCount = indexNum;
+
+            uint32_t count{0};
+            for (size_t j = 0; j < mesh->mNumFaces; ++j) {
+                const auto& face = mesh->mFaces[j];
+                for (size_t k = 0; k < face.mNumIndices; ++k) {
+                    indices[count++] = face.mIndices[k];
+                }
+            }
+        }
+
+        std::vector<uint8_t> primitiveIndices;
+        std::vector<uint32_t> vertexIndices;
+        auto* meshlet = &meshletData.meshlets.emplace_back();
+        if (!indices.empty()) {
+            auto indexCount = meshletData.indexCount;
+            uint8_t index{0};
+
+            for (uint32_t i = 0; i < indexCount; i += 3) {
+                // TODO: make vertex unique, current case always fall through the second flow
+                if (index >= scene::MESHLET_PRIM_COUNT || (index + 1) * 3 >= scene::MESHLET_VERTEX_COUNT) {
+                    meshlet->primCount = index;
+                    meshlet->vertexCount = index * 3;
+                    meshlet->primBegin = index;
+                    index = 0;
+                    meshlet = &meshletData.meshlets.emplace_back();
+                    meshlet->vertexBegin = vertexIndices.size();
+                }
+                vertexIndices.emplace_back(indices[i]);
+                vertexIndices.emplace_back(indices[i + 1]);
+                vertexIndices.emplace_back(indices[i + 2]);
+
+                primitiveIndices.emplace_back(index * 3);
+                primitiveIndices.emplace_back(index * 3 + 1);
+                primitiveIndices.emplace_back(index * 3 + 2);
+
+                ++index;
+            }
+
+            rhi::BufferSourceInfo bufferInfo{};
+            bufferInfo.bufferUsage = rhi::BufferUsage::STORAGE | rhi::BufferUsage::TRANSFER_DST;
+            bufferInfo.size = sizeof(scene::MeshletDesc) * meshletData.meshlets.size();
+            bufferInfo.data = meshletData.meshlets.data();
+            meshletData.meshletsBuffer = rhi::BufferPtr(device->createBuffer(bufferInfo));
+
+            bufferInfo.size = primitiveIndices.size();
+            bufferInfo.data = primitiveIndices.data();
+            meshletData.primIndicesBuffer = rhi::BufferPtr(device->createBuffer(bufferInfo));
+
+            bufferInfo.size = vertexIndices.size() * sizeof(uint32_t);
+            bufferInfo.data = vertexIndices.data();
+            meshletData.vertexIndicesBuffer = rhi::BufferPtr(device->createBuffer(bufferInfo));
+
+            uint32_t meshletCount = meshletData.meshlets.size();
+            bufferInfo.bufferUsage = rhi::BufferUsage::UNIFORM | rhi::BufferUsage::TRANSFER_DST;
+            bufferInfo.size = 4;
+            bufferInfo.data = &meshletCount;
+            meshletData.meshletCountBuffer = rhi::BufferPtr(device->createBuffer(bufferInfo));
+        }
+
+        auto& bufferAttribute = vertexLayout.vertexBufferAttrs.emplace_back();
+        bufferAttribute.binding = 0;
+        bufferAttribute.rate = rhi::InputRate::PER_VERTEX;
+        bufferAttribute.stride = stride * static_cast<uint32_t>(sizeof(float));
+
+        rhi::BufferSourceInfo bufferSourceInfo{
+            .bufferUsage = rhi::BufferUsage::STORAGE,
+            .size = static_cast<uint32_t>(meshVert.size() * sizeof(float)),
+            .data = meshVert.data(),
+        };
+
+        meshletData.vertexBuffer = rhi::BufferPtr(device->createBuffer(bufferSourceInfo));
+
+        auto meshRenderer = model.meshRenderers().emplace_back(std::make_shared<scene::MeshRenderer>(newMesh));
+        meshRenderer->addTechnique(techs[localMatIndex]);
+        meshRenderer->setVertexInfo(0, mesh->mNumVertices, indexNum);
+    }
+
+    for (size_t i = 0; i < node->mNumChildren; ++i) {
+        loadMeshlet(scene, node->mChildren[i], model, techs, device);
+    }
+}
+
 void loadMaterial(const aiScene* scene,
                   scene::ModelPtr model,
                   std::vector<scene::TechniquePtr>& techs,
@@ -219,7 +434,7 @@ void loadMaterial(const aiScene* scene,
     auto blitEncoder = rhi::BlitEncoderPtr(cmdBuffer->makeBlitEncoder());
     for (size_t i = 0; i < scene->mNumMaterials; ++i) {
         const auto* material = scene->mMaterials[i];
-        scene::MaterialTemplatePtr matTemplate = scene::getOrCreateMaterialTemplate("asset/layout/cook-torrance");
+        scene::MaterialTemplatePtr matTemplate = scene::getOrCreateMaterialTemplate("asset/layout/cook-torrance_mesh");
         scene::MaterialPtr mat = matTemplate->instantiate(scene::MaterialType::PBR);
         auto pbrMat = std::static_pointer_cast<scene::PBRMaterial>(mat);
         auto& tech = techs.emplace_back(std::make_shared<scene::Technique>(mat, "default"));
@@ -390,7 +605,7 @@ void loadMaterial(const aiScene* scene,
 
 void defaultResourceTransition(rhi::CommandBufferPtr commandBuffer, rhi::DevicePtr device) {
     auto sampledImage = rhi::defaultSampledImage(device);
-    rhi::ImageBarrierInfo transition {
+    rhi::ImageBarrierInfo transition{
         .image = sampledImage.get(),
         .dstStage = rhi::PipelineStage::VERTEX_SHADER,
         .newLayout = rhi::ImageLayout::SHADER_READ_ONLY_OPTIMAL,
@@ -399,8 +614,7 @@ void defaultResourceTransition(rhi::CommandBufferPtr commandBuffer, rhi::DeviceP
             .aspect = rhi::AspectMask::COLOR,
             .sliceCount = 1,
             .mipCount = 1,
-        }
-    };
+        }};
     commandBuffer->appendImageBarrier(transition);
 
     auto storageImage = rhi::defaultStorageImage(device);
@@ -417,7 +631,7 @@ void defaultResourceTransition(rhi::CommandBufferPtr commandBuffer, rhi::DeviceP
 SceneLoader::SceneLoader(rhi::DevicePtr device) : _device(device) {
 }
 
-void SceneLoader::loadFlat(const std::filesystem::path& filePath) {
+void SceneLoader::loadFlat(const std::filesystem::path& filePath, scene::MeshType type) {
     raum_check(exists(filePath), "{} not exists!", filePath.string());
 
     Assimp::Importer importer;
@@ -442,7 +656,14 @@ void SceneLoader::loadFlat(const std::filesystem::path& filePath) {
 
     std::vector<scene::TechniquePtr> defaultTechs;
     loadMaterial(scene, _data, defaultTechs, filePath, commandBuffer, _device);
-    loadMesh(scene, scene->mRootNode, *_data, defaultTechs, _device);
+
+    if (type == scene::MeshType::VERTEX) {
+        loadMesh(scene, scene->mRootNode, *_data, defaultTechs, _device);
+    } else if (type == scene::MeshType::MESH) {
+        loadMeshlet(scene, scene->mRootNode, *_data, defaultTechs, _device);
+    } else {
+        raum_unreachable();
+    }
 
     defaultResourceTransition(commandBuffer, _device);
 

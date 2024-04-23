@@ -28,7 +28,7 @@ CommandBuffer::~CommandBuffer() {
 }
 
 RHIRenderEncoder* CommandBuffer::makeRenderEncoder() {
-    return new RenderEncoder(this);
+    return new RenderEncoder(this, _device);
 }
 
 RHIComputeEncoder* CommandBuffer::makeComputeEncoder() {

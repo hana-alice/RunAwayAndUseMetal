@@ -53,12 +53,12 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityF
                                                     VkDebugUtilsMessageTypeFlagsEXT messageType,
                                                     const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
                                                     void* pUserData) {
-     if (messageSeverity == VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT) {
-     } else if (messageSeverity == VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT) {
-     } else if (messageSeverity == VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT) {
-     } else if (messageSeverity == VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) {
-         raum::error("{}", pCallbackData->pMessage);
-     }
+    if (messageSeverity == VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT) {
+    } else if (messageSeverity == VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT) {
+    } else if (messageSeverity == VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT) {
+    } else if (messageSeverity == VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) {
+        raum::error("{}", pCallbackData->pMessage);
+    }
     raum::log(pCallbackData->pMessage);
 
     return VK_FALSE;
@@ -116,6 +116,8 @@ VkPhysicalDevice rankDevices(const std::vector<VkPhysicalDevice>& devices) {
     }
     return chosen;
 }
+
+PFN_vkCmdDrawMeshTasksNV vkCmdDrawMeshTasksNV = nullptr;
 
 } // namespace
 Device::Device() {
@@ -208,8 +210,8 @@ void Device::initInstance() {
             dbgMsgInfo.pfnUserCallback = debugCallback;
             dbgMsgInfo.pUserData = nullptr;
 
-             result = createDebugMessengerExt(_instance, &dbgMsgInfo, nullptr, &_debugMessenger);
-             RAUM_ERROR_IF(result == VK_ERROR_EXTENSION_NOT_PRESENT, "validation ext not found.");
+            result = createDebugMessengerExt(_instance, &dbgMsgInfo, nullptr, &_debugMessenger);
+            RAUM_ERROR_IF(result == VK_ERROR_EXTENSION_NOT_PRESENT, "validation ext not found.");
 
             instInfo.pNext = (VkDebugUtilsMessengerCreateInfoEXT*)&dbgMsgInfo;
         }
@@ -244,9 +246,26 @@ void Device::initDevice() {
 
     VkPhysicalDeviceFeatures deviceFeatures{};
 
+    VkPhysicalDeviceFeatures2 deviceFeatures2{.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2};
+    vkGetPhysicalDeviceFeatures2(_physicalDevice, &deviceFeatures2);
+
+    VkPhysicalDeviceMeshShaderFeaturesNV meshShaderFeaturesNV{};
+    meshShaderFeaturesNV.meshShader = 1;
+    meshShaderFeaturesNV.taskShader = 1;
+    meshShaderFeaturesNV.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_NV;
+
+    VkPhysicalDeviceVulkan12Features vk12Features{.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES};
+    vk12Features.shaderInt8 = 1;
+    vk12Features.storageBuffer8BitAccess = 1;
+
+    deviceFeatures2.pNext = &vk12Features;
+    vk12Features.pNext = &meshShaderFeaturesNV;
+
+
     std::vector<const char*> exts{};
     exts.emplace_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
     exts.emplace_back(VK_KHR_MAINTENANCE1_EXTENSION_NAME);
+    exts.emplace_back(VK_NV_MESH_SHADER_EXTENSION_NAME);
 
     uint32_t extNum{0};
     vkEnumerateDeviceExtensionProperties(_physicalDevice, nullptr, &extNum, nullptr);
@@ -258,10 +277,12 @@ void Device::initDevice() {
     deviceInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
     deviceInfo.pQueueCreateInfos = &queueInfo;
     deviceInfo.queueCreateInfoCount = 1;
-    deviceInfo.pEnabledFeatures = &deviceFeatures;
+    deviceInfo.pEnabledFeatures = nullptr;
     deviceInfo.enabledExtensionCount = exts.size();
     deviceInfo.ppEnabledExtensionNames = exts.data();
     deviceInfo.enabledLayerCount = 0;
+    deviceInfo.pNext = &deviceFeatures2;
+
 
     VkResult res = vkCreateDevice(_physicalDevice, &deviceInfo, nullptr, &_device);
     RAUM_CRITICAL_IF(res != VK_SUCCESS, "failed to create logic device.");
@@ -276,6 +297,13 @@ void Device::initDevice() {
     vmaCreateAllocator(&allocInfo, &_allocator);
 
     queue->initCommandQueue();
+}
+
+PFN_vkCmdDrawMeshTasksNV Device::drawMeshTasksFunc() {
+    if (!vkCmdDrawMeshTasksNV) {
+        vkCmdDrawMeshTasksNV = (PFN_vkCmdDrawMeshTasksNV)vkGetInstanceProcAddr(_instance, "vkCmdDrawMeshTasksNV");
+    }
+    return vkCmdDrawMeshTasksNV;
 }
 
 RHIQueue* Device::getQueue(const QueueInfo& info) {

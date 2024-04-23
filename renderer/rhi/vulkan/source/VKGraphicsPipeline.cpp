@@ -103,7 +103,7 @@ _layout(static_cast<PipelineLayout*>(pipelineInfo.pipelineLayout)) {
     vertexInputState.pVertexBindingDescriptions = bindingDescs.data();
     vertexInputState.vertexAttributeDescriptionCount = static_cast<uint32_t>(attrDescs.size());
     vertexInputState.pVertexAttributeDescriptions = attrDescs.data();
-    pipelineCreateInfo.pVertexInputState = &vertexInputState;
+//    pipelineCreateInfo.pVertexInputState = &vertexInputState;
 
     VkPipelineInputAssemblyStateCreateInfo iaInfo{};
     iaInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;

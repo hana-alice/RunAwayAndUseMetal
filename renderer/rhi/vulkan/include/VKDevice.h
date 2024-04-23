@@ -37,6 +37,8 @@ public:
     RHICommandPool *createCoomandPool(const CommandPoolInfo &);
     RHIDescriptorPool *createDescriptorPool(const DescriptorPoolInfo &) override;
 
+    PFN_vkCmdDrawMeshTasksNV drawMeshTasksFunc();
+
 private:
     Device();
     ~Device();

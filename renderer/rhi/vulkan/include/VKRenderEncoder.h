@@ -5,9 +5,10 @@ namespace raum::rhi {
 class CommandBuffer;
 class GraphicsPipeline;
 class RenderPass;
+class Device;
 class RenderEncoder : public RHIRenderEncoder {
 public:
-    explicit RenderEncoder(CommandBuffer* commandBuffer);
+    explicit RenderEncoder(CommandBuffer* commandBuffer, Device* device);
     RenderEncoder(const RenderEncoder&) = delete;
     RenderEncoder& operator=(const RenderEncoder&) = delete;
     RenderEncoder(RenderEncoder&&) = delete;
@@ -32,11 +33,13 @@ public:
     void drawIndexed(uint32_t indexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t vertexOffset, uint32_t firstInstance) override;
     void drawIndirect(RHIBuffer* indirectBuffer, uint32_t offset, uint32_t drawCount, uint32_t stride) override;
     void drawIndexedIndirect(RHIBuffer* indirectBuffer, uint32_t offset, uint32_t drawCount, uint32_t stride) override;
+    void drawMeshTask(uint32_t taskCount, uint32_t firstTask) override;
     void pushConstants(ShaderStage stage, uint32_t offset, void* data, uint32_t size) override;
 
     void clearAttachment(uint32_t* attachmentIndices, uint32_t attachmentNum, ClearValue* value, ClearRect* rects, uint32_t recNum) override;
 
 private:
+    Device* _device{nullptr};
     CommandBuffer* _commandBuffer{nullptr};
     GraphicsPipeline* _graphicsPipeline{nullptr};
     RenderPass* _renderPass{nullptr};
