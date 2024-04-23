@@ -26,6 +26,10 @@ Shader::Shader(const ShaderSourceInfo& shaderInfo, RHIDevice* device)
                 return shaderc_glsl_fragment_shader;
             case ShaderStage::COMPUTE:
                 return shaderc_glsl_compute_shader;
+            case ShaderStage::MESH:
+                return shaderc_glsl_mesh_shader;
+            case ShaderStage::TASK:
+                return shaderc_glsl_task_shader;
         }
         return shaderc_glsl_vertex_shader;
     };

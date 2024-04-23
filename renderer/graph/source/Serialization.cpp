@@ -48,7 +48,10 @@ BufferBinding tag_invoke( value_to_tag<BufferBinding>, value const& jv ) {
     elements.reserve(eleData.size());
     for(const auto& ele : eleData) {
         const auto& typeStr = ele.at("type").as_string();
-        auto type = rhi::str2type.at(typeStr);
+        rhi::DataType type{rhi::DataType::UNKNOWN};
+        if(!typeStr.empty()) {
+            type = rhi::str2type.at(typeStr);
+        }
         uint32_t count = ele.at("count").to_number<uint32_t>();
         elements.emplace_back(type, count);
     }
@@ -180,6 +183,14 @@ const std::filesystem::path deserialize(const std::filesystem::path &path, Shade
     if(data.contains("compute")) {
         const auto& comp = data.at("compute");
         deserializeBinding(comp.as_object(), rhi::ShaderStage::COMPUTE, resource, bindingMap);
+    }
+    if(data.contains("mesh")) {
+        const auto& comp = data.at("mesh");
+        deserializeBinding(comp.as_object(), rhi::ShaderStage::MESH, resource, bindingMap);
+    }
+    if(data.contains("task")) {
+        const auto& comp = data.at("task");
+        deserializeBinding(comp.as_object(), rhi::ShaderStage::TASK, resource, bindingMap);
     }
 
     return std::filesystem::path(pathID.c_str());

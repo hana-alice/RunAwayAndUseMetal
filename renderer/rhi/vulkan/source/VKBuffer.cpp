@@ -54,6 +54,9 @@ VkBufferUsageFlags mapBufferUsage(BufferUsage usage) {
     if (test(usage, BufferUsage::INDIRECT)) {
         flags |= VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT;
     }
+    if(test(usage, BufferUsage::STORAGE)) {
+        flags |= VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+    }
     return flags;
 };
 } // namespace

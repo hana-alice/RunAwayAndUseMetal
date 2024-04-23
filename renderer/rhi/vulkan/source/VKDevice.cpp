@@ -259,7 +259,7 @@ void Device::initDevice() {
     deviceInfo.pQueueCreateInfos = &queueInfo;
     deviceInfo.queueCreateInfoCount = 1;
     deviceInfo.pEnabledFeatures = &deviceFeatures;
-    deviceInfo.enabledExtensionCount = 1;
+    deviceInfo.enabledExtensionCount = exts.size();
     deviceInfo.ppEnabledExtensionNames = exts.data();
     deviceInfo.enabledLayerCount = 0;
 

@@ -1,18 +1,16 @@
 #include "VKDescriptorSet.h"
-#include "VKDevice.h"
+#include <numeric>
+#include "VKBuffer.h"
 #include "VKDescriptorPool.h"
 #include "VKDescriptorSetLayout.h"
-#include "VKUtils.h"
-#include "VKBuffer.h"
-#include "VkBufferView.h"
+#include "VKDevice.h"
 #include "VKImageView.h"
 #include "VKSampler.h"
+#include "VKUtils.h"
+#include "VkBufferView.h"
 namespace raum::rhi {
 DescriptorSet::DescriptorSet(const DescriptorSetInfo& info, DescriptorPool* pool, RHIDevice* device)
-: RHIDescriptorSet(info, device), _info(info),
-  _device(static_cast<Device*>(device)),
-  _descriptorPool(pool) {
-    
+: RHIDescriptorSet(info, device), _info(info), _device(static_cast<Device*>(device)), _descriptorPool(pool) {
     auto* descriptorSetLayout = static_cast<DescriptorSetLayout*>(info.layout);
     auto kLayout = descriptorSetLayout->layout();
 
@@ -24,15 +22,28 @@ DescriptorSet::DescriptorSet(const DescriptorSetInfo& info, DescriptorPool* pool
 
     vkAllocateDescriptorSets(_device->device(), &allocInfo, &_descriptorSet);
 
-    //update(info.bindingInfos);
+    // update(info.bindingInfos);
 }
 
 void DescriptorSet::update(const BindingInfo& bindingInfo) {
     std::vector<VkWriteDescriptorSet> writes;
-    std::vector<VkDescriptorBufferInfo> buffers(bindingInfo.bufferBindings.size());
-    std::vector<VkDescriptorImageInfo> images(bindingInfo.imageBindings.size());
-    std::vector<VkDescriptorImageInfo> samplers(bindingInfo.samplerBindings.size());
-    std::vector<VkBufferView> texelBuffers(bindingInfo.texelBufferBindings.size());
+    uint32_t bufferSize = std::reduce(bindingInfo.bufferBindings.begin(), bindingInfo.bufferBindings.end(), 0, [](uint32_t val, const BufferBinding& binding) {
+        return val + binding.buffers.size();
+    });
+    std::vector<VkDescriptorBufferInfo> buffers(bufferSize);
+    uint32_t imageSize = std::reduce(bindingInfo.imageBindings.begin(), bindingInfo.imageBindings.end(), 0, [](uint32_t val, const ImageBinding& binding) {
+        return val + binding.imageViews.size();
+    });
+    std::vector<VkDescriptorImageInfo> images(imageSize);
+    uint32_t samplerSize = std::reduce(bindingInfo.samplerBindings.begin(), bindingInfo.samplerBindings.end(), 0, [](uint32_t val, const SamplerBinding& binding) {
+        return val + binding.samplers.size();
+    });
+    std::vector<VkDescriptorImageInfo> samplers(samplerSize);
+    uint32_t texelSize = std::reduce(bindingInfo.texelBufferBindings.begin(), bindingInfo.texelBufferBindings.end(), 0, [](uint32_t val, const TexelBufferBinding& binding) {
+        return val + binding.bufferViews.size();
+    });
+    std::vector<VkBufferView> texelBuffers(texelSize);
+    uint32_t accIndex{0};
     for (const auto& bufferBinding : bindingInfo.bufferBindings) {
         auto& write = writes.emplace_back();
         write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -41,15 +52,16 @@ void DescriptorSet::update(const BindingInfo& bindingInfo) {
         write.dstArrayElement = bufferBinding.arrayElement;
         write.descriptorCount = static_cast<uint32_t>(bufferBinding.buffers.size());
         write.descriptorType = descriptorType(bufferBinding.type);
+        write.pBufferInfo = &buffers[accIndex];
         for (const auto& v : bufferBinding.buffers) {
-            auto& dbInfo = buffers[&v - &bufferBinding.buffers[0]];
+            auto& dbInfo = buffers[accIndex++];
             dbInfo.buffer = static_cast<Buffer*>(v.buffer)->buffer();
             dbInfo.offset = v.offset;
             dbInfo.range = v.size;
         }
-        write.pBufferInfo = &buffers[0];
     }
 
+    accIndex = 0;
     for (const auto& imageBinding : bindingInfo.imageBindings) {
         auto& write = writes.emplace_back();
         write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -58,15 +70,15 @@ void DescriptorSet::update(const BindingInfo& bindingInfo) {
         write.dstArrayElement = imageBinding.arrayElement;
         write.descriptorCount = static_cast<uint32_t>(imageBinding.imageViews.size());
         write.descriptorType = descriptorType(imageBinding.type);
-
+        write.pImageInfo = &images[accIndex];
         for (const auto& v : imageBinding.imageViews) {
-            auto& diInfo = images[&v - &imageBinding.imageViews[0]];
+            auto& diInfo = images[accIndex++];
             diInfo.imageView = static_cast<ImageView*>(v.imageView)->imageView();
             diInfo.imageLayout = imageLayout(v.layout);
         }
-        write.pImageInfo = &images[0];
     }
 
+    accIndex = 0;
     for (const auto& samplerBinding : bindingInfo.samplerBindings) {
         auto& write = writes.emplace_back();
         write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -75,13 +87,14 @@ void DescriptorSet::update(const BindingInfo& bindingInfo) {
         write.dstArrayElement = samplerBinding.arrayElement;
         write.descriptorCount = static_cast<uint32_t>(samplerBinding.samplers.size());
         write.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
+        write.pImageInfo = &samplers[accIndex];
         for (const auto& s : samplerBinding.samplers) {
-            auto& dsInfo = samplers[&s - &samplerBinding.samplers[0]];
+            auto& dsInfo = samplers[accIndex++];
             dsInfo.sampler = static_cast<Sampler*>(s)->sampler();
         }
-        write.pImageInfo = &samplers[0];
     }
 
+    accIndex = 0;
     for (const auto& texelBufferBinding : bindingInfo.texelBufferBindings) {
         auto& write = writes.emplace_back();
         write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -89,15 +102,14 @@ void DescriptorSet::update(const BindingInfo& bindingInfo) {
         write.dstBinding = texelBufferBinding.binding;
         write.dstArrayElement = texelBufferBinding.arrayElement;
         write.descriptorCount = static_cast<uint32_t>(texelBufferBinding.bufferViews.size());
+        write.pTexelBufferView = &texelBuffers[accIndex];
         for (const auto& bfv : texelBufferBinding.bufferViews) {
-            texelBuffers[&bfv - &texelBufferBinding.bufferViews[0]] = static_cast<BufferView*>(bfv)->bufferView();
+            texelBuffers[accIndex++] = static_cast<BufferView*>(bfv)->bufferView();
         }
-        write.pTexelBufferView = &texelBuffers[0];
     }
 
     vkUpdateDescriptorSets(_device->device(), static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
 }
-
 
 void DescriptorSet::updateBuffer(const BufferBinding& info) {
     std::vector<VkDescriptorBufferInfo> buffers;
@@ -177,4 +189,4 @@ DescriptorSet::~DescriptorSet() {
     vkFreeDescriptorSets(_device->device(), _descriptorPool->descriptorPool(), 1, &_descriptorSet);
 }
 
-}
+} // namespace raum::rhi

@@ -26,7 +26,21 @@ _layout(static_cast<PipelineLayout*>(pipelineInfo.pipelineLayout)) {
             vertexStage.pSpecializationInfo = nullptr;
             shaderStages.emplace_back(vertexStage);
         } else if (shader->stage() == ShaderStage::TASK) {
+            VkPipelineShaderStageCreateInfo taskStage{};
+            taskStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+            taskStage.stage = VK_SHADER_STAGE_TASK_BIT_EXT;
+            taskStage.pName = "main";
+            taskStage.module = shader->shaderModule();
+            taskStage.pSpecializationInfo = nullptr;
+            shaderStages.emplace_back(taskStage);
         } else if (shader->stage() == ShaderStage::MESH) {
+            VkPipelineShaderStageCreateInfo meshStage{};
+            meshStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+            meshStage.stage = VK_SHADER_STAGE_MESH_BIT_EXT;
+            meshStage.pName = "main";
+            meshStage.module = shader->shaderModule();
+            meshStage.pSpecializationInfo = nullptr;
+            shaderStages.emplace_back(meshStage);
         } else if (shader->stage() == ShaderStage::FRAGMENT) {
             VkPipelineShaderStageCreateInfo fragmentStage{};
             fragmentStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
