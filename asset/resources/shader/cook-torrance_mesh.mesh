@@ -21,7 +21,7 @@ layout(location = 0) out gl_MeshPerVertexNV {
 layout(location = 1) out Interpolant {
     vec3 worldPos;
     vec2 uv;
-    uint meshletID;
+    flat uint meshletID;
 } OUT[];
 
 taskNV in Task {
@@ -43,8 +43,8 @@ struct VertexData {
 };
 
 struct MeshletDesc {
-    uint vertexCount;
-    uint primCount;
+    uint vertexCount; // 64
+    uint primCount; // 126
     uint vertexBegin;
     uint primBegin;
 };

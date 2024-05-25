@@ -365,9 +365,9 @@ void loadMeshlet(const aiScene* scene,
                 if (index >= scene::MESHLET_PRIM_COUNT || (index + 1) * 3 >= scene::MESHLET_VERTEX_COUNT) {
                     meshlet->primCount = index;
                     meshlet->vertexCount = index * 3;
-                    meshlet->primBegin = index;
                     index = 0;
                     meshlet = &meshletData.meshlets.emplace_back();
+                    meshlet->primBegin = index;
                     meshlet->vertexBegin = vertexIndices.size();
                 }
                 vertexIndices.emplace_back(indices[i]);
