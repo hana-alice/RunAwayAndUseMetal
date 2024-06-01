@@ -1,17 +1,20 @@
 #pragma once
+#include "Camera.h"
 #include "Graphs.h"
+#include "KeyboardEvent.h"
+#include "MouseEvent.h"
+#include "PBRMaterial.h"
+#include "RHIDevice.h"
 #include "SceneLoader.h"
 #include "Serialization.h"
 #include "common.h"
 #include "core/utils/utils.h"
-#include "RHIDevice.h"
-#include "Camera.h"
-#include "PBRMaterial.h"
 #include "math.h"
 namespace raum::sample {
 class GraphSample : public SampleBase {
 public:
     explicit GraphSample(rhi::DevicePtr device, rhi::SwapchainPtr swapchain);
+    ~GraphSample();
     void show() override;
 
 private:
@@ -28,6 +31,9 @@ private:
     const std::string _camBuffer = "camBuffer";
     const std::string _camPose = "camPose";
     const std::string _light = "light";
+
+    framework::EventListener<framework::KeyboardEventTag> _keyListener;
+    framework::EventListener<framework::MouseEventTag> _mouseListener;
 };
 
 GraphSample::GraphSample(rhi::DevicePtr device, rhi::SwapchainPtr swapchain)
@@ -43,7 +49,7 @@ GraphSample::GraphSample(rhi::DevicePtr device, rhi::SwapchainPtr swapchain)
     asset::SceneLoader loader(device);
     loader.loadFlat(resourcePath / "models" / "sponza-gltf-pbr" / "sponza.glb");
     auto model = loader.modelData();
-    for(auto& meshRenderer : model->meshRenderers()) {
+    for (auto& meshRenderer : model->meshRenderers()) {
         auto pbrMat = std::static_pointer_cast<raum::scene::PBRMaterial>(meshRenderer->technique(0)->material());
         pbrMat->setDiffuse("mainTexture");
     }
@@ -51,7 +57,7 @@ GraphSample::GraphSample(rhi::DevicePtr device, rhi::SwapchainPtr swapchain)
     auto& modelNode = sceneGraph.addModel("sponza", "");
     modelNode.model = model;
 
-    const auto &aabb = model->aabb();
+    const auto& aabb = model->aabb();
     auto far = std::abs(aabb.maxBound.z);
 
     auto width = _swapchain->width();
@@ -59,23 +65,67 @@ GraphSample::GraphSample(rhi::DevicePtr device, rhi::SwapchainPtr swapchain)
     scene::Frustum frustum{45.0f, width / (float)height, 0.1, 10 * far};
     _cam = std::make_shared<scene::Camera>(frustum, scene::Projection::PERSPECTIVE);
     auto& eye = _cam->eye();
-    eye.setPosition(0.0f, 50.0f, 0.0);
-    eye.lookAt({100.0, 50.0, 0.0}, {0.0f, 1.0f, 0.0f});
+    eye.setPosition(200.0f, 50.0f, 0.0);
+    eye.lookAt({1000.0, 50.0, 0.0}, {0.0f, 1.0f, 0.0f});
+    eye.update();
 
     auto& resourceGraph = _graphScheduler->resourceGraph();
-    if(!resourceGraph.contains(_forwardRT)) {
-//        _resourceGraph->addImage(_forwardRT, rhi::ImageUsage::COLOR_ATTACHMENT, width, height, rhi::Format::BGRA8_UNORM);
+    if (!resourceGraph.contains(_forwardRT)) {
+        //        _resourceGraph->addImage(_forwardRT, rhi::ImageUsage::COLOR_ATTACHMENT, width, height, rhi::Format::BGRA8_UNORM);
         resourceGraph.import(_forwardRT, _swapchain);
     }
-    if(!resourceGraph.contains(_forwardDS)) {
+    if (!resourceGraph.contains(_forwardDS)) {
         resourceGraph.addImage(_forwardDS, rhi::ImageUsage::DEPTH_STENCIL_ATTACHMENT, width, height, rhi::Format::D24_UNORM_S8_UINT);
     }
-    if(!resourceGraph.contains(_camBuffer)) {
+    if (!resourceGraph.contains(_camBuffer)) {
         resourceGraph.addBuffer(_camBuffer, 192, graph::BufferUsage ::UNIFORM | graph::BufferUsage ::TRANSFER_DST);
         resourceGraph.addBuffer(_camPose, 12, graph::BufferUsage ::UNIFORM | graph::BufferUsage ::TRANSFER_DST);
         resourceGraph.addBuffer(_light, 32, graph::BufferUsage ::UNIFORM | graph::BufferUsage ::TRANSFER_DST);
     }
-    
+
+    // listeners
+    auto keyHandler = [&](framework::Keyboard key, framework::KeyboardType type) {
+        if (key != framework::Keyboard::OTHER && type == framework::KeyboardType::PRESS) {
+            auto front = _cam->eye().forward();
+            front = glm::normalize(front);
+            auto right = glm::cross(front, _cam->eye().up());
+            right = glm::normalize(right);
+            if (key == framework::Keyboard::W) {
+                _cam->eye().translate(front);
+            } else if (key == framework::Keyboard::S) {
+                _cam->eye().translate(-front);
+            } else if (key == framework::Keyboard::A) {
+                _cam->eye().translate(-right);
+            } else if (key == framework::Keyboard::D) {
+                _cam->eye().translate(right);
+            }
+            _cam->eye().update();
+        }
+    };
+    _keyListener.add(keyHandler);
+
+    auto mouseHandler = [&, width, height](int32_t x, int32_t y, framework::MouseButton btn, framework::ButtonStatus status) {
+        static int32_t lastX = x;
+        static int32_t lastY = y;
+
+        auto deltaX = x - lastX;
+        auto deltaY = y - lastY;
+
+        float factorX = deltaX / (float)width;
+        float factorY = deltaY / (float)height;
+
+        auto& eye = _cam->eye();
+        auto right = glm::cross(eye.forward(), eye.up());
+
+        _cam->eye().rotate(right, scene::Degree{-90.0f * factorY});
+        _cam->eye().rotate(eye.up(), scene::Degree{-90.0f * factorX});
+
+        _cam->eye().update();
+
+        lastX = x;
+        lastY = y;
+    };
+    _mouseListener.add(mouseHandler);
 }
 
 void GraphSample::show() {
@@ -83,10 +133,10 @@ void GraphSample::show() {
     auto uploadPass = renderGraph.addCopyPass("cambufferUpdate");
 
     auto& eye = _cam->eye();
-    eye.translate(1.0, 0.0,  0.0);
+    //    eye.translate(1.0, 0.0,  0.0);
     auto modelMat = Mat4(1.0);
     uploadPass.uploadBuffer(&modelMat[0], 64, _camBuffer, 0);
-    auto viewMat = eye.attitude();
+    auto viewMat = eye.inverseAttitide();
     uploadPass.uploadBuffer(&viewMat[0], 64, _camBuffer, 64);
     const auto& projMat = eye.projection();
     uploadPass.uploadBuffer(&projMat[0], 64, _camBuffer, 128);
@@ -111,7 +161,11 @@ void GraphSample::show() {
         .addUniformBuffer(_light, "Light");
 
     _graphScheduler->execute();
+}
 
+GraphSample::~GraphSample() noexcept {
+    _keyListener.remove();
+    _mouseListener.remove();
 }
 
 } // namespace raum::sample

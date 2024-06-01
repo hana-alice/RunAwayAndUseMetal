@@ -4,6 +4,7 @@
 #include "RHIDefine.h"
 #include "Model.h"
 namespace raum::scene {
+
 class Scene {
 public:
     Scene() {};

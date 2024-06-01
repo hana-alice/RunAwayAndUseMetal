@@ -6,7 +6,7 @@
 #include "window.h"
 
 namespace raum {
-using platform::NativeWindow;
+using platform::Window;
 
 constexpr uint32_t width = 1080u;
 constexpr uint32_t height = 720u;
@@ -14,7 +14,7 @@ constexpr uint32_t height = 720u;
 class Sample {
 public:
     Sample(int argc, char** argv) {
-        _window = std::make_shared<NativeWindow>(argc, argv, width, height);
+        _window = std::make_shared<Window>(argc, argv, width, height);
         _device = std::shared_ptr<rhi::RHIDevice>(loadRHI(rhi::API::VULKAN), rhi::unloadRHI);
 
         auto pxSize = _window->pixelSize();
@@ -35,11 +35,12 @@ public:
     }
 
     void show() {
+        _window->show();
         _window->mainLoop();
     }
 
 private:
-    platform::NativeWindowPtr _window;
+    platform::WindowPtr _window;
     rhi::DevicePtr _device;
     rhi::SwapchainPtr _swapchain;
     std::vector<std::shared_ptr<sample::SampleBase>> _samples;
