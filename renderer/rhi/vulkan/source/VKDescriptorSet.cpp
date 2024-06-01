@@ -28,19 +28,19 @@ DescriptorSet::DescriptorSet(const DescriptorSetInfo& info, DescriptorPool* pool
 void DescriptorSet::update(const BindingInfo& bindingInfo) {
     std::vector<VkWriteDescriptorSet> writes;
     uint32_t bufferSize = std::reduce(bindingInfo.bufferBindings.begin(), bindingInfo.bufferBindings.end(), 0, [](uint32_t val, const BufferBinding& binding) {
-        return val + binding.buffers.size();
+        return static_cast<uint32_t>(val + binding.buffers.size());
     });
     std::vector<VkDescriptorBufferInfo> buffers(bufferSize);
     uint32_t imageSize = std::reduce(bindingInfo.imageBindings.begin(), bindingInfo.imageBindings.end(), 0, [](uint32_t val, const ImageBinding& binding) {
-        return val + binding.imageViews.size();
+        return static_cast<uint32_t>(val + binding.imageViews.size());
     });
     std::vector<VkDescriptorImageInfo> images(imageSize);
     uint32_t samplerSize = std::reduce(bindingInfo.samplerBindings.begin(), bindingInfo.samplerBindings.end(), 0, [](uint32_t val, const SamplerBinding& binding) {
-        return val + binding.samplers.size();
+        return static_cast<uint32_t>(val + binding.samplers.size());
     });
     std::vector<VkDescriptorImageInfo> samplers(samplerSize);
     uint32_t texelSize = std::reduce(bindingInfo.texelBufferBindings.begin(), bindingInfo.texelBufferBindings.end(), 0, [](uint32_t val, const TexelBufferBinding& binding) {
-        return val + binding.bufferViews.size();
+        return static_cast<uint32_t>(val + binding.bufferViews.size());
     });
     std::vector<VkBufferView> texelBuffers(texelSize);
     uint32_t accIndex{0};

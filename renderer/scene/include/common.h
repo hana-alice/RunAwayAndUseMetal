@@ -4,8 +4,13 @@
 #include <memory>
 #include "core/math.h"
 
-
 namespace raum::scene {
+
+namespace Coord {
+constexpr Vec3f X{1.0f, 0.0f, 0.0f};
+constexpr Vec3f Y{0.0f, 1.0f, 0.0f};
+constexpr Vec3f Z{0.0f, 0.0f, 1.0f};
+} // namespace Coord
 
 class Renderable {
 public:

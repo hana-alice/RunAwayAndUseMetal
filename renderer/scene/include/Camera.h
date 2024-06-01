@@ -11,6 +11,8 @@ public:
     Camera() = delete;
     explicit Camera(const Frustum& frustum, Projection type);
 
+//    void setPosition()
+
     Eye& eye() { return _eye; }
 
 private:

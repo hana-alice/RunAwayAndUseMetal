@@ -48,23 +48,38 @@ target_include_directories(raum_core PUBLIC
 target_link_libraries(raum_core PUBLIC
     spdlog::spdlog
 )
-
+set(CMAKE_AUTOMOC ON)
 # framework
 find_package(Qt6 REQUIRED COMPONENTS Widgets)
 file(GLOB_RECURSE raum_framework_platform_h ${CMAKE_CURRENT_LIST_DIR}/framework/platform/windows/include/*.h)
 file(GLOB_RECURSE raum_framework_platform_cpp ${CMAKE_CURRENT_LIST_DIR}/framework/platform/windows/source/*.cpp)
-source_group("raum_framework_platform_h" FILES ${raum_framework_platform_h})
-source_group("raum_framework_platform_cpp" FILES ${raum_framework_platform_cpp})
+file(GLOB_RECURSE raum_framework_platform_common_h ${CMAKE_CURRENT_LIST_DIR}/framework/platform/common/include/*.h)
+file(GLOB_RECURSE raum_framework_platform_common_cpp ${CMAKE_CURRENT_LIST_DIR}/framework/platform/common/source/*.cpp)
+source_group("raum_framework_platform_common_h" FILES ${raum_framework_platform_common_h})
+source_group("raum_framework_platform_common_cpp" FILES ${raum_framework_platform_common_cpp})
+
+# event
+file(GLOB_RECURSE raum_framework_event_h ${CMAKE_CURRENT_LIST_DIR}/framework/event/include/*.h)
+file(GLOB_RECURSE raum_framework_event_cpp ${CMAKE_CURRENT_LIST_DIR}/framework/event/source/*.cpp)
+source_group("raum_framework_event_h" FILES ${raum_framework_event_h})
+source_group("raum_framework_event_cpp" FILES ${raum_framework_event_cpp})
 
 add_library(raum_framework
+    ${raum_framework_platform_common_h}
+    ${raum_framework_platform_common_cpp}
     ${raum_framework_platform_h}
     ${raum_framework_platform_cpp}
+    ${raum_framework_event_h}
+    ${raum_framework_event_cpp}
 )
 target_include_directories(raum_framework PUBLIC
     ${CMAKE_CURRENT_LIST_DIR}/framework/platform/windows/include/
+    ${CMAKE_CURRENT_LIST_DIR}/framework/platform/common/include/
+    ${CMAKE_CURRENT_LIST_DIR}/framework/event/include/
 )
 target_link_libraries(raum_framework PUBLIC
     Qt6::Widgets
+    Qt6::Gui
     raum_core
 )
 
@@ -152,7 +167,4 @@ target_link_libraries(raum_sample PRIVATE
 
 file(COPY asset/resources DESTINATION ${CMAKE_BINARY_DIR})
 file(COPY framework/platform/windows/builds/qt6.conf DESTINATION ${CMAKE_BINARY_DIR})
-message(${CMAKE_INSTALL_PREFIX} 111)
-message(${CMAKE_BINARY_DIR} 222)
-message(${RUNTIME_OUTPUT_DIRECTORY} 333)
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT raum_sample)

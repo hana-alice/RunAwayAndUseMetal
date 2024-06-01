@@ -10,7 +10,7 @@ public:
 
     void setPosition(float x, float y, float z);
 
-    void setRotation(const Quaternion& quat);
+    void setOrientation(const Quaternion& quat);
 
     void rotate(const Vec3f& axis, Degree degree);
 
@@ -26,18 +26,29 @@ public:
 
     const Vec3f& getPosition() const;
 
-    const Quaternion& getRotation() const;
+    const Quaternion& getOrientation() const;
 
     const Mat4& attitude() const;
 
     const Mat4& projection() const;
 
+    const Vec3f forward() const;
+
+    const Vec3f up() const;
+
+    const Mat4& inverseAttitide() const;
+
+    void update();
+
 private:
     Projection _projection{Projection::PERSPECTIVE};
     Frustum _frustum{};
     Vec3f _position{0.0f};
-    Quaternion _rotation{};
+    Vec3f _forward{0.0f, 0.0f, 1.0f};
+    Vec3f _up{0.0f, 1.0f, 0.0f};
+    Quaternion _orientation{};
     Mat4 _attitude{1.0f};
+    Mat4 _attitudeInversed{1.0f};
     Mat4 _projectionMat{1.0f};
 };
 
