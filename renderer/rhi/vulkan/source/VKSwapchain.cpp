@@ -27,7 +27,8 @@ void Swapchain::initialize(uintptr_t hwnd, SyncType type, uint32_t width, uint32
         surfaceInfo.hwnd = (HWND)hwnd;
         surfaceInfo.hinstance = GetModuleHandle(nullptr);
 
-        VkResult res = vkCreateWin32SurfaceKHR(_device->instance(), &surfaceInfo, nullptr, &_surface);
+        auto instance = static_cast<VkInstance>(_device->instance());
+        VkResult res = vkCreateWin32SurfaceKHR(instance, &surfaceInfo, nullptr, &_surface);
         RAUM_CRITICAL_IF(res != VK_SUCCESS, "failed to create surface");
         VkBool32 support{false};
 
@@ -169,7 +170,9 @@ void Swapchain::present() {
 
 void Swapchain::destroy() {
     vkQueueWaitIdle(_presentQueue->_vkQueue);
-    vkDestroySurfaceKHR(_device->instance(), _surface, nullptr);
+
+    auto instance = static_cast<VkInstance>(_device->instance());
+    vkDestroySurfaceKHR(instance, _surface, nullptr);
     vkDestroySwapchainKHR(_device->device(), _swapchain, nullptr);
 }
 

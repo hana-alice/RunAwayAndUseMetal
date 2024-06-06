@@ -16,7 +16,6 @@ class Device : public RHIDevice {
 public:
     VkPhysicalDevice physicalDevice() { return _physicalDevice; };
     VkDevice device() { return _device; }
-    VkInstance instance() { return _instance; }
     VmaAllocator &allocator() { return _allocator; }
 
     RHISwapchain *createSwapchain(const SwapchainInfo &) override;

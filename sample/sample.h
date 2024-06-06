@@ -17,7 +17,7 @@ class Sample {
 public:
     Sample(int argc, char** argv) {
         _device = std::shared_ptr<rhi::RHIDevice>(loadRHI(rhi::API::VULKAN), rhi::unloadRHI);
-        _window = std::make_shared<platform::Window>(argc, argv, s_width, s_height, _device->inst());
+        _window = std::make_shared<platform::Window>(argc, argv, s_width, s_height, _device->instance());
 
         auto pxSize = _window->pixelSize();
         rhi::SwapchainSurfaceInfo scInfo{pxSize.width, pxSize.height, rhi::SyncType::IMMEDIATE, _window->surface()};

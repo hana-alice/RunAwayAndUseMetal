@@ -22,6 +22,8 @@ public:
 
     void lookAt(const Vec3f& pos, const Vec3f& up);
 
+    void setFrustum(const Frustum& frustum);
+
     const Frustum& getFrustum() const;
 
     const Vec3f& getPosition() const;

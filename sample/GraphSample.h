@@ -9,6 +9,7 @@
 #include "Serialization.h"
 #include "common.h"
 #include "core/utils/utils.h"
+#include "WindowEvent.h"
 #include "math.h"
 namespace raum::sample {
 class GraphSample : public SampleBase {
@@ -102,16 +103,25 @@ public:
             lastY = y;
         };
         _mouseListener.add(mouseHandler);
+
+        auto resizeHandler = [&](uint32_t w, uint32_t h){
+            scene::Frustum frustum{45.0f, w / (float)h, 0.1, 10 * far};
+            _cam->eye().setFrustum(frustum);
+        };
+        _resizeListener.add(resizeHandler);
     }
 
     ~GraphSample() {
         _keyListener.remove();
         _mouseListener.remove();
+        _resizeListener.remove();
     }
 
     void show() override {
         auto& renderGraph = _graphScheduler->renderGraph();
         auto uploadPass = renderGraph.addCopyPass("cambufferUpdate");
+
+        _graphScheduler->resourceGraph().updateImage("forwardDS", _swapchain->width(), _swapchain->height());
 
         auto& eye = _cam->eye();
         //    eye.translate(1.0, 0.0,  0.0);
@@ -166,6 +176,7 @@ private:
 
     framework::EventListener<framework::KeyboardEventTag> _keyListener;
     framework::EventListener<framework::MouseEventTag> _mouseListener;
+    framework::EventListener<framework::ResizeEventTag> _resizeListener;
 };
 
 } // namespace raum::sample

@@ -51,6 +51,11 @@ void Eye::lookAt(const Vec3f& pos, const Vec3f& up) {
     _up = glm::cross(right, _forward);
 }
 
+void Eye::setFrustum(const Frustum& frustum)  {
+    _frustum = frustum;
+    _projectionMat = glm::perspective(glm::radians(frustum.fov), frustum.aspect, frustum.near, frustum.far);
+}
+
 const Frustum& Eye::getFrustum() const {
     return _frustum;
 }

@@ -64,6 +64,7 @@ public:
     void import(std::string_view name, rhi::SwapchainPtr swapchain);
     void mount(std::string_view name);
     void unmount(std::string_view name, uint64_t life);
+    void updateImage(std::string_view name, uint32_t width, uint32_t height);
 
     bool contains(std::string_view name);
     const Resource& get(std::string_view name) const;

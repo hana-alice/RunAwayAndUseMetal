@@ -118,6 +118,16 @@ void ResourceGraph::import(std::string_view name, rhi::SwapchainPtr swapchain) {
     _graph[v].residency = ResourceResidency::SWAPCHAIN;
 }
 
+void ResourceGraph::updateImage(std::string_view name, uint32_t width, uint32_t height) {
+    auto v = *find_vertex(name.data(), _graph);
+    auto& image = std::get<ImageData>(_graph[v].data);
+    if (image.info.extent.x != width || image.info.extent.y != height) {
+        unmount(name, std::numeric_limits<uint64_t>::max());
+        image.info.extent.x = width;
+        image.info.extent.y = height;
+    }
+}
+
 void ResourceGraph::mount(std::string_view name) {
     auto v = *find_vertex(name.data(), _graph);
     _graph[v].life++;

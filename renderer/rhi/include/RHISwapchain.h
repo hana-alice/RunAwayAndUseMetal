@@ -6,8 +6,8 @@ class RHIDevice;
 class RHIImageView;
 class RHISwapchain : public RHIResource {
 public:
-    explicit RHISwapchain(const SwapchainInfo&, RHIDevice*);
-    explicit RHISwapchain(const SwapchainSurfaceInfo&, RHIDevice*);
+    explicit RHISwapchain(const SwapchainInfo&, RHIDevice*) {};
+    explicit RHISwapchain(const SwapchainSurfaceInfo&, RHIDevice*) {};
 
     virtual bool acquire() = 0;
     virtual void present() = 0;
