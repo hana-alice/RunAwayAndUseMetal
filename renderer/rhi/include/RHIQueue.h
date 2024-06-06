@@ -1,9 +1,10 @@
 #pragma once
 #include "RHIDefine.h"
+#include "RHIResource.h"
 namespace raum::rhi {
 class RHIDevice;
 class RHICommandBuffer;
-class RHIQueue {
+class RHIQueue: public RHIResource  {
 public:
     virtual void submit() = 0;
     virtual void enqueue(RHICommandBuffer*) = 0;

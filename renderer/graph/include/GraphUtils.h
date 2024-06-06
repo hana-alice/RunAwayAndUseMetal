@@ -10,7 +10,12 @@ namespace raum::graph {
 	
 rhi::RenderPassPtr getOrCreateRenderPass(const RenderGraph::VertexType v, AccessGraph& ag, rhi::DevicePtr device);
 
-rhi::FrameBufferPtr getOrCreateFrameBuffer(rhi::RenderPassPtr renderpass, const RenderGraph::VertexType v, AccessGraph& ag, ResourceGraph& resg, rhi::DevicePtr device);
+rhi::FrameBufferPtr getOrCreateFrameBuffer(rhi::RenderPassPtr renderpass,
+                                           const RenderGraph::VertexType v,
+                                           AccessGraph& ag,
+                                           ResourceGraph& resg,
+                                           rhi::DevicePtr device,
+                                           rhi::SwapchainPtr swapchain);
 
 rhi::GraphicsPipelinePtr getOrCreateGraphicsPipeline(rhi::RenderPassPtr renderPass,
                                                      scene::MaterialPtr material,

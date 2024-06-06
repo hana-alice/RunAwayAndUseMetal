@@ -1,9 +1,10 @@
 #pragma once
 #pragma once
 #include "RHIDefine.h"
+#include "RHIResource.h"
 namespace raum::rhi {
 class RHIDevice;
-class RHISampler {
+class RHISampler: public RHIResource  {
 protected:
     virtual ~RHISampler() = 0;
 };

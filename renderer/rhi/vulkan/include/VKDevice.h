@@ -20,6 +20,7 @@ public:
     VmaAllocator &allocator() { return _allocator; }
 
     RHISwapchain *createSwapchain(const SwapchainInfo &) override;
+    RHISwapchain *createSwapchain(const SwapchainSurfaceInfo &) override;
     RHIQueue *getQueue(const QueueInfo &) override;
     RHIBuffer *createBuffer(const BufferInfo &) override;
     RHIBuffer *createBuffer(const BufferSourceInfo &) override;
@@ -36,6 +37,8 @@ public:
     RHIPipelineLayout *createPipelineLayout(const PipelineLayoutInfo &) override;
     RHICommandPool *createCoomandPool(const CommandPoolInfo &);
     RHIDescriptorPool *createDescriptorPool(const DescriptorPoolInfo &) override;
+
+    void *instance() override { return _instance; }
 
 private:
     Device();

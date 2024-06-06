@@ -13,9 +13,139 @@
 namespace raum::sample {
 class GraphSample : public SampleBase {
 public:
-    explicit GraphSample(rhi::DevicePtr device, rhi::SwapchainPtr swapchain);
-    ~GraphSample();
-    void show() override;
+    explicit GraphSample(rhi::DevicePtr device, rhi::SwapchainPtr swapchain): _device(device), _swapchain(swapchain) {
+        _graphScheduler = new graph::GraphScheduler(device, swapchain);
+        auto& shaderGraph = _graphScheduler->shaderGraph();
+
+        const auto& resourcePath = utils::resourceDirectory();
+
+        graph::deserialize(resourcePath / "shader", "cook-torrance", shaderGraph);
+        shaderGraph.compile("asset");
+
+        asset::SceneLoader loader(device);
+        loader.loadFlat(resourcePath / "models" / "sponza-gltf-pbr" / "sponza.glb");
+        auto model = loader.modelData();
+        for (auto& meshRenderer : model->meshRenderers()) {
+            auto pbrMat = std::static_pointer_cast<raum::scene::PBRMaterial>(meshRenderer->technique(0)->material());
+            pbrMat->setDiffuse("mainTexture");
+        }
+        auto& sceneGraph = _graphScheduler->sceneGraph();
+        auto& modelNode = sceneGraph.addModel("sponza", "");
+        modelNode.model = model;
+
+        const auto& aabb = model->aabb();
+        auto far = std::abs(aabb.maxBound.z);
+
+        auto width = _swapchain->width();
+        auto height = _swapchain->height();
+        scene::Frustum frustum{45.0f, width / (float)height, 0.1, 10 * far};
+        _cam = std::make_shared<scene::Camera>(frustum, scene::Projection::PERSPECTIVE);
+        auto& eye = _cam->eye();
+        eye.setPosition(200.0f, 50.0f, 0.0);
+        eye.lookAt({1000.0, 50.0, 0.0}, {0.0f, 1.0f, 0.0f});
+        eye.update();
+
+        auto& resourceGraph = _graphScheduler->resourceGraph();
+        if (!resourceGraph.contains(_forwardRT)) {
+            //        _resourceGraph->addImage(_forwardRT, rhi::ImageUsage::COLOR_ATTACHMENT, width, height, rhi::Format::BGRA8_UNORM);
+            resourceGraph.import(_forwardRT, _swapchain);
+        }
+        if (!resourceGraph.contains(_forwardDS)) {
+            resourceGraph.addImage(_forwardDS, rhi::ImageUsage::DEPTH_STENCIL_ATTACHMENT, width, height, rhi::Format::D24_UNORM_S8_UINT);
+        }
+        if (!resourceGraph.contains(_camBuffer)) {
+            resourceGraph.addBuffer(_camBuffer, 192, graph::BufferUsage ::UNIFORM | graph::BufferUsage ::TRANSFER_DST);
+            resourceGraph.addBuffer(_camPose, 12, graph::BufferUsage ::UNIFORM | graph::BufferUsage ::TRANSFER_DST);
+            resourceGraph.addBuffer(_light, 32, graph::BufferUsage ::UNIFORM | graph::BufferUsage ::TRANSFER_DST);
+        }
+
+        // listeners
+        auto keyHandler = [&](framework::Keyboard key, framework::KeyboardType type) {
+            if (key != framework::Keyboard::OTHER && type == framework::KeyboardType::PRESS) {
+                auto front = _cam->eye().forward();
+                front = glm::normalize(front);
+                auto right = glm::cross(front, _cam->eye().up());
+                right = glm::normalize(right);
+                if (key == framework::Keyboard::W) {
+                    _cam->eye().translate(front);
+                } else if (key == framework::Keyboard::S) {
+                    _cam->eye().translate(-front);
+                } else if (key == framework::Keyboard::A) {
+                    _cam->eye().translate(-right);
+                } else if (key == framework::Keyboard::D) {
+                    _cam->eye().translate(right);
+                }
+                _cam->eye().update();
+            }
+        };
+        _keyListener.add(keyHandler);
+
+        auto mouseHandler = [&, width, height](int32_t x, int32_t y, framework::MouseButton btn, framework::ButtonStatus status) {
+            static int32_t lastX = x;
+            static int32_t lastY = y;
+
+            auto deltaX = x - lastX;
+            auto deltaY = y - lastY;
+
+            float factorX = deltaX / (float)width;
+            float factorY = deltaY / (float)height;
+
+            auto& eye = _cam->eye();
+            auto right = glm::cross(eye.forward(), eye.up());
+
+            _cam->eye().rotate(right, scene::Degree{-90.0f * factorY});
+            _cam->eye().rotate(eye.up(), scene::Degree{-90.0f * factorX});
+
+            _cam->eye().update();
+
+            lastX = x;
+            lastY = y;
+        };
+        _mouseListener.add(mouseHandler);
+    }
+
+    ~GraphSample() {
+        _keyListener.remove();
+        _mouseListener.remove();
+    }
+
+    void show() override {
+        auto& renderGraph = _graphScheduler->renderGraph();
+        auto uploadPass = renderGraph.addCopyPass("cambufferUpdate");
+
+        auto& eye = _cam->eye();
+        //    eye.translate(1.0, 0.0,  0.0);
+        auto modelMat = Mat4(1.0);
+        uploadPass.uploadBuffer(&modelMat[0], 64, _camBuffer, 0);
+        auto viewMat = eye.inverseAttitide();
+        uploadPass.uploadBuffer(&viewMat[0], 64, _camBuffer, 64);
+        const auto& projMat = eye.projection();
+        uploadPass.uploadBuffer(&projMat[0], 64, _camBuffer, 128);
+
+        uploadPass.uploadBuffer(&eye.getPosition()[0], 12, _camPose, 0);
+        Vec4f color{1.0, 1.0, 1.0, 1.0};
+        Vec4f lightPos{10.0, 100.0, 0.0, 1.0};
+        uploadPass.uploadBuffer(&lightPos[0], 16, _light, 0);
+        uploadPass.uploadBuffer(&color[0], 16, _light, 16);
+
+        auto renderPass = renderGraph.addRenderPass("forward");
+        renderPass.addColor(_forwardRT, graph::LoadOp::CLEAR, graph::StoreOp::STORE, {0.8, 0.1, 0.3, 1.0})
+            .addDepthStencil(_forwardDS, graph::LoadOp::CLEAR, graph::StoreOp::STORE, graph::LoadOp::CLEAR, graph::StoreOp::STORE, 1.0, 0);
+        auto queue = renderPass.addQueue("default");
+
+        auto width = _swapchain->width();
+        auto height = _swapchain->height();
+        queue.setViewport(0, 0, width, height, 0.0f, 1.0f)
+            .addCamera(_cam.get())
+            .addUniformBuffer(_camBuffer, "Mat")
+            .addUniformBuffer(_camPose, "CamPos")
+            .addUniformBuffer(_light, "Light");
+
+        _graphScheduler->execute();
+    }
+    const std::string& name() override {
+        return _name;
+    }
 
 private:
     rhi::DevicePtr _device;
@@ -32,140 +162,10 @@ private:
     const std::string _camPose = "camPose";
     const std::string _light = "light";
 
+    const std::string _name = "GraphSample";
+
     framework::EventListener<framework::KeyboardEventTag> _keyListener;
     framework::EventListener<framework::MouseEventTag> _mouseListener;
 };
-
-GraphSample::GraphSample(rhi::DevicePtr device, rhi::SwapchainPtr swapchain)
-: _device(device), _swapchain(swapchain) {
-    _graphScheduler = new graph::GraphScheduler(device, swapchain);
-    auto& shaderGraph = _graphScheduler->shaderGraph();
-
-    const auto& resourcePath = utils::resourceDirectory();
-
-    graph::deserialize(resourcePath / "shader", "cook-torrance", shaderGraph);
-    shaderGraph.compile("asset");
-
-    asset::SceneLoader loader(device);
-    loader.loadFlat(resourcePath / "models" / "sponza-gltf-pbr" / "sponza.glb");
-    auto model = loader.modelData();
-    for (auto& meshRenderer : model->meshRenderers()) {
-        auto pbrMat = std::static_pointer_cast<raum::scene::PBRMaterial>(meshRenderer->technique(0)->material());
-        pbrMat->setDiffuse("mainTexture");
-    }
-    auto& sceneGraph = _graphScheduler->sceneGraph();
-    auto& modelNode = sceneGraph.addModel("sponza", "");
-    modelNode.model = model;
-
-    const auto& aabb = model->aabb();
-    auto far = std::abs(aabb.maxBound.z);
-
-    auto width = _swapchain->width();
-    auto height = _swapchain->height();
-    scene::Frustum frustum{45.0f, width / (float)height, 0.1, 10 * far};
-    _cam = std::make_shared<scene::Camera>(frustum, scene::Projection::PERSPECTIVE);
-    auto& eye = _cam->eye();
-    eye.setPosition(200.0f, 50.0f, 0.0);
-    eye.lookAt({1000.0, 50.0, 0.0}, {0.0f, 1.0f, 0.0f});
-    eye.update();
-
-    auto& resourceGraph = _graphScheduler->resourceGraph();
-    if (!resourceGraph.contains(_forwardRT)) {
-        //        _resourceGraph->addImage(_forwardRT, rhi::ImageUsage::COLOR_ATTACHMENT, width, height, rhi::Format::BGRA8_UNORM);
-        resourceGraph.import(_forwardRT, _swapchain);
-    }
-    if (!resourceGraph.contains(_forwardDS)) {
-        resourceGraph.addImage(_forwardDS, rhi::ImageUsage::DEPTH_STENCIL_ATTACHMENT, width, height, rhi::Format::D24_UNORM_S8_UINT);
-    }
-    if (!resourceGraph.contains(_camBuffer)) {
-        resourceGraph.addBuffer(_camBuffer, 192, graph::BufferUsage ::UNIFORM | graph::BufferUsage ::TRANSFER_DST);
-        resourceGraph.addBuffer(_camPose, 12, graph::BufferUsage ::UNIFORM | graph::BufferUsage ::TRANSFER_DST);
-        resourceGraph.addBuffer(_light, 32, graph::BufferUsage ::UNIFORM | graph::BufferUsage ::TRANSFER_DST);
-    }
-
-    // listeners
-    auto keyHandler = [&](framework::Keyboard key, framework::KeyboardType type) {
-        if (key != framework::Keyboard::OTHER && type == framework::KeyboardType::PRESS) {
-            auto front = _cam->eye().forward();
-            front = glm::normalize(front);
-            auto right = glm::cross(front, _cam->eye().up());
-            right = glm::normalize(right);
-            if (key == framework::Keyboard::W) {
-                _cam->eye().translate(front);
-            } else if (key == framework::Keyboard::S) {
-                _cam->eye().translate(-front);
-            } else if (key == framework::Keyboard::A) {
-                _cam->eye().translate(-right);
-            } else if (key == framework::Keyboard::D) {
-                _cam->eye().translate(right);
-            }
-            _cam->eye().update();
-        }
-    };
-    _keyListener.add(keyHandler);
-
-    auto mouseHandler = [&, width, height](int32_t x, int32_t y, framework::MouseButton btn, framework::ButtonStatus status) {
-        static int32_t lastX = x;
-        static int32_t lastY = y;
-
-        auto deltaX = x - lastX;
-        auto deltaY = y - lastY;
-
-        float factorX = deltaX / (float)width;
-        float factorY = deltaY / (float)height;
-
-        auto& eye = _cam->eye();
-        auto right = glm::cross(eye.forward(), eye.up());
-
-        _cam->eye().rotate(right, scene::Degree{-90.0f * factorY});
-        _cam->eye().rotate(eye.up(), scene::Degree{-90.0f * factorX});
-
-        _cam->eye().update();
-
-        lastX = x;
-        lastY = y;
-    };
-    _mouseListener.add(mouseHandler);
-}
-
-void GraphSample::show() {
-    auto& renderGraph = _graphScheduler->renderGraph();
-    auto uploadPass = renderGraph.addCopyPass("cambufferUpdate");
-
-    auto& eye = _cam->eye();
-    //    eye.translate(1.0, 0.0,  0.0);
-    auto modelMat = Mat4(1.0);
-    uploadPass.uploadBuffer(&modelMat[0], 64, _camBuffer, 0);
-    auto viewMat = eye.inverseAttitide();
-    uploadPass.uploadBuffer(&viewMat[0], 64, _camBuffer, 64);
-    const auto& projMat = eye.projection();
-    uploadPass.uploadBuffer(&projMat[0], 64, _camBuffer, 128);
-
-    uploadPass.uploadBuffer(&eye.getPosition()[0], 12, _camPose, 0);
-    Vec4f color{1.0, 1.0, 1.0, 1.0};
-    Vec4f lightPos{10.0, 100.0, 0.0, 1.0};
-    uploadPass.uploadBuffer(&lightPos[0], 16, _light, 0);
-    uploadPass.uploadBuffer(&color[0], 16, _light, 16);
-
-    auto renderPass = renderGraph.addRenderPass("forward");
-    renderPass.addColor(_forwardRT, graph::LoadOp::CLEAR, graph::StoreOp::STORE, {0.8, 0.1, 0.3, 1.0})
-        .addDepthStencil(_forwardDS, graph::LoadOp::CLEAR, graph::StoreOp::STORE, graph::LoadOp::CLEAR, graph::StoreOp::STORE, 1.0, 0);
-    auto queue = renderPass.addQueue("default");
-
-    auto width = _swapchain->width();
-    auto height = _swapchain->height();
-    queue.setViewport(0, 0, width, height, 0.0f, 1.0f)
-        .addCamera(_cam.get())
-        .addUniformBuffer(_camBuffer, "Mat")
-        .addUniformBuffer(_camPose, "CamPos")
-        .addUniformBuffer(_light, "Light");
-
-    _graphScheduler->execute();
-}
-
-GraphSample::~GraphSample() noexcept {
-    _keyListener.remove();
-    _mouseListener.remove();
-}
 
 } // namespace raum::sample

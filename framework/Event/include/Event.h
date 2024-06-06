@@ -8,6 +8,7 @@ enum class InputEventType : uint32_t {
     MOUSE,
     KEYBOARD,
     WINDOW_RESIZE,
+    WINDOW_CLOSE,
 };
 
 enum class EventType : uint8_t {
@@ -152,7 +153,9 @@ void EventListener<Tag>::add(const ListenFunc& func) {
 template <typename Tag>
     requires TagInst<Tag>
 void EventListener<Tag>::invoke(typename Tag::Params&& params) {
-    std::apply(_callback, params);
+    if(_callback) {
+        std::apply(_callback, params);
+    }
 }
 
 } // namespace raum::framework

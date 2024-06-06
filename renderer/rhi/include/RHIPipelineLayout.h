@@ -1,8 +1,9 @@
 #pragma once
 #include "RHIDefine.h"
+#include "RHIResource.h"
 namespace raum::rhi {
 class RHIDevice;
-class RHIPipelineLayout {
+class RHIPipelineLayout : public RHIResource {
 public:
     explicit RHIPipelineLayout(const PipelineLayoutInfo& info, RHIDevice* device): _info(info) {}
 

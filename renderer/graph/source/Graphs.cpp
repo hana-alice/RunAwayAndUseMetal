@@ -110,7 +110,7 @@ struct PreProcessVisitor : public boost::dfs_visitor<> {
                                      0,
                                      _ag.getFrameBufferInfo(v)->info.width,
                                      _ag.getFrameBufferInfo(v)->info.height};
-            renderpass.framebuffer = getOrCreateFrameBuffer(renderpass.renderpass, v, _ag, _resg, _device);
+            renderpass.framebuffer = getOrCreateFrameBuffer(renderpass.renderpass, v, _ag, _resg, _device, _swapchain);
         } else if (std::holds_alternative<RenderQueueData>(g[v].data)) {
             auto& queueData = std::get<RenderQueueData>(_g.impl()[v].data);
             queueData.bindGroup = _perPhaseBindGroups.at(g[v].name);
@@ -174,6 +174,7 @@ struct PreProcessVisitor : public boost::dfs_visitor<> {
     SceneGraph& _sg;
     rhi::CommandBufferPtr _commandBuffer;
     rhi::DevicePtr _device;
+    rhi::SwapchainPtr _swapchain;
     std::vector<scene::RenderablePtr>& _renderables;
     std::unordered_map<std::string, scene::BindGroupPtr>& _perPhaseBindGroups;
 };
@@ -315,7 +316,7 @@ void visitRenderGraph(T& visitor, RenderGraph& renderGraph) {
 void GraphScheduler::execute() {
     static bool warmed{false};
 
-    _swapchain->aquire();
+    _swapchain->acquire();
     auto* queue = _device->getQueue({rhi::QueueType::GRAPHICS});
 
     rhi::CommandBufferPtr cmdBuffer;
@@ -360,6 +361,7 @@ void GraphScheduler::execute() {
         *_sceneGraph,
         cmdBuffer,
         _device,
+        _swapchain,
         renderables,
         _perPhaseBindGroups};
     visitRenderGraph(preProcessVisitor, *_renderGraph);

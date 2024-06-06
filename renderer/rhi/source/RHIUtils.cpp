@@ -110,15 +110,23 @@ std::size_t hash_value(const RenderPassInfo& info) {
 }
 
 bool operator==(const FrameBufferInfo& lhs, const FrameBufferInfo& rhs) {
-    return lhs.renderPass == rhs.renderPass && lhs.width == rhs.width && lhs.height == rhs.height && lhs.layers == rhs.layers && lhs.images == rhs.images;
+    bool imageSame = lhs.images == rhs.images;
+    for (size_t i = 0; i < lhs.images.size() && imageSame; ++i) {
+        imageSame &= (lhs.images[i]->objectID() == rhs.images[i]->objectID());
+    }
+    return lhs.renderPass == rhs.renderPass && lhs.width == rhs.width && lhs.height == rhs.height && lhs.layers == rhs.layers && imageSame;
 }
+
 std::size_t hash_value(const FrameBufferInfo& info) {
-    size_t seed = 9527;
+    size_t seed = info.images.size();
     boost::hash_combine(seed, info.renderPass);
     boost::hash_combine(seed, info.width);
     boost::hash_combine(seed, info.height);
     boost::hash_combine(seed, info.layers);
     boost::hash_combine(seed, info.images);
+    for (const auto* imgView : info.images) {
+        boost::hash_combine(seed, imgView->objectID());
+    }
     return seed;
 }
 

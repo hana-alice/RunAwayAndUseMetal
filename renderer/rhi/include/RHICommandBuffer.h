@@ -1,5 +1,6 @@
 #pragma once
 #include "RHIDefine.h"
+#include "RHIResource.h"
 
 namespace raum::rhi {
 class RHIQueue;
@@ -7,7 +8,7 @@ class RHIRenderEncoder;
 class RHIBlitEncoder;
 class RHIComputeEncoder;
 class RHIDevice;
-class RHICommandBuffer {
+class RHICommandBuffer: public RHIResource  {
 public:
     virtual ~RHICommandBuffer() = 0;
 

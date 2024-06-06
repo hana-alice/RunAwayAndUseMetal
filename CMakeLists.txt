@@ -12,6 +12,9 @@ endif()
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+set(CMAKE_AUTOMOC ON)
+
+#find_package(Qt6Vulkan CONFIG REQUIRED)
 # if(MSVC)
 #     set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 # endif()
@@ -48,7 +51,6 @@ target_include_directories(raum_core PUBLIC
 target_link_libraries(raum_core PUBLIC
     spdlog::spdlog
 )
-set(CMAKE_AUTOMOC ON)
 # framework
 find_package(Qt6 REQUIRED COMPONENTS Widgets)
 file(GLOB_RECURSE raum_framework_platform_h ${CMAKE_CURRENT_LIST_DIR}/framework/platform/windows/include/*.h)
@@ -64,6 +66,11 @@ file(GLOB_RECURSE raum_framework_event_cpp ${CMAKE_CURRENT_LIST_DIR}/framework/e
 source_group("raum_framework_event_h" FILES ${raum_framework_event_h})
 source_group("raum_framework_event_cpp" FILES ${raum_framework_event_cpp})
 
+if(WIN32)
+    file(GLOB_RECURSE raum_framework_platform_specific_cpp ${CMAKE_CURRENT_LIST_DIR}/framework/platform/windows/source/*.cpp)
+    source_group("raum_framework_platform_specific_cpp" FILES ${raum_framework_platform_specific_cpp})
+endif()
+
 add_library(raum_framework
     ${raum_framework_platform_common_h}
     ${raum_framework_platform_common_cpp}
@@ -71,6 +78,7 @@ add_library(raum_framework
     ${raum_framework_platform_cpp}
     ${raum_framework_event_h}
     ${raum_framework_event_cpp}
+    ${raum_framework_platform_specific_cpp}
 )
 target_include_directories(raum_framework PUBLIC
     ${CMAKE_CURRENT_LIST_DIR}/framework/platform/windows/include/
@@ -134,16 +142,17 @@ target_include_directories(raum_asset PUBLIC
 target_link_libraries(raum_asset PUBLIC
     raum_core
     raum_renderer
-        assimp::assimp
+    assimp::assimp
 )
 
 file(GLOB_RECURSE Sample
-    ${CMAKE_CURRENT_SOURCE_DIR}/Sample/main.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/Sample/*.*
 )
 
 add_executable(raum_sample
     ${Sample}
 )
+
 # if(WIN32)
 #     set_target_properties(raum_sample
 #     PROPERTIES 

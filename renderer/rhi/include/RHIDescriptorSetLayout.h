@@ -1,8 +1,9 @@
 #pragma once
 #include "RHIDefine.h"
+#include "RHIResource.h"
 namespace raum::rhi {
 class RHIDevice;
-class RHIDescriptorSetLayout {
+class RHIDescriptorSetLayout: public RHIResource  {
 public:
     explicit RHIDescriptorSetLayout(const DescriptorSetLayoutInfo& info, RHIDevice*) : _info(info){};
 

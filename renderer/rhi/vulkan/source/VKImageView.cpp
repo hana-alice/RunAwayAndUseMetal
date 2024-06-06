@@ -1,10 +1,10 @@
 #include "VKImageView.h"
+#include "VKDevice.h"
 #include "VKImage.h"
 #include "VKUtils.h"
-#include "VKDevice.h"
 namespace raum::rhi {
 ImageView::ImageView(const ImageViewInfo& info, RHIDevice* device)
-    :RHIImageView(info, device), _device(static_cast<Device*>(device)) {
+: RHIImageView(info, device), _device(static_cast<Device*>(device)) {
     VkImageViewCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
     createInfo.image = static_cast<Image*>(info.image)->image();
@@ -20,7 +20,8 @@ ImageView::ImageView(const ImageViewInfo& info, RHIDevice* device)
     createInfo.subresourceRange.baseArrayLayer = info.range.firstSlice;
     createInfo.subresourceRange.layerCount = info.range.sliceCount;
 
-    vkCreateImageView(_device->device(), &createInfo, nullptr, &_imageView);
+    VkResult res = vkCreateImageView(_device->device(), &createInfo, nullptr, &_imageView);
+    raum_check(res == VK_SUCCESS, "failed to create image view");
 }
 
 ImageView::~ImageView() {

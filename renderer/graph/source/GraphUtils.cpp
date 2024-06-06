@@ -5,10 +5,46 @@ namespace raum::graph {
 
 namespace {
 static std::unordered_map<rhi::RenderPassInfo, rhi::RenderPassPtr, rhi::RHIHash<rhi::RenderPassInfo>> _renderPassMap;
-static std::unordered_map<rhi::FrameBufferInfo, rhi::FrameBufferPtr, rhi::RHIHash<rhi::FrameBufferInfo>> _frameBufferMap;
 static std::unordered_map<size_t, rhi::GraphicsPipelinePtr> _psoMap;
 static std::unordered_map<size_t, rhi::DescriptorSetLayoutPtr> _descLayoutMap;
 static std::unordered_map<size_t, rhi::PipelineLayoutPtr> _pplLayoutMap;
+
+class FrameBufferManager {
+public:
+    FrameBufferManager(rhi::RHIDevice* device, rhi::RHISwapchain* swapchain)
+    : _device(device), _swapchain(swapchain) {
+        _swapchainFrameBuffers.resize(swapchain->imageCount());
+    }
+
+    rhi::FrameBufferPtr get(const rhi::FrameBufferInfo& info) {
+        auto hash = rhi::RHIHash<rhi::FrameBufferInfo>{}(info);
+        if (!_frameBufferMap.contains(hash)) {
+            // invalidate swapchain-related framebuffers in case of pointer ABA problem
+            bool hasSwapchainView{false};
+            for (auto* imgView : info.images) {
+                if (_swapchain->holds(imgView->image())) {
+                    auto& currFramebuffers = _swapchainFrameBuffers[_swapchain->imageIndex()];
+                    for (const auto& val : currFramebuffers) {
+                        _frameBufferMap.erase(val);
+                    }
+                    currFramebuffers.clear();
+                    hasSwapchainView = true;
+                }
+            }
+            if (hasSwapchainView) {
+                _swapchainFrameBuffers[_swapchain->imageIndex()].emplace_back(hash);
+            }
+            _frameBufferMap[hash] = rhi::FrameBufferPtr(_device->createFrameBuffer(info));
+        }
+        return _frameBufferMap.at(hash);
+    }
+
+    rhi::RHIDevice* _device;
+    rhi::RHISwapchain* _swapchain;
+    std::vector<std::vector<std::size_t>> _swapchainFrameBuffers;
+    std::unordered_map<std::size_t, rhi::FrameBufferPtr> _frameBufferMap;
+};
+
 } // namespace
 
 rhi::RenderPassPtr getOrCreateRenderPass(const RenderGraph::VertexType v, AccessGraph& ag, rhi::DevicePtr device) {
@@ -24,12 +60,18 @@ rhi::RenderPassPtr getOrCreateRenderPass(const RenderGraph::VertexType v, Access
     return nullptr;
 }
 
+
+
 rhi::FrameBufferPtr getOrCreateFrameBuffer(
     rhi::RenderPassPtr renderpass,
     const RenderGraph::VertexType v,
     AccessGraph& ag,
     ResourceGraph& resg,
-    rhi::DevicePtr device) {
+    rhi::DevicePtr device,
+    rhi::SwapchainPtr swapchain) {
+
+    static FrameBufferManager fbManager(device.get(), swapchain.get());
+
     auto* framebufferInfo = ag.getFrameBufferInfo(v);
     raum_check(framebufferInfo, "failed to analyze framebuffer info at {}", v);
     if (framebufferInfo) {
@@ -41,10 +83,8 @@ rhi::FrameBufferPtr getOrCreateFrameBuffer(
             auto imgView = resg.getImageView(resName);
             rhiFbInfo.images[i] = imgView.get();
         }
-        if (!_frameBufferMap.contains(rhiFbInfo)) {
-            _frameBufferMap[rhiFbInfo] = rhi::FrameBufferPtr(device->createFrameBuffer(rhiFbInfo));
-        }
-        return _frameBufferMap[rhiFbInfo];
+
+        return fbManager.get(rhiFbInfo);
     }
     raum_unreachable();
     return nullptr;

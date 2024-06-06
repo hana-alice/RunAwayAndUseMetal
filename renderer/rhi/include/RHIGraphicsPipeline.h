@@ -1,8 +1,9 @@
 #pragma once
 #include "RHIDefine.h"
+#include "RHIResource.h"
 namespace raum::rhi {
 class RHIDevice;
-class RHIGraphicsPipeline {
+class RHIGraphicsPipeline: public RHIResource  {
 public:
     explicit RHIGraphicsPipeline(const GraphicsPipelineInfo&, RHIDevice*){};
 

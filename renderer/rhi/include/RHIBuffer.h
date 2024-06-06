@@ -1,8 +1,9 @@
 #pragma once
 #include "RHIDefine.h"
+#include "RHIResource.h"
 namespace raum::rhi {
 class RHIDevice;
-class RHIBuffer {
+class RHIBuffer: public RHIResource {
 public:
     explicit RHIBuffer(const BufferInfo& info, RHIDevice*) : _info(info){};
     explicit RHIBuffer(const BufferSourceInfo& info, RHIDevice*) : _info(

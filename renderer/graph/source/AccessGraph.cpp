@@ -229,8 +229,8 @@ public:
                     getImageLayout(access),
                     getImageLayout(access));
 
-                fbIter->second.info.width = width;
-                fbIter->second.info.height = height;
+                fbIter->second.info.width = fbIter->second.info.width ? std::min(fbIter->second.info.width, width) : width;
+                fbIter->second.info.height = fbIter->second.info.height ? std::min(fbIter->second.info.height, height) : height;
                 fbIter->second.info.layers = sliceCount;
                 fbIter->second.images.emplace_back(res.name);
 

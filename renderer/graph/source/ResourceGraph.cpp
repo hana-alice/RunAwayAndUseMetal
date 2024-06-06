@@ -1,23 +1,23 @@
 #include "ResourceGraph.h"
+#include <boost/graph/depth_first_search.hpp>
 #include "RHIBuffer.h"
 #include "RHIBufferView.h"
 #include "RHIDevice.h"
 #include "RHIImage.h"
 #include "RHIImageView.h"
-#include <boost/graph/depth_first_search.hpp>
+#include "RHISwapchain.h"
 
 namespace raum::graph {
 using boost::add_edge;
 using boost::add_vertex;
-using boost::graph::find_vertex;
-using boost::out_edges;
 using boost::make_iterator_range;
+using boost::out_edges;
+using boost::graph::find_vertex;
 using raum::rhi::RHIBuffer;
 using raum::rhi::RHIBufferView;
 using raum::rhi::RHIDevice;
 using raum::rhi::RHIImage;
 using raum::rhi::RHIImageView;
-
 
 namespace {
 rhi::ImageViewInfo getDefaultViewInfo(const rhi::ImageInfo& info) {
@@ -71,7 +71,7 @@ void ResourceGraph::addBuffer(std::string_view name, uint32_t size, rhi::BufferU
 void ResourceGraph::addBufferView(std::string_view name, const BufferViewData& data) {
     const auto& v = add_vertex(name.data(), _graph);
     _graph[v].data = data;
-    add_edge( data.origin.data(), v, _graph);
+    add_edge(data.origin.data(), v, _graph);
 }
 
 void ResourceGraph::addImage(std::string_view name, const rhi::ImageInfo& info) {
@@ -155,11 +155,15 @@ void ResourceGraph::mount(std::string_view name) {
                        }
                    },
                    [&](rhi::SwapchainPtr data) {
-                       if(!boost::out_degree(v, _graph)) {
-                           for(size_t i = 0; i < data->imageCount(); ++i) {
+                       if (!data->imageValid(0)) {
+                           for (size_t i = 0; i < data->imageCount(); ++i) {
                                std::string imageName{name};
                                imageName.append("/" + std::to_string(i));
-                               const auto& vert = add_vertex(imageName, _graph);
+                               auto vert = find_vertex(imageName, _graph);
+                               if (!vert.has_value()) {
+                                   vert = add_vertex(imageName, _graph);
+                                   add_edge(name.data(), *vert, _graph);
+                               }
 
                                rhi::ImageInfo info{
                                    .type = rhi::ImageType::IMAGE_2D,
@@ -171,19 +175,22 @@ void ResourceGraph::mount(std::string_view name) {
                                };
 
                                auto image = rhi::ImagePtr(data->allocateImage(i));
-                               _graph[vert].data = ImageData{info, image};
-                               add_edge(name.data(), vert, _graph);
+                               _graph[*vert].data = ImageData{info, image};
 
                                rhi::ImageViewInfo viewInfo = getDefaultViewInfo(info);
                                viewInfo.image = image.get();
                                imageName.append("/" + std::to_string(i));
-                               const auto& viewVert = add_vertex(imageName, _graph);
-                               _graph[viewVert].data = ImageViewData{
-                                   _graph[vert].name,
+                               auto viewVert = find_vertex(imageName, _graph);
+                               if (!viewVert.has_value()) {
+                                   viewVert = add_vertex(imageName, _graph);
+                                   add_edge(_graph[*vert].name, *viewVert, _graph);
+                               }
+
+                               _graph[*viewVert].data = ImageViewData{
+                                   _graph[*vert].name,
                                    viewInfo,
                                    rhi::ImageViewPtr(_device->createImageView(viewInfo)),
                                };
-                               add_edge( _graph[vert].name, viewVert, _graph);
                            }
                        }
                    },
@@ -194,7 +201,7 @@ void ResourceGraph::mount(std::string_view name) {
 
 struct UnmountVisitor : public boost::dfs_visitor<> {
     // make sure view unmounting comes before resource itself
-    void finish_vertex(ResourceGraph::VertexType v, const ResourceGraphImpl& g) {
+    void finish_vertex(ResourceGraph::VertexType v, const ResourceGraphImpl& _) {
         auto& resource = g[v];
         std::visit(
             overloaded{
@@ -215,6 +222,8 @@ struct UnmountVisitor : public boost::dfs_visitor<> {
             },
             resource.data);
     }
+
+    ResourceGraphImpl& g;
 };
 
 void ResourceGraph::unmount(std::string_view name, uint64_t life) {
@@ -223,7 +232,7 @@ void ResourceGraph::unmount(std::string_view name, uint64_t life) {
     if (resource.life < life) {
         auto indexMap = boost::get(boost::vertex_index, _graph);
         auto colorMap = boost::make_vector_property_map<boost::default_color_type>(indexMap);
-        UnmountVisitor uv{};
+        UnmountVisitor uv{{}, _graph};
         boost::depth_first_visit(_graph, v, uv, colorMap);
     }
 }
@@ -276,7 +285,7 @@ Resource& ResourceGraph::getView(std::string_view name) {
 
 rhi::BufferPtr ResourceGraph::getBuffer(std::string_view name) {
     Resource& res = get(name);
-    if(std::holds_alternative<BufferData>(res.data)) {
+    if (std::holds_alternative<BufferData>(res.data)) {
         return std::get<BufferData>(res.data).buffer;
     }
     return nullptr;
@@ -284,7 +293,7 @@ rhi::BufferPtr ResourceGraph::getBuffer(std::string_view name) {
 
 rhi::BufferViewPtr ResourceGraph::getBufferView(std::string_view name) {
     Resource& res = get(name);
-    if(std::holds_alternative<BufferViewData>(res.data)) {
+    if (std::holds_alternative<BufferViewData>(res.data)) {
         return std::get<BufferViewData>(res.data).bufferView;
     }
     return nullptr;
@@ -292,9 +301,9 @@ rhi::BufferViewPtr ResourceGraph::getBufferView(std::string_view name) {
 
 rhi::ImagePtr ResourceGraph::getImage(std::string_view name) {
     Resource& res = get(name);
-    if(std::holds_alternative<ImageData>(res.data)) {
+    if (std::holds_alternative<ImageData>(res.data)) {
         return std::get<ImageData>(res.data).image;
-    } else if(std::holds_alternative<rhi::SwapchainPtr>(res.data)) {
+    } else if (std::holds_alternative<rhi::SwapchainPtr>(res.data)) {
         std::string imageName(name);
         imageName.append("/" + std::to_string(std::get<rhi::SwapchainPtr>(res.data)->imageIndex()));
         auto v = *find_vertex(imageName, _graph);
@@ -305,7 +314,7 @@ rhi::ImagePtr ResourceGraph::getImage(std::string_view name) {
 
 rhi::ImageViewPtr ResourceGraph::getImageView(std::string_view name) {
     Resource& res = get(name);
-    if(std::holds_alternative<ImageViewData>(res.data)) {
+    if (std::holds_alternative<ImageViewData>(res.data)) {
         return std::get<ImageViewData>(res.data).imageView;
     } else if (std::holds_alternative<ImageData>(res.data)) {
         auto& viewRes = getView(name);

@@ -1,8 +1,9 @@
 #pragma once
 #include "RHIDefine.h"
+#include "RHIResource.h"
 namespace raum::rhi {
 class RHIDevice;
-class RHIRenderPass {
+class RHIRenderPass: public RHIResource  {
 public:
     explicit RHIRenderPass(const RenderPassInfo& info, RHIDevice*) : _info(info) {}
 

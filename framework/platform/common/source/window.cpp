@@ -3,11 +3,14 @@
 #include <QKeyEvent>
 #include <QMouseEvent>
 #include <QSizePolicy>
+#include <QStatusBar>
 #include <QTimer>
+#include <QVulkanInstance>
 #include <QWidget>
 #include <QWindow>
 #include "KeyboardEvent.h"
 #include "MouseEvent.h"
+#include "WindowEvent.h"
 
 namespace raum::platform {
 
@@ -18,6 +21,8 @@ using framework::KeyboardEventTag;
 using framework::KeyboardType;
 using framework::MouseButton;
 using framework::MouseEventTag;
+using framework::ResizeEventTag;
+using framework::CloseEventTag;
 
 MouseButton mapButton(Qt::MouseButton btn) {
     MouseButton button{MouseButton::OTHER};
@@ -183,49 +188,92 @@ void NativeWindow::keyReleaseEvent(QKeyEvent* evt) {
             KeyboardType::RELEASE));
 }
 
-Window::Window(int argc, char** argv, uint32_t w, uint32_t h) {
+void NativeWindow::closeEvent(QCloseEvent* evt) {
+    EventDispatcher<CloseEventTag>::get()->broadcast({});
+}
+
+Window::Window(int argc, char** argv, uint32_t w, uint32_t h, void* instance) {
     _app = new QApplication(argc, argv);
-    _window = new NativeWindow();
-    _window->resize(w, h);
-    _engineCanvas = QWidget::createWindowContainer(_window);
+
+    static QVulkanInstance inst;
+    inst.setVkInstance((VkInstance)instance);
+    inst.create();
+
+    _engineCanvas = new NativeWindow();
+    _engineCanvas->window = this;
+    _engineCanvas->setSurfaceType(QSurface::VulkanSurface);
+    _engineCanvas->setVulkanInstance(&inst);
     _engineCanvas->resize(w, h);
+    _engineCanvas->setMinimumWidth(w);
+    _engineCanvas->setMinimumHeight(h);
+    _engineCanvas->show();
+
+    _surface = QVulkanInstance::surfaceForWindow(_engineCanvas);
+
+    _window = new QWidget();
+    QWidget* wrapper = QWidget::createWindowContainer(_engineCanvas, _window);
+    QVBoxLayout* vl = new QVBoxLayout();
+    vl->setContentsMargins(0, 0, 0, 0);
+    vl->addWidget(wrapper);
+    _window->setLayout(vl);
 
     _timer = new QTimer();
     _timer->setInterval(std::chrono::milliseconds(16));
-    QObject::connect(_timer, &QTimer::timeout, [&](){
-        this->update();
+    QObject::connect(_timer, &QTimer::timeout, [&]() {
+        this->update(_timer->intervalAsDuration());
     });
     _timer->start();
-    _hwnd = _window->winId();
+    _hwnd = _engineCanvas->winId();
 }
 
-void Window::registerPollEvents(TickFunction&& tickFunc) {
+void Window::updateSurface() {
+    _surface = QVulkanInstance::surfaceForWindow(_engineCanvas);
+}
+
+void Window::registerPollEvents(TickFunction* tickFunc) {
     _tickFuncs.emplace_back(tickFunc);
 }
 
-void Window::update() {
-    for (auto& callback : _tickFuncs) {
-        callback();
+void Window::removePollEvent(TickFunction* tickFunc) {
+    for (auto iter = _tickFuncs.begin(); iter != _tickFuncs.end(); ++iter) {
+        if ((*iter) == tickFunc) {
+            _tickFuncs.erase(iter);
+            return;
+        }
+    }
+}
+
+void Window::update(std::chrono::milliseconds miliSec) {
+    for (auto* callback : _tickFuncs) {
+        (*callback)(miliSec);
     }
 }
 
 void Window::show() {
-    _engineCanvas->show(); // container of engine, qt window
-    _window->show();       // qt window
+    _window->show(); // qt window
 }
 
-Size Window::pixelSize() {
-    float ratio = _app->devicePixelRatio();
-    return Size{
-        static_cast<uint32_t>(_window->width() * ratio),
-        static_cast<uint32_t>(_window->height() * ratio)};
+float Window::devicePixelRatio() const {
+    return _app->devicePixelRatio();
+}
+
+Position Window::position() const {
+    return {
+        static_cast<int32_t>(_window->pos().x()),
+        static_cast<int32_t>(_window->pos().y())};
 }
 
 void Window::mainLoop() {
-    _app->exec();          // qt window loop
+    _app->exec(); // qt window loop
 }
 
 Window::~Window() {
+    _timer->stop();
+    delete _timer;
+
+    delete _engineCanvas;
+    delete _window;
+
     _app->quit();
     delete _window;
 }

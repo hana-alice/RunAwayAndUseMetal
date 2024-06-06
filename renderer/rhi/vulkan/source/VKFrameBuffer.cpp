@@ -1,7 +1,7 @@
 #include "VKFrameBuffer.h"
 #include "VKDevice.h"
-#include "VKRenderPass.h"
 #include "VKImageView.h"
+#include "VKRenderPass.h"
 #include "VKUtils.h"
 namespace raum::rhi {
 FrameBuffer::FrameBuffer(const FrameBufferInfo& info, RHIDevice* device)
@@ -26,4 +26,4 @@ FrameBuffer::FrameBuffer(const FrameBufferInfo& info, RHIDevice* device)
 FrameBuffer::~FrameBuffer() {
     vkDestroyFramebuffer(_device->device(), _framebuffer, nullptr);
 }
-}
+} // namespace raum::rhi

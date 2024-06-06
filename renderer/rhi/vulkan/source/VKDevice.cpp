@@ -286,6 +286,10 @@ RHISwapchain* Device::createSwapchain(const SwapchainInfo& info) {
     return new Swapchain(info, this);
 }
 
+RHISwapchain* Device::createSwapchain(const SwapchainSurfaceInfo& info) {
+    return new Swapchain(info, this);
+}
+
 RHIBuffer* Device::createBuffer(const BufferInfo& info) {
     return new Buffer(info, this);
 }

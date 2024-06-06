@@ -19,6 +19,7 @@ namespace raum::rhi {
 class RHIDevice {
 public:
     virtual RHISwapchain* createSwapchain(const SwapchainInfo&) = 0;
+    virtual RHISwapchain* createSwapchain(const SwapchainSurfaceInfo&) = 0;
     virtual RHIBuffer* createBuffer(const BufferInfo&) = 0;
     virtual RHIBuffer* createBuffer(const BufferSourceInfo&) = 0;
     virtual RHIBufferView* createBufferView(const BufferViewInfo&) = 0;
@@ -37,6 +38,8 @@ public:
     // internal holds
     virtual RHIQueue* getQueue(const QueueInfo&) = 0;
     virtual RHISampler* getSampler(const SamplerInfo&) = 0;
+
+    virtual void* instance() { return nullptr; }
 
 protected:
     virtual ~RHIDevice() = 0;

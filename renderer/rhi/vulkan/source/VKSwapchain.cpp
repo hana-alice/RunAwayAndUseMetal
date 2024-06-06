@@ -12,25 +12,28 @@
 #include "VKUtils.h"
 
 namespace raum::rhi {
-Swapchain::Swapchain(const SwapchainInfo& info, Device* device)
-: RHISwapchain(info, device), _device(static_cast<Device*>(device)), _info(info) {
+
+void Swapchain::initialize(uintptr_t hwnd, SyncType type, uint32_t width, uint32_t height) {
 #ifdef RAUM_WINDOWS
-    VkWin32SurfaceCreateInfoKHR surfaceInfo{};
-    surfaceInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
-    surfaceInfo.hwnd = (HWND)info.hwnd;
-    surfaceInfo.hinstance = GetModuleHandle(nullptr);
 
-    auto physicalDevice = device->physicalDevice();
-    VkResult res = vkCreateWin32SurfaceKHR(device->instance(), &surfaceInfo, nullptr, &_surface);
-    RAUM_CRITICAL_IF(res != VK_SUCCESS, "failed to create surface");
-    VkBool32 support{false};
-
-    auto* grfxQ = device->getQueue({QueueType::GRAPHICS});
+    auto physicalDevice = _device->physicalDevice();
+    auto* grfxQ = _device->getQueue({QueueType::GRAPHICS});
     _presentQueue = static_cast<Queue*>(grfxQ);
     auto qIndex = _presentQueue->index();
-    vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, qIndex, _surface, &support);
 
-    RAUM_CRITICAL_IF(!support, "surface presentation not supported");
+    if(!_surface) {
+        VkWin32SurfaceCreateInfoKHR surfaceInfo{};
+        surfaceInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
+        surfaceInfo.hwnd = (HWND)hwnd;
+        surfaceInfo.hinstance = GetModuleHandle(nullptr);
+
+        VkResult res = vkCreateWin32SurfaceKHR(_device->instance(), &surfaceInfo, nullptr, &_surface);
+        RAUM_CRITICAL_IF(res != VK_SUCCESS, "failed to create surface");
+        VkBool32 support{false};
+
+        vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, qIndex, _surface, &support);
+        RAUM_CRITICAL_IF(!support, "surface presentation not supported");
+    }
 
     VkSurfaceCapabilitiesKHR caps;
     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, _surface, &caps);
@@ -61,7 +64,7 @@ Swapchain::Swapchain(const SwapchainInfo& info, Device* device)
 
     VkPresentModeKHR mode{VK_PRESENT_MODE_FIFO_KHR};
     VkPresentModeKHR hint{VK_PRESENT_MODE_FIFO_KHR};
-    switch (info.type) {
+    switch (type) {
         case SyncType::IMMEDIATE:
             hint = VK_PRESENT_MODE_IMMEDIATE_KHR;
             break;
@@ -81,7 +84,7 @@ Swapchain::Swapchain(const SwapchainInfo& info, Device* device)
         }
     }
 
-    VkExtent2D extent{info.width, info.height};
+    VkExtent2D extent{width, height};
 
     uint32_t imageCount = caps.minImageCount;
     constexpr uint32_t preferredSwapchainCount = 3;
@@ -109,12 +112,15 @@ Swapchain::Swapchain(const SwapchainInfo& info, Device* device)
     createInfo.clipped = VK_TRUE;
     createInfo.oldSwapchain = VK_NULL_HANDLE;
 
-    res = vkCreateSwapchainKHR(device->device(), &createInfo, nullptr, &_swapchain);
+    auto res = vkCreateSwapchainKHR(_device->device(), &createInfo, nullptr, &_swapchain);
     RAUM_CRITICAL_IF(res != VK_SUCCESS, "failed to create swapchain");
 
-    vkGetSwapchainImagesKHR(device->device(), _swapchain, &imageCount, nullptr);
+    vkGetSwapchainImagesKHR(_device->device(), _swapchain, &imageCount, nullptr);
     _vkImages.resize(imageCount);
-    vkGetSwapchainImagesKHR(device->device(), _swapchain, &imageCount, _vkImages.data());
+    vkGetSwapchainImagesKHR(_device->device(), _swapchain, &imageCount, _vkImages.data());
+
+    _valid.clear();
+    _valid.resize(imageCount, 0);
 
 #else
     #pragma error Run Away
@@ -128,7 +134,19 @@ Swapchain::Swapchain(const SwapchainInfo& info, Device* device)
     }
 }
 
-bool Swapchain::aquire() {
+Swapchain::Swapchain(const SwapchainInfo& info, Device* device)
+: RHISwapchain(info, device), _device(static_cast<Device*>(device)), _info(info) {
+    initialize(info.hwnd, info.type, info.width, info.height);
+}
+
+Swapchain::Swapchain(const raum::rhi::SwapchainSurfaceInfo& info, raum::rhi::Device* device)
+: RHISwapchain(info, device), _device(static_cast<Device*>(device)) {
+    _info = {info.width, info.height, info.type, 0};
+    _surface = static_cast<VkSurfaceKHR>(info.surface);
+    initialize(0, info.type, info.width, info.height);
+}
+
+bool Swapchain::acquire() {
     VkSemaphore imageAvailableSem = _presentSemaphores[_imageIndex];
     _presentQueue->setPresentSemaphore(imageAvailableSem);
     return vkAcquireNextImageKHR(_device->device(), _swapchain, UINT64_MAX, imageAvailableSem, VK_NULL_HANDLE, &_imageIndex) == VK_SUCCESS;
@@ -149,12 +167,26 @@ void Swapchain::present() {
 //    _imageIndex = (_imageIndex + 1) % static_cast<uint32_t>(_vkImages.size());
 }
 
-Swapchain::~Swapchain() {
-    vkDestroySwapchainKHR(_device->device(), _swapchain, nullptr);
+void Swapchain::destroy() {
+    vkQueueWaitIdle(_presentQueue->_vkQueue);
     vkDestroySurfaceKHR(_device->instance(), _surface, nullptr);
+    vkDestroySwapchainKHR(_device->device(), _swapchain, nullptr);
+}
+
+Swapchain::~Swapchain() {
+    destroy();
+}
+
+bool Swapchain::imageValid(uint32_t index) {
+    return _valid[index];
+}
+
+bool Swapchain::holds(RHIImage* img) {
+    return static_cast<Image*>(img)->_swapchain;
 }
 
 RHIImage* Swapchain::allocateImage(uint32_t index) {
+    _valid[index] = 1;
     auto img = _vkImages[index];
 
     ImageInfo imageInfo{};
@@ -175,6 +207,26 @@ uint32_t Swapchain::imageCount() const {
 
 uint32_t Swapchain::imageIndex() const {
     return _imageIndex;
+}
+
+void Swapchain::resize(uint32_t w, uint32_t h) {
+    destroy();
+    _info.width = w;
+    _info.height = h;
+    initialize(_info.hwnd, _info.type, w, h);
+}
+
+void Swapchain::resize(uint32_t w, uint32_t h, void* surface) {
+    if(surface != surface) {
+        destroy();
+    } else {
+        vkQueueWaitIdle(_presentQueue->_vkQueue);
+        vkDestroySwapchainKHR(_device->device(), _swapchain, nullptr);
+    }
+    _info.width = w;
+    _info.height = h;
+    _surface = static_cast<VkSurfaceKHR>(surface);
+    initialize(0, _info.type, w, h);
 }
 
 } // namespace raum::rhi

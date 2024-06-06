@@ -1,8 +1,9 @@
 #pragma once
 #include "RHIDefine.h"
+#include "RHIResource.h"
 namespace raum::rhi {
 class RHIDevice;
-class RHIShader {
+class RHIShader: public RHIResource  {
 public:
     explicit RHIShader(const ShaderBinaryInfo&, RHIDevice*) {}
     explicit RHIShader(const ShaderSourceInfo&, RHIDevice*) {}
