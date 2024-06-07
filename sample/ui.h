@@ -18,7 +18,7 @@ public:
         auto* widget = static_cast<QWidget*>(_window->nativeWindow());
         _mainWindow->setCentralWidget(widget);
         _mainWindow->setMinimumWidth(1080);
-        _mainWindow->setMinimumHeight(920);
+        _mainWindow->setMinimumHeight(720);
         _mainWindow->statusBar()->setVisible(true);
 
         auto* controlPanel = new QDockWidget(_mainWindow);

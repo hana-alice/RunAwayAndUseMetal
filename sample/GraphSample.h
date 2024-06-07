@@ -14,8 +14,10 @@
 namespace raum::sample {
 class GraphSample : public SampleBase {
 public:
-    explicit GraphSample(rhi::DevicePtr device, rhi::SwapchainPtr swapchain): _device(device), _swapchain(swapchain) {
-        _graphScheduler = new graph::GraphScheduler(device, swapchain);
+    explicit GraphSample(rhi::DevicePtr device, rhi::SwapchainPtr swapchain, graph::GraphSchedulerPtr graphScheduler)
+    : _device(device), _swapchain(swapchain), _graphScheduler(graphScheduler) {}
+
+    void init() override {
         auto& shaderGraph = _graphScheduler->shaderGraph();
 
         const auto& resourcePath = utils::resourceDirectory();
@@ -23,7 +25,7 @@ public:
         graph::deserialize(resourcePath / "shader", "cook-torrance", shaderGraph);
         shaderGraph.compile("asset");
 
-        asset::SceneLoader loader(device);
+        asset::SceneLoader loader(_device);
         loader.loadFlat(resourcePath / "models" / "sponza-gltf-pbr" / "sponza.glb");
         auto model = loader.modelData();
         for (auto& meshRenderer : model->meshRenderers()) {
@@ -153,6 +155,11 @@ public:
 
         _graphScheduler->execute();
     }
+
+    void hide() override {
+        _graphScheduler->sceneGraph().disable("sponza");
+    }
+
     const std::string& name() override {
         return _name;
     }
@@ -161,7 +168,7 @@ private:
     rhi::DevicePtr _device;
     rhi::SwapchainPtr _swapchain;
 
-    graph::GraphScheduler* _graphScheduler;
+    graph::GraphSchedulerPtr _graphScheduler;
 
     std::shared_ptr<scene::Camera> _cam;
     std::shared_ptr<scene::Scene> _scene;

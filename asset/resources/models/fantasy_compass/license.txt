@@ -1,0 +1,11 @@
+Model Information:
+* title:	Fantasy Compass
+* source:	https://sketchfab.com/3d-models/fantasy-compass-7dfad2d3bfd447f1be97dace6a967531
+* author:	Mikołaj Michalak (https://sketchfab.com/M_Michalak)
+
+Model License:
+* license type:	CC-BY-NC-4.0 (http://creativecommons.org/licenses/by-nc/4.0/)
+* requirements:	Author must be credited. No commercial use.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Fantasy Compass" (https://sketchfab.com/3d-models/fantasy-compass-7dfad2d3bfd447f1be97dace6a967531) by Mikołaj Michalak (https://sketchfab.com/M_Michalak) licensed under CC-BY-NC-4.0 (http://creativecommons.org/licenses/by-nc/4.0/)
