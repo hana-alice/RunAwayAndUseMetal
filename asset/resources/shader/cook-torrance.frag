@@ -43,8 +43,10 @@ vec3 fresnelSchlick(float cosTheta, vec3 F0) {
 }
 
 layout(location = 0) out vec4 FragColor;
-layout(location = 0) in vec2 f_uv;
-layout(location = 1) in vec3 f_worldPos;
+layout(location = 0) in vec3 f_worldPos;
+layout(location = 1) in vec2 f_uv;
+layout(location = 2) in vec4 f_tan;
+layout(location = 3) in vec3 f_normal;
 
 layout(set = 0, binding = 1) uniform CamPos {
                                          vec3 camPos;
@@ -56,17 +58,19 @@ layout(set = 0, binding = 2) uniform Light {
 
 layout(set = 1, binding = 0) uniform texture2D albedoMap;
 layout(set = 1, binding = 1) uniform texture2D normalMap;
-layout(set = 1, binding = 2) uniform texture2D metallicMap;
-layout(set = 1, binding = 3) uniform texture2D roughnessMap;
+layout(set = 1, binding = 2) uniform texture2D metallicRoughnessMap;
 
-layout(set = 1, binding = 4) uniform sampler pointSampler;
+layout(set = 1, binding = 3) uniform sampler pointSampler;
 
 void main () {
     vec3 raw = texture(sampler2D(albedoMap, pointSampler), f_uv).rgb;
     vec3 albedo = pow(raw, vec3(2.2));
-    float metallic = texture(sampler2D(metallicMap, pointSampler), f_uv).r;
-    float roughness = texture(sampler2D(roughnessMap, pointSampler), f_uv).w;
-    vec3 N = texture(sampler2D(normalMap, pointSampler), f_uv).rgb;
+    float metallic = texture(sampler2D(metallicRoughnessMap, pointSampler), f_uv).b;
+    float roughness = texture(sampler2D(metallicRoughnessMap, pointSampler), f_uv).g;
+    vec3 sn = texture(sampler2D(normalMap, pointSampler), f_uv).rgb;
+    vec3 bi = cross(f_normal, f_tan.xyz) * f_tan.w;
+    mat3x3 tbn = mat3x3(f_tan.xyz, bi, f_normal);
+    vec3 N = tbn * sn;
     vec3 F0 = vec3(0.04);
     F0 = mix(F0, albedo, metallic);
 

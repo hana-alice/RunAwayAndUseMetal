@@ -88,6 +88,11 @@ const Vec3f Eye::up() const {
     return _up;
 }
 
+void Eye::setTransform(const Mat4& mat) {
+    _attitude = mat;
+    _attitudeInversed = glm::inverse(_attitude);
+}
+
 void Eye::update() {
     Mat4 rot(_orientation);
     Mat4 trans(glm::translate(Mat4(1.0f), _position));

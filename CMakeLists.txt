@@ -102,10 +102,9 @@ file(GLOB_RECURSE raum_scene_cpp ${CMAKE_CURRENT_LIST_DIR}/renderer/scene/*.cpp)
 source_group("raum_scene_h" FILES ${raum_scene_h})
 source_group("raum_scene_cpp" FILES ${raum_scene_cpp})
 
+
 # renderer-rhi
 add_subdirectory(renderer/rhi/vulkan)
-
-find_package(Boost REQUIRED COMPONENTS graph json)
 
 add_library(raum_renderer
     ${raum_graph_h}
@@ -120,27 +119,45 @@ target_include_directories(raum_renderer PUBLIC
 target_link_libraries(raum_renderer PUBLIC 
     raum_rhi
     Boost::graph
-    Boost::json
 )
 
+# Get the include directories for the target.
+get_target_property(LIBA_INCLUDES raum_rhi INCLUDE_DIRECTORIES)
+
+# Construct the compiler string for the include directories.
+foreach(dir ${LIBA_INCLUDES})
+    string(APPEND INCLUDE_COMPILER_STRING "/I${dir} ")
+endforeach()
+
 #asset
+find_package(Boost REQUIRED COMPONENTS graph json)
 find_package(stb REQUIRED)
 find_path(TINYGLTF_INCLUDE_DIRS "tiny_gltf.h")
-file(GLOB_RECURSE raum_asset_h ${CMAKE_CURRENT_LIST_DIR}/asset/loader/*.h)
-file(GLOB_RECURSE raum_asset_cpp ${CMAKE_CURRENT_LIST_DIR}/asset/loader/*.cpp)
-source_group("raum_asset_h" FILES ${raum_asset_h})
-source_group("raum_asset_cpp" FILES ${raum_asset_cpp})
+
+file(GLOB_RECURSE raum_asset_loader_h ${CMAKE_CURRENT_LIST_DIR}/asset/loader/*.h)
+file(GLOB_RECURSE raum_asset_loader_cpp ${CMAKE_CURRENT_LIST_DIR}/asset/loader/*.cpp)
+source_group("raum_asset_loader_h" FILES ${raum_asset_loader_h})
+source_group("raum_asset_loader_cpp" FILES ${raum_asset_loader_cpp})
+
+file(GLOB_RECURSE raum_asset_serialize_h ${CMAKE_CURRENT_LIST_DIR}/asset/serialization/*.h)
+file(GLOB_RECURSE raum_asset_serialize_cpp ${CMAKE_CURRENT_LIST_DIR}/asset/serialization/*.cpp)
+source_group("raum_asset_serialize_h" FILES ${raum_asset_serialize_h})
+source_group("raum_asset_serialize_cpp" FILES ${raum_asset_serialize_cpp})
 
 add_library(raum_asset
-    ${raum_asset_h}
-    ${raum_asset_cpp}
+    ${raum_asset_loader_h}
+    ${raum_asset_loader_cpp}
+    ${raum_asset_serialize_h}
+    ${raum_asset_serialize_cpp}
 )
 target_include_directories(raum_asset PUBLIC
     ${Stb_INCLUDE_DIR}
     ${CMAKE_CURRENT_LIST_DIR}/asset/loader
+    ${CMAKE_CURRENT_LIST_DIR}/asset/serialization
     ${TINYGLTF_INCLUDE_DIRS}
 )
 target_link_libraries(raum_asset PUBLIC
+    Boost::json
     raum_core
     raum_renderer
 )

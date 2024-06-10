@@ -18,6 +18,19 @@
                     }
                 ],
                 "count": 1
+            },
+            {
+                "slot": 0,
+                "resource": "buffer",
+                "usage": "uniform",
+                "rate": "per_instance",
+                "elements": [
+                    {
+                        "type": "mat4",
+                        "count": 1
+                    }
+                ],
+                "count": 1
             }
         ]
     },
@@ -79,14 +92,6 @@
             },
             {
                 "slot": 3,
-                "rate": "per_batch",
-                "resource": "image",
-                "type": "2d",
-                "usage": "sampled",
-                "count": 1
-            },
-            {
-                "slot": 4,
                 "rate": "per_batch",
                 "resource": "sampler",
                 "count": 1,

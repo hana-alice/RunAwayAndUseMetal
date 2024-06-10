@@ -17,10 +17,12 @@ find_package(glm CONFIG REQUIRED)
 
 add_library(raum_rhi STATIC ${rhi_abstract} ${backend_vk_h} ${backend_vk_cpp})
 
-target_include_directories(raum_rhi PUBLIC 
-    ${CMAKE_CURRENT_LIST_DIR}/
-    ${renderer_dir}/rhi/base
-    ${Vulkan_INCLUDE_DIR}
+target_include_directories(raum_rhi
+        PUBLIC
+        ${CMAKE_CURRENT_LIST_DIR}/
+        ${renderer_dir}/rhi/base
+        PRIVATE
+        ${Vulkan_INCLUDE_DIR}
 )
 
 target_link_libraries(raum_rhi PUBLIC

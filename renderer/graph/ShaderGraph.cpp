@@ -126,7 +126,7 @@ struct ShaderVisitor: public boost::dfs_visitor<>{
 void ShaderGraph::compile(std::string_view name) {
     auto pVert = find_vertex(name.data(), _impl);
     if (!pVert) {
-        error("name not found in shaderGraph");
+        raum_error("name not found in shaderGraph");
         return;
     }
 
@@ -145,7 +145,7 @@ void ShaderGraph::compile(std::string_view name) {
 
 void ShaderGraph::addCustomLayout(ShaderResource&& layout, std::string_view name) {
     if(_resources.contains(name)) {
-        error("name already exists!");
+        raum_error("name already exists!");
     }
     _resources.emplace(name, std::forward<ShaderResource>(layout));
 }

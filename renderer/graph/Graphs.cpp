@@ -29,17 +29,24 @@ struct WarmUpVisitor : public boost::dfs_visitor<> {
                 auto meshrenderer = std::static_pointer_cast<scene::MeshRenderer>(renderable);
                 for (auto& technique : meshrenderer->techniques()) {
                     if (phaseName == technique->phaseName()) {
+                        boost::container::flat_map<std::string_view, uint32_t> perInstanceBindings;
                         const auto& shaderResource = _shg.layout(technique->material()->shaderName());
                         std::for_each(
                             shaderResource.bindings.begin(),
                             shaderResource.bindings.end(),
-                            [&perBatchBindings, this](const auto& p) {
+                            [&perBatchBindings, &perInstanceBindings, this](const auto& p) {
                                 if (p.second.rate == Rate::PER_BATCH) {
                                     perBatchBindings.emplace(p.first, p.second.binding);
                                 } else if (p.second.rate == Rate::PER_PASS) {
                                     _perPassBindings.emplace(p.first, p.second.binding);
+                                } else if(p.second.rate == Rate::PER_INSTANCE) {
+                                    perInstanceBindings.emplace(p.first, p.second.binding);
                                 }
                             });
+
+                        meshrenderer->prepare(perInstanceBindings,
+                                              shaderResource.descriptorLayouts[static_cast<uint32_t>(Rate::PER_INSTANCE)],
+                                              _device);
 
                         technique->bake(_renderpass,
                                         shaderResource.pipelineLayout,
@@ -152,6 +159,11 @@ struct PreProcessVisitor : public boost::dfs_visitor<> {
                            _resg.get(renderingResource.name).data);
             }
             queueData.bindGroup->update();
+
+            for(auto& renderable : _renderables) {
+                auto meshRenderer = std::static_pointer_cast<scene::MeshRenderer>(renderable);
+                meshRenderer->update(_commandBuffer);
+            }
         } else if (std::holds_alternative<CopyPassData>(g[v].data)) {
             auto& copy = std::get<CopyPassData>(_g.impl()[v].data);
             for (const auto& copyPair : copy.copies) {
@@ -228,6 +240,7 @@ struct RenderGraphVisitor : public boost::dfs_visitor<> {
                                    _renderEncoder->bindDescriptorSet(data.bindGroup->descriptorSet().get(), 0, nullptr, 0);
                                    _renderEncoder->bindDescriptorSet(technique->material()->bindGroup()->descriptorSet().get(),
                                                                      1, nullptr, 0);
+                                   _renderEncoder->bindDescriptorSet(meshRenderer->bindGroup()->descriptorSet().get(), 2, nullptr, 0);
                                    const auto& drawInfo = meshRenderer->drawInfo();
                                    const auto& meshData = meshRenderer->mesh()->meshData();
                                    const auto& indexBuffer = meshData.indexBuffer;
@@ -244,9 +257,9 @@ struct RenderGraphVisitor : public boost::dfs_visitor<> {
                            }
                        },
                        [&](const CopyPassData& copy) {
-                           for(const auto& upload : copy.uploads) {
+                           for (const auto& upload : copy.uploads) {
                                auto buffer = _resg.getBuffer(upload.name);
-                               if(!_blitEncoder) {
+                               if (!_blitEncoder) {
                                    _blitEncoder = rhi::BlitEncoderPtr(_commandBuffer->makeBlitEncoder());
                                }
                                _blitEncoder->updateBuffer(buffer.get(), upload.offset, upload.data.data(), upload.size);
@@ -318,7 +331,6 @@ void GraphScheduler::needWarmUp() {
 }
 
 void GraphScheduler::execute() {
-
     _swapchain->acquire();
     auto* queue = _device->getQueue({rhi::QueueType::GRAPHICS});
 

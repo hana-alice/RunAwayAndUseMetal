@@ -1,39 +1,59 @@
 #include "SceneGraph.h"
 
-using boost::add_vertex;
-using boost::get;
-using boost::vertices;
-using boost::graph::find_vertex;
 
 namespace raum::graph {
 
 
-ModelNode& SceneGraph::addModel(std::string_view name, std::string_view parent) {
-    auto id = add_vertex(std::string{name}, _graph);
+SceneNode& SceneGraph::addModel(std::string_view name, std::string_view parent) {
+    auto id = add_vertex(name.data(), _graph);
     _graph[id].sceneNodeData = ModelNode{};
-    return std::get<ModelNode>(_graph[id].sceneNodeData);
+    add_edge(parent.data(), id, _graph);
+    _models.emplace_back(std::ref(_graph[id]));
+    return _graph[id];
 }
 
-CameraNode& SceneGraph::addCamera(std::string_view name, std::string_view parent, const scene::Frustum& frustum, scene::Projection proj) {
-    auto id = add_vertex(std::string{name}, _graph);
+SceneNode& SceneGraph::addCamera(std::string_view name, std::string_view parent) {
+    auto id = add_vertex(name.data(), _graph);
     _graph[id].sceneNodeData = CameraNode{};
-    return std::get<CameraNode>(_graph[id].sceneNodeData);
+    add_edge(parent.data(), id, _graph);
+    _cameras.emplace_back(std::ref(_graph[id]));
+    return _graph[id];
 }
 
-LightNode& SceneGraph::addLight(std::string_view name, std::string_view parent) {
-    auto id = add_vertex(std::string{name}, _graph);
+SceneNode& SceneGraph::addLight(std::string_view name, std::string_view parent) {
+    auto id = add_vertex(name.data(), _graph);
     _graph[id].sceneNodeData = LightNode{};
-    return std::get<LightNode>(_graph[id].sceneNodeData);
+    add_edge(parent.data(), id, _graph);
+    _lights.emplace_back(std::ref(_graph[id]));
+    return _graph[id];
+}
+
+SceneNode& SceneGraph::addEmpty(std::string_view name, std::string_view parent) {
+    auto id = add_vertex(name.data(), _graph);
+    _graph[id].sceneNodeData = EmptyNode{};
+    add_edge(parent.data(), id, _graph);
+    return _graph[id];
+}
+
+SceneNode& SceneGraph::addEmpty(std::string_view name) {
+    auto id = add_vertex(name.data(), _graph);
+    _graph[id].sceneNodeData = EmptyNode{};
+    return _graph[id];
 }
 
 void SceneGraph::enable(std::string_view name) {
     auto v = *find_vertex(name.data(), _graph);
-    _graph[v].enable = true;
+    _graph[v].node.enable();
 }
 
 void SceneGraph::disable(std::string_view name) {
     auto v = *find_vertex(name.data(), _graph);
-    _graph[v].enable = false;
+    _graph[v].node.disable();
+}
+
+SceneNode& SceneGraph::get(std::string_view name) {
+    auto v = *find_vertex(name.data(), _graph);
+    return _graph[v];
 }
 
 }

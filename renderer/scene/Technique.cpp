@@ -2,6 +2,8 @@
 #include "RHIDevice.h"
 #include "RHIUtils.h"
 #include <algorithm>
+
+#include <set>
 namespace raum::scene {
 
 namespace {
@@ -51,6 +53,10 @@ void Technique::bake(rhi::RenderPassPtr renderpass,
                      const boost::container::flat_map<std::string_view, uint32_t>& perBatchBinding,
                      rhi::DescriptorSetLayoutPtr batchLayout,
                      rhi::DevicePtr device) {
+    if (_material->bindGroup()) {
+        // shared material, already been initialized.
+        return;
+    }
     std::vector<rhi::RHIShader*> shaders;
     shaders.reserve(shaderIn.size());
     std::for_each(shaderIn.begin(), shaderIn.end(), [&shaders](const auto& p) {
@@ -77,7 +83,7 @@ void Technique::bake(rhi::RenderPassPtr renderpass,
         .colorBlendInfo = _blendInfo,
     };
     if(!_psoMap.contains(info)) {
-        _psoMap.emplace(info, rhi::GraphicsPipelinePtr (device->createGraphicsPipeline(info)));
+        _psoMap.emplace(info, rhi::GraphicsPipelinePtr(device->createGraphicsPipeline(info)));
     }
     _pso = _psoMap.at(info);
 

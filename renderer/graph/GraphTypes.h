@@ -7,6 +7,7 @@
 #include "Camera.h"
 #include "Scene.h"
 #include <map>
+#include <boost/graph/adjacency_list.hpp>
 namespace raum::graph {
 
 template <class... Ts>
@@ -17,6 +18,13 @@ template <class... Ts>
 overloaded(Ts...) -> overloaded<Ts...>;
 
 constexpr size_t INVALID_VERTEX = 0xFFFFFFFF;
+
+using boost::add_vertex;
+using boost::vertices;
+using boost::add_edge;
+using boost::make_iterator_range;
+using boost::out_edges;
+using boost::graph::find_vertex;
 
 enum class Access : uint8_t {
     READ,

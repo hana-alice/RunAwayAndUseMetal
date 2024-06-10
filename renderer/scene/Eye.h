@@ -12,6 +12,8 @@ public:
 
     void setOrientation(const Quaternion& quat);
 
+    void setTransform(const Mat4& mat);
+
     void rotate(const Vec3f& axis, Degree degree);
 
     void rotate(const Vec3f& axis, Radian radian);

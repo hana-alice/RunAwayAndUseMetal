@@ -4,28 +4,11 @@
 namespace raum::scene {
 
 enum class TextureType : uint32_t {
-    DIFFUSE,
-    SPECULAR,
-    AMBIENT,
-    EMISSIVE,
-    HEIGHT,
-    NORMALS,
-    SHININESS,
-    OPACITY,
-    DISPLACEMENT,
-    LIGHTMAP,
-    REFLECTION,
-
     BASE_COLOR,
-    NORMAL_CAMERA,
-    EMISSION_COLOR,
-    METALNESS,
-    DIFFUSE_ROUGHNESS,
-    AMBIENT_OCCLUSION,
-
-    SHEEN,
-    CLEARCOAT,
-    TRANSMISSION,
+    NORMAL,
+    EMISSIVE,
+    METALLIC_ROUGHNESS,
+    AO,
 
     COUNT,
 };
@@ -34,6 +17,7 @@ struct Texture {
     std::string name;
     rhi::ImagePtr texture;
     rhi::ImageViewPtr textureView;
+    uint32_t uvIndex{0}; // indicates which set of uv is in use.
 };
 
 struct Buffer {
@@ -55,7 +39,7 @@ enum class MaterialType : uint8_t {
 class Material {
 public:
     Material() = delete;
-    Material(const std::string& shader);
+    Material(std::string_view matName, const std::string& shader);
     void add(const Texture& tex);
     void add(const Buffer& buf);
     void add(const Sampler& info);
@@ -75,6 +59,7 @@ protected:
     std::vector<Buffer> _buffers;
     std::vector<Sampler> _samplers;
     const std::string& _shaderName;
+    const std::string _matName;
     BindGroupPtr _bindGroup;
     bool _dirty{false};
 };
@@ -85,8 +70,8 @@ class MaterialTemplate {
 public:
     MaterialTemplate() = delete;
     MaterialTemplate(std::string_view shaderPath);
-    MaterialPtr instantiate(std::string_view defines);
-    MaterialPtr instantiate(MaterialType type);
+//    MaterialPtr instantiate(std::string_view name);
+    MaterialPtr instantiate(std::string_view name, MaterialType type);
 
 private:
     std::string _shaderPath{};

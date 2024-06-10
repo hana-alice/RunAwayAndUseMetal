@@ -8,11 +8,6 @@
 #include "RHISwapchain.h"
 
 namespace raum::graph {
-using boost::add_edge;
-using boost::add_vertex;
-using boost::make_iterator_range;
-using boost::out_edges;
-using boost::graph::find_vertex;
 using raum::rhi::RHIBuffer;
 using raum::rhi::RHIBufferView;
 using raum::rhi::RHIDevice;

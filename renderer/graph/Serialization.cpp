@@ -38,7 +38,7 @@ BufferBinding tag_invoke( value_to_tag<BufferBinding>, value const& jv ) {
     const auto& usageStr = obj.at("usage").as_string();
     if(!bufferBindingMap.contains(usageStr)) {
         spdlog::error("{} is not a valid usage.", usageStr.c_str());
-        error("{} is not a valid usage.", 1);
+        raum_error("{} is not a valid usage.", 1);
     }
     buffer.type = bufferBindingMap.at(usageStr);
     buffer.count = obj.at("count").to_number<uint32_t>();
@@ -63,7 +63,7 @@ ImageBinding tag_invoke( value_to_tag<ImageBinding>, value const& jv ) {
     ImageBinding image{};
     const auto& usageStr = obj.at("usage").as_string();
     if(!imageBindingMap.contains(usageStr)) {
-        error("{} is not a valid usage.", usageStr.c_str());
+        raum_error("{} is not a valid usage.", usageStr.c_str());
     }
 
     image.type = imageBindingMap.at(usageStr);

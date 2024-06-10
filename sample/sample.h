@@ -6,7 +6,7 @@
 #include "common.h"
 #include "window.h"
 #include "WindowEvent.h"
-#include "AnimationModel.h"
+//#include "AnimationModel.h"
 
 namespace raum {
 using platform::Window;
@@ -39,7 +39,7 @@ public:
 
         _samples = {
             std::make_shared<sample::GraphSample>(_device, _swapchain, _graphScheduler),
-            std::make_shared<sample::AnimationModel>(_device, _swapchain, _graphScheduler),
+//            std::make_shared<sample::AnimationModel>(_device, _swapchain, _graphScheduler),
         };
         _inited.resize(_samples.size(), 0);
 

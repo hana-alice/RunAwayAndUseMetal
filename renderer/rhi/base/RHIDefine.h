@@ -895,7 +895,7 @@ struct BufferSourceInfo {
     BufferUsage bufferUsage{BufferUsage::UNIFORM};
     uint32_t size{0};
     std::vector<uint32_t> queueAccess{};
-    void* data{nullptr};
+    const void* data{nullptr};
 };
 
 struct BufferViewInfo {

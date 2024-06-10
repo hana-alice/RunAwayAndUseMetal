@@ -12,7 +12,8 @@ enum class ShaderAttribute : uint8_t {
     POSITION = 1,
     NORMAL = 1 << 1,
     UV = 1 << 2,
-    BI_TANGENT = 1 << 3,
+    TANGENT = 1 << 3,
+    COLOR = 1 << 4,
 };
 OPERABLE(ShaderAttribute);
 
@@ -75,16 +76,31 @@ public:
     void setMesh(MeshPtr mesh);
     void setVertexInfo(uint32_t firstVertex, uint32_t vertexCount, uint32_t indexCount);
     void setInstanceInfo(uint32_t firstInstance, uint32_t instanceCount);
+    void setTransform(const Mat4& transform);
+
+    void setTransformSlot(std::string_view name);
 
     const MeshPtr& mesh() const;
     TechniquePtr technique(uint32_t index);
     const DrawInfo& drawInfo() const;
     std::vector<TechniquePtr>& techniques();
+    BindGroupPtr bindGroup();
+
+    void prepare(const boost::container::flat_map<std::string_view, uint32_t>& bindings,
+                 rhi::DescriptorSetLayoutPtr layout,
+                 rhi::DevicePtr device);
+
+    void update(rhi::CommandBufferPtr cmdBuffer);
 
 private:
+    bool _dirty{false};
+    std::string _localSLotName;
     MeshPtr _mesh;
     std::vector<TechniquePtr> _techs;
     DrawInfo _drawInfo{};
+    Mat4 _transform{};
+    BindGroupPtr _bindGroup;
+    rhi::BufferPtr _localBuffer;
 };
 using MeshRendererPtr = std::shared_ptr<MeshRenderer>;
 

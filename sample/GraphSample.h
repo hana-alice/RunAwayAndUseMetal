@@ -2,14 +2,15 @@
 #include "Camera.h"
 #include "Graphs.h"
 #include "KeyboardEvent.h"
+#include "Mesh.h"
 #include "MouseEvent.h"
 #include "PBRMaterial.h"
 #include "RHIDevice.h"
-#include "SceneLoader.h"
+#include "SceneSerializer.h"
 #include "Serialization.h"
+#include "WindowEvent.h"
 #include "common.h"
 #include "core/utils/utils.h"
-#include "WindowEvent.h"
 #include "math.h"
 namespace raum::sample {
 class GraphSample : public SampleBase {
@@ -20,44 +21,54 @@ public:
     void init() override {
         auto& shaderGraph = _graphScheduler->shaderGraph();
 
+        // deserialize layout(json): shader description
         const auto& resourcePath = utils::resourceDirectory();
-
         graph::deserialize(resourcePath / "shader", "cook-torrance", shaderGraph);
+
+        // compile shaders
         shaderGraph.compile("asset");
 
-        asset::SceneLoader loader(_device);
-        loader.loadFlat(resourcePath / "models" / "sponza-gltf-pbr" / "sponza.glb");
-        auto model = loader.modelData();
-        for (auto& meshRenderer : model->meshRenderers()) {
-            auto pbrMat = std::static_pointer_cast<raum::scene::PBRMaterial>(meshRenderer->technique(0)->material());
-            pbrMat->setDiffuse("mainTexture");
-        }
+        // load scene from gltf
         auto& sceneGraph = _graphScheduler->sceneGraph();
-        auto& modelNode = sceneGraph.addModel("sponza", "");
-        modelNode.model = model;
+        asset::serialize::load(sceneGraph, resourcePath / "models" / "sponza" / "sponza.gltf", _device);
 
-        const auto& aabb = model->aabb();
-        auto far = std::abs(aabb.maxBound.z);
+        // reflect shader slot for material and mesh local data
+        std::ranges::for_each(sceneGraph.models(), [](auto& node) {
+            auto& model = std::get<graph::ModelNode>(node.get().sceneNodeData);
+            std::ranges::for_each(model.model->meshRenderers(), [](auto meshRenderer) {
+                meshRenderer->setTransformSlot("LocalMat");
+            });
+        });
 
         auto width = _swapchain->width();
         auto height = _swapchain->height();
-        scene::Frustum frustum{45.0f, width / (float)height, 0.1, 10 * far};
-        _cam = std::make_shared<scene::Camera>(frustum, scene::Projection::PERSPECTIVE);
-        auto& eye = _cam->eye();
-        eye.setPosition(200.0f, 50.0f, 0.0);
-        eye.lookAt({1000.0, 50.0, 0.0}, {0.0f, 1.0f, 0.0f});
-        eye.update();
+        if (sceneGraph.cameras().empty()) {
+            scene::Frustum frustum{45.0f, width / (float)height, 0.1f, 1000.0f};
+            _cam = std::make_shared<scene::Camera>(frustum, scene::Projection::PERSPECTIVE);
+            auto& eye = _cam->eye();
+            eye.setPosition(0.0, 10.0, 0.0);
+            eye.lookAt({100.0f, 10.0f, 0.0f}, {0.0f, 1.0f, 0.0f});
+            eye.update();
+        } else {
+            // :))))))
+            const auto& camNode = sceneGraph.cameras().front().get();
+            _cam = std::get<graph::CameraNode>(camNode.sceneNodeData).camera;
+            auto& eye = _cam->eye();
+            eye.setTransform(camNode.node.transform());
+            eye.update();
+        }
+
+
 
         auto& resourceGraph = _graphScheduler->resourceGraph();
         if (!resourceGraph.contains(_forwardRT)) {
-            //        _resourceGraph->addImage(_forwardRT, rhi::ImageUsage::COLOR_ATTACHMENT, width, height, rhi::Format::BGRA8_UNORM);
             resourceGraph.import(_forwardRT, _swapchain);
         }
         if (!resourceGraph.contains(_forwardDS)) {
             resourceGraph.addImage(_forwardDS, rhi::ImageUsage::DEPTH_STENCIL_ATTACHMENT, width, height, rhi::Format::D24_UNORM_S8_UINT);
         }
         if (!resourceGraph.contains(_camBuffer)) {
-            resourceGraph.addBuffer(_camBuffer, 192, graph::BufferUsage ::UNIFORM | graph::BufferUsage ::TRANSFER_DST);
+            resourceGraph.addBuffer(_camBuffer, 128, graph::BufferUsage ::UNIFORM | graph::BufferUsage ::TRANSFER_DST);
             resourceGraph.addBuffer(_camPose, 12, graph::BufferUsage ::UNIFORM | graph::BufferUsage ::TRANSFER_DST);
             resourceGraph.addBuffer(_light, 32, graph::BufferUsage ::UNIFORM | graph::BufferUsage ::TRANSFER_DST);
         }
@@ -105,18 +116,11 @@ public:
             lastY = y;
         };
         _mouseListener.add(mouseHandler);
-
-        auto resizeHandler = [&](uint32_t w, uint32_t h){
-            scene::Frustum frustum{45.0f, w / (float)h, 0.1, 10 * far};
-            _cam->eye().setFrustum(frustum);
-        };
-        _resizeListener.add(resizeHandler);
     }
 
     ~GraphSample() {
         _keyListener.remove();
         _mouseListener.remove();
-        _resizeListener.remove();
     }
 
     void show() override {
@@ -126,13 +130,10 @@ public:
         _graphScheduler->resourceGraph().updateImage("forwardDS", _swapchain->width(), _swapchain->height());
 
         auto& eye = _cam->eye();
-        //    eye.translate(1.0, 0.0,  0.0);
-        auto modelMat = Mat4(1.0);
-        uploadPass.uploadBuffer(&modelMat[0], 64, _camBuffer, 0);
         auto viewMat = eye.inverseAttitide();
-        uploadPass.uploadBuffer(&viewMat[0], 64, _camBuffer, 64);
+        uploadPass.uploadBuffer(&viewMat[0], 64, _camBuffer, 0);
         const auto& projMat = eye.projection();
-        uploadPass.uploadBuffer(&projMat[0], 64, _camBuffer, 128);
+        uploadPass.uploadBuffer(&projMat[0], 64, _camBuffer, 64);
 
         uploadPass.uploadBuffer(&eye.getPosition()[0], 12, _camPose, 0);
         Vec4f color{1.0, 1.0, 1.0, 1.0};

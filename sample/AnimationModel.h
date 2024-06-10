@@ -7,7 +7,6 @@
 #include "MouseEvent.h"
 #include "PBRMaterial.h"
 #include "RHIDevice.h"
-#include "SceneLoader.h"
 namespace raum::sample {
 
 class AnimationModel: public SampleBase{
@@ -27,7 +26,7 @@ public:
         auto model = loader.modelData();
         for (auto& meshRenderer : model->meshRenderers()) {
             auto pbrMat = std::static_pointer_cast<raum::scene::PBRMaterial>(meshRenderer->technique(0)->material());
-            pbrMat->setDiffuse("mainTexture");
+//            pbrMat->setDiffuse("mainTexture");
         }
         auto& sceneGraph = _graph->sceneGraph();
         auto& modelNode = sceneGraph.addModel("compass", "");

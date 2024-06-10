@@ -5,8 +5,12 @@
 #include "GraphTypes.h"
 #include "Light.h"
 #include "Model.h"
+#include "Node.h"
 
 namespace raum::graph {
+
+struct EmptyNode {
+};
 
 struct ModelNode {
     scene::ModelPtr model;
@@ -22,8 +26,8 @@ struct LightNode {
 
 struct SceneNode {
     std::string name{};
-    bool enable{true};
-    std::variant<ModelNode, CameraNode, LightNode> sceneNodeData;
+    scene::Node node;
+    std::variant<ModelNode, CameraNode, LightNode, EmptyNode> sceneNodeData;
 };
 
 } // namespace raum::graph
@@ -55,19 +59,43 @@ public:
     SceneGraph& operator=(const SceneGraph&) = delete;
     SceneGraph(SceneGraph&&) = delete;
 
-    ModelNode& addModel(std::string_view name, std::string_view parent);
-    CameraNode& addCamera(std::string_view name, std::string_view parent, const scene::Frustum& frustum, scene::Projection proj);
-    LightNode& addLight(std::string_view name, std::string_view parent);
+    SceneNode& addModel(std::string_view name, std::string_view parent);
+    SceneNode& addCamera(std::string_view name, std::string_view parent);
+    SceneNode& addLight(std::string_view name, std::string_view parent);
+    SceneNode& addEmpty(std::string_view name, std::string_view parent);
+    // root node
+    SceneNode& addEmpty(std::string_view name);
+
+    SceneNode& get(std::string_view name);
     
     void enable(std::string_view name);
     void disable(std::string_view name);
 
     SceneNode& sceneRoot() const;
 
+    void reset();
+
     const SceneGraphImpl& impl() const { return _graph; }
+
+    auto& models() {
+        return _models;
+    }
+
+    auto& cameras() {
+        return _cameras;
+    }
+
+    auto& lights() {
+        return _lights;
+    }
+
 
 private:
     SceneGraphImpl _graph;
+    std::vector<std::reference_wrapper<SceneNode>> _models;
+    std::vector<std::reference_wrapper<SceneNode>> _cameras;
+    std::vector<std::reference_wrapper<SceneNode>> _lights;
+
 };
 
 } // namespace raum::graph

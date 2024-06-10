@@ -5,6 +5,7 @@
 
 namespace raum::scene {
 
+// deprecated
 class Model {
 public:
     Model();

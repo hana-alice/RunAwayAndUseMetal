@@ -123,7 +123,7 @@ void collectRenderables(std::vector<scene::RenderablePtr>& renderables, const Sc
     for (auto v : boost::make_iterator_range(boost::vertices(graph))) {
         if (std::holds_alternative<ModelNode>(graph[v].sceneNodeData)) {
             const auto& modelNode = std::get<ModelNode>(graph[v].sceneNodeData);
-            if ((culling(modelNode) || !enableCullling) && graph[v].enable) {
+            if ((culling(modelNode) || !enableCullling) && graph[v].node.enabled()) {
                 for (auto& meshRenderer : modelNode.model->meshRenderers()) {
                     renderables.emplace_back(meshRenderer);
                 }

@@ -17,17 +17,13 @@ MaterialTemplate::MaterialTemplate(std::string_view shaderPath) {
     _shaderPath = shaderPath;
 }
 
-MaterialPtr MaterialTemplate::instantiate(std::string_view defines) {
-    return std::make_shared<Material>(_shaderPath);
-}
-
-MaterialPtr MaterialTemplate::instantiate(MaterialType type) {
+MaterialPtr MaterialTemplate::instantiate(std::string_view name, MaterialType type) {
     switch (type) {
         case MaterialType::PBR:
-            return std::make_shared<PBRMaterial>(_shaderPath);
+            return std::make_shared<PBRMaterial>(name, _shaderPath);
         case MaterialType::NPR:
         case MaterialType::CUSTOM:
-            return std::make_shared<Material>(_shaderPath);
+            return std::make_shared<Material>(name, _shaderPath);
     }
     raum_unreachable();
     return nullptr;
@@ -35,7 +31,8 @@ MaterialPtr MaterialTemplate::instantiate(MaterialType type) {
 
 static uint32_t materialID = 0;
 
-Material::Material(const std::string &shader) : _shaderName(shader) {
+Material::Material(std::string_view matName, const std::string &shader)
+: _shaderName(shader), _matName(matName) {
 }
 
 void Material::add(const Texture &tex) {
@@ -72,8 +69,8 @@ void Material::update() {
             _bindGroup->bindSampler(sampler.name, 0, sampler.info);
         }
         _bindGroup->update();
+        _dirty = false;
     }
-    _dirty = false;
 }
 
 BindGroupPtr Material::bindGroup() {
