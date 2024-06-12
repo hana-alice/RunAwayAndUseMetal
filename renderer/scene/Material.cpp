@@ -17,13 +17,17 @@ MaterialTemplate::MaterialTemplate(std::string_view shaderPath) {
     _shaderPath = shaderPath;
 }
 
+void MaterialTemplate::addDefine(std::string_view define) {
+    _defines.insert(define.data());
+}
+
 MaterialPtr MaterialTemplate::instantiate(std::string_view name, MaterialType type) {
     switch (type) {
         case MaterialType::PBR:
-            return std::make_shared<PBRMaterial>(name, _shaderPath);
+            return std::make_shared<PBRMaterial>(name, _shaderPath, _defines);
         case MaterialType::NPR:
         case MaterialType::CUSTOM:
-            return std::make_shared<Material>(name, _shaderPath);
+            return std::make_shared<Material>(name, _shaderPath, _defines);
     }
     raum_unreachable();
     return nullptr;
@@ -31,8 +35,10 @@ MaterialPtr MaterialTemplate::instantiate(std::string_view name, MaterialType ty
 
 static uint32_t materialID = 0;
 
-Material::Material(std::string_view matName, const std::string &shader)
-: _shaderName(shader), _matName(matName) {
+Material::Material(std::string_view matName,
+                   const std::string &shader,
+                   const std::set<std::string> &defines)
+: _shaderName(shader), _matName(matName), _defines(defines) {
 }
 
 void Material::add(const Texture &tex) {
@@ -62,10 +68,10 @@ void Material::update() {
         for (const auto &texture : _textures) {
             _bindGroup->bindImage(texture.name, 0, texture.textureView, rhi::ImageLayout::SHADER_READ_ONLY_OPTIMAL);
         }
-        for(const auto& buffer : _buffers) {
+        for (const auto &buffer : _buffers) {
             _bindGroup->bindBuffer(buffer.name, 0, buffer.buffer);
         }
-        for(const auto& sampler : _samplers) {
+        for (const auto &sampler : _samplers) {
             _bindGroup->bindSampler(sampler.name, 0, sampler.info);
         }
         _bindGroup->update();

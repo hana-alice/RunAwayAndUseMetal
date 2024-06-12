@@ -91,86 +91,140 @@ void loadTextures(std::vector<scene::Texture>& textures,
         auto imgView = rhi::ImageViewPtr(device->createImageView(viewInfo));
         textures.emplace_back(scene::Texture{res.name, img, imgView});
 
-        cmdBuffer->onComplete([stagingBuffer]() mutable {
+        cmdBuffer->onComplete([stagingBuffer, img, imgView]() mutable {
             stagingBuffer.reset();
+            img.reset();
+            imgView.reset();
         });
     }
 }
 
-void loadMaterials(std::vector<scene::TechniquePtr>& techs,
-                   std::vector<scene::Texture>& textures,
-                   const tinygltf::Model& rawModel) {
-    for (const auto& res : rawModel.materials) {
-        scene::MaterialTemplatePtr matTemplate = scene::getOrCreateMaterialTemplate("asset/layout/cook-torrance");
-        scene::MaterialPtr mat = matTemplate->instantiate(res.name, scene::MaterialType::PBR);
-        auto pbrMat = std::static_pointer_cast<scene::PBRMaterial>(mat);
-        auto& tech = techs.emplace_back(std::make_shared<scene::Technique>(mat, "default"));
-        auto& ds = tech->depthStencilInfo();
-        ds.depthTestEnable = true;
-        ds.depthWriteEnable = true;
+void loadMaterial(const tinygltf::Model& rawModel,
+                  int32_t index,
+                  std::vector<scene::Texture>& textures,
+                  scene::MaterialTemplatePtr matTemplate,
+                  std::map<int32_t, scene::TechniquePtr>& techs,
+                  rhi::DevicePtr device) {
+    const auto& rawTextures = rawModel.textures;
+    const auto& res = rawModel.materials[index];
 
-        const auto& ef = res.emissiveFactor;
-        raum_check(ef.size() == 3, "Unexpected emissive factor components!");
-        pbrMat->setEmissiveFactor(ef[0], ef[1], ef[2]);
+    if (res.pbrMetallicRoughness.baseColorTexture.index != -1) {
+        matTemplate->addDefine("BASE_COLOR_MAP");
+    }
+    if (res.pbrMetallicRoughness.metallicRoughnessTexture.index != -1) {
+        matTemplate->addDefine("MATALLIC_ROUGHNESS_MAP");
+    }
+    if (res.normalTexture.index != -1) {
+        matTemplate->addDefine("NORMAL_MAP");
+    }
+    if (res.occlusionTexture.index != -1) {
+        matTemplate->addDefine("OCCLUSION_MAP");
+    }
+    if (res.emissiveTexture.index != -1) {
+        matTemplate->addDefine("EMISSIVE_MAP");
+    }
 
-        if (res.alphaMode == "OPAQUE") {
-            // TODO: cmake introduce <wingdi.h> cause `OPAQUE` was preprocessed by macro.
-            pbrMat->setAlphaMode(scene::PBRMaterial::AlphaMode::AM_OPAQUE);
-        } else if (res.alphaMode == "MASK") {
-            pbrMat->setAlphaMode(scene::PBRMaterial::AlphaMode::AM_MASK);
-        } else if (res.alphaMode == "BLEND") {
-            pbrMat->setAlphaMode(scene::PBRMaterial::AlphaMode::AM_BLEND);
-        }
-        pbrMat->setDoubleSided(res.doubleSided);
-        pbrMat->setAlphaCutoff(res.alphaCutoff);
+    scene::MaterialPtr mat = matTemplate->instantiate(res.name, scene::MaterialType::PBR);
+    auto pbrMat = std::static_pointer_cast<scene::PBRMaterial>(mat);
+    auto tech = std::make_shared<scene::Technique>(mat, "default");
+    techs.emplace(index, tech);
+    auto& ds = tech->depthStencilInfo();
+    ds.depthTestEnable = true;
+    ds.depthWriteEnable = true;
 
-        const auto& pmr = res.pbrMetallicRoughness;
-        const auto& bcf = pmr.baseColorFactor;
+    const auto& ef = res.emissiveFactor;
+    raum_check(ef.size() == 3, "Unexpected emissive factor components!");
+    pbrMat->setEmissiveFactor(ef[0], ef[1], ef[2]);
 
-        const auto& bc = pmr.baseColorTexture;
-        if (bc.index != -1) {
-            auto& baseColor = textures[pmr.baseColorTexture.index];
-            baseColor.uvIndex = pmr.baseColorTexture.texCoord;
-            baseColor.name = "albedoMap";
-            pbrMat->add(baseColor);
-            pbrMat->setBaseColorFactor(bcf[0], bcf[1], bcf[2], bcf[3]);
-        }
+    if (res.alphaMode == "OPAQUE") {
+        // TODO: cmake introduce <wingdi.h> cause `OPAQUE` was preprocessed by macro.
+        pbrMat->setAlphaMode(scene::PBRMaterial::AlphaMode::AM_OPAQUE);
+    } else if (res.alphaMode == "MASK") {
+        pbrMat->setAlphaMode(scene::PBRMaterial::AlphaMode::AM_MASK);
+    } else if (res.alphaMode == "BLEND") {
+        pbrMat->setAlphaMode(scene::PBRMaterial::AlphaMode::AM_BLEND);
+    }
+    pbrMat->setDoubleSided(res.doubleSided);
+    pbrMat->setAlphaCutoff(res.alphaCutoff);
 
-        const auto& mr = pmr.metallicRoughnessTexture;
-        if (mr.index != -1) {
-            auto& metallicRoughness = textures[pmr.metallicRoughnessTexture.index];
-            metallicRoughness.uvIndex = pmr.metallicRoughnessTexture.texCoord;
-            metallicRoughness.name = "metallicRoughnessMap";
-            pbrMat->add(metallicRoughness);
-            pbrMat->setMetallicFactor(pmr.metallicFactor);
-            pbrMat->setRoughnessFactor(pmr.roughnessFactor);
-        }
+    std::vector<float> mrno(12); // metallic, roughness, normalscale, occlusionscale
 
-        const auto& nt = res.normalTexture;
-        if (nt.index != -1) {
-            auto& normal = textures[nt.index];
-            normal.uvIndex = nt.texCoord;
-            normal.name = "normalMap";
-            pbrMat->add(normal);
-            pbrMat->setNormalScale(nt.scale);
-        }
+    const auto& pmr = res.pbrMetallicRoughness;
+    const auto& bcf = pmr.baseColorFactor;
 
-        const auto& ot = res.occlusionTexture;
-        if (ot.index != -1) {
-            auto& occlusion = textures[ot.index];
-            occlusion.uvIndex = ot.texCoord;
-            occlusion.name = "aoMap";
-            pbrMat->add(occlusion);
-        }
+    const auto& bc = pmr.baseColorTexture;
+    if (bc.index != -1) {
+        auto imageIndex = rawTextures[bc.index].source;
+        auto& baseColor = textures[imageIndex];
+        baseColor.uvIndex = pmr.baseColorTexture.texCoord;
+        baseColor.name = "albedoMap";
+        pbrMat->add(baseColor);
+        pbrMat->setBaseColorFactor(bcf[0], bcf[1], bcf[2], bcf[3]);
+        mrno[0] = bcf[0];
+        mrno[1] = bcf[1];
+        mrno[2] = bcf[2];
+        mrno[3] = bcf[3];
+    }
 
-        const auto& et = res.emissiveTexture;
-        if (et.index != -1) {
-            auto& emissive = textures[et.index];
-            emissive.uvIndex = et.texCoord;
-            emissive.name = "emissiveMap";
-            pbrMat->add(emissive);
+    const auto& mr = pmr.metallicRoughnessTexture;
+    if (mr.index != -1) {
+        auto imageIndex = rawTextures[mr.index].source;
+        auto& metallicRoughness = textures[imageIndex];
+        metallicRoughness.uvIndex = pmr.metallicRoughnessTexture.texCoord;
+        metallicRoughness.name = "metallicRoughnessMap";
+        pbrMat->add(metallicRoughness);
+        pbrMat->setMetallicFactor(pmr.metallicFactor);
+        pbrMat->setRoughnessFactor(pmr.roughnessFactor);
+        mrno[8] = pmr.metallicFactor;
+        mrno[9] = pmr.roughnessFactor;
+    }
+
+    const auto& nt = res.normalTexture;
+    if (nt.index != -1) {
+        auto imageIndex = rawTextures[nt.index].source;
+        auto& normal = textures[imageIndex];
+        normal.uvIndex = nt.texCoord;
+        normal.name = "normalMap";
+        pbrMat->add(normal);
+        pbrMat->setNormalScale(nt.scale);
+        mrno[10] = nt.scale;
+    }
+
+    const auto& ot = res.occlusionTexture;
+    if (ot.index != -1) {
+        auto imageIndex = rawTextures[ot.index].source;
+        auto& occlusion = textures[imageIndex];
+        occlusion.uvIndex = ot.texCoord;
+        occlusion.name = "aoMap";
+        pbrMat->add(occlusion);
+        pbrMat->setOcclusionStrength(ot.strength);
+        mrno[11] = ot.strength;
+    }
+
+    const auto& et = res.emissiveTexture;
+    if (et.index != -1) {
+        auto imageIndex = rawTextures[et.index].source;
+        auto& emissive = textures[imageIndex];
+        emissive.uvIndex = et.texCoord;
+        emissive.name = "emissiveMap";
+        pbrMat->add(emissive);
+        mrno[4] = res.emissiveFactor[0];
+        mrno[5] = res.emissiveFactor[1];
+        mrno[6] = res.emissiveFactor[2];
+        if(res.emissiveFactor.size() == 4) {
+            mrno[7] = res.emissiveFactor[3];
+        } else {
+            mrno[7] = 1.0f;
         }
     }
+
+    rhi::BufferSourceInfo bufferInfo{
+        .bufferUsage = rhi::BufferUsage::UNIFORM | rhi::BufferUsage::TRANSFER_DST,
+        .size = static_cast<uint32_t>(mrno.size() * sizeof(float)),
+        .data = mrno.data(),
+    };
+    auto mrnoBuffer = rhi::BufferPtr(device->createBuffer(bufferInfo));
+    pbrMat->add(scene::Buffer{"PBRParams", mrnoBuffer});
 }
 
 void applyNodeTransform(const tinygltf::Node& rawNode, graph::SceneNode& node) {
@@ -195,12 +249,14 @@ void applyNodeTransform(const tinygltf::Node& rawNode, graph::SceneNode& node) {
 }
 
 void loadMesh(const tinygltf::Model& rawModel,
-              const tinygltf::Node& rawNode,
+              uint32_t nodeIndex,
               graph::SceneGraph& sg,
               std::string_view parentName,
-              std::vector<scene::TechniquePtr>& techs,
+              std::map<int, scene::TechniquePtr>& techs,
+              std::vector<scene::Texture>& textures,
               rhi::CommandBufferPtr cmdBuffer,
               rhi::DevicePtr device) {
+    const auto& rawNode = rawModel.nodes[nodeIndex];
     const auto& rawMesh = rawModel.meshes[rawNode.mesh];
     auto& node = sg.addModel(rawMesh.name, parentName);
     applyNodeTransform(rawNode, node);
@@ -292,6 +348,9 @@ void loadMesh(const tinygltf::Model& rawModel,
                 data[i * eleNum + offset + 2] = color[i * colorStride + 2];
             }
         }
+
+        scene::MaterialTemplatePtr matTemplate = std::make_shared<scene::MaterialTemplate>("asset/layout/cook-torrance");
+
         auto& vertexLayout = meshData.vertexLayout;
         uint32_t location{0};
         uint32_t stride{0};
@@ -314,6 +373,7 @@ void loadMesh(const tinygltf::Model& rawModel,
             });
             stride += 3;
             meshData.shaderAttrs |= scene::ShaderAttribute::NORMAL;
+            matTemplate->addDefine("VERTEX_NORMAL");
         }
         if (uv) {
             vertexLayout.vertexAttrs.emplace_back(rhi::VertexAttribute{
@@ -324,6 +384,7 @@ void loadMesh(const tinygltf::Model& rawModel,
             });
             stride += 2;
             meshData.shaderAttrs |= scene::ShaderAttribute::UV;
+            matTemplate->addDefine("VERTEX_UV");
         }
         if (tangent) {
             vertexLayout.vertexAttrs.emplace_back(rhi::VertexAttribute{
@@ -334,6 +395,7 @@ void loadMesh(const tinygltf::Model& rawModel,
             });
             stride += 4;
             meshData.shaderAttrs |= scene::ShaderAttribute::TANGENT;
+            matTemplate->addDefine("VERTEX_TANGENT");
         }
         if (color) {
             vertexLayout.vertexAttrs.emplace_back(rhi::VertexAttribute{
@@ -344,6 +406,7 @@ void loadMesh(const tinygltf::Model& rawModel,
             });
             stride += 4;
             meshData.shaderAttrs |= scene::ShaderAttribute::COLOR;
+            matTemplate->addDefine("VERTEX_COLOR");
         }
         rhi::BufferSourceInfo bufferSourceInfo{
             .bufferUsage = rhi::BufferUsage::VERTEX,
@@ -391,6 +454,10 @@ void loadMesh(const tinygltf::Model& rawModel,
         meshData.indexBuffer.buffer = device->createBuffer(indexBufferSource);
 
         auto localMatIndex = prim.material;
+        if (!techs.contains(localMatIndex)) {
+            loadMaterial(rawModel, localMatIndex, textures, matTemplate, techs, device);
+        }
+        auto tech = techs.at(localMatIndex);
         if (prim.mode == TINYGLTF_MODE_TRIANGLES) {
             techs[localMatIndex]->setPrimitiveType(rhi::PrimitiveType::TRIANGLE_LIST);
         } else if (prim.mode == TINYGLTF_MODE_TRIANGLE_STRIP) {
@@ -406,7 +473,7 @@ void loadMesh(const tinygltf::Model& rawModel,
         }
 
         auto meshRenderer = model.meshRenderers().emplace_back(std::make_shared<scene::MeshRenderer>(mesh));
-        meshRenderer->addTechnique(techs[localMatIndex]);
+        meshRenderer->addTechnique(tech);
         meshRenderer->setVertexInfo(0, meshData.vertexCount, meshData.indexCount);
         meshRenderer->setTransform(node.node.transform());
     }
@@ -459,8 +526,7 @@ void loadScene(graph::SceneGraph& sg,
 
     std::vector<scene::Texture> textures;
     loadTextures(textures, rawModel, cmdBuffer, device);
-    std::vector<scene::TechniquePtr> techniques;
-    loadMaterials(techniques, textures, rawModel);
+    std::map<int32_t, scene::TechniquePtr> techniques;
 
     std::function<void(uint32_t, uint32_t)> loadNodes;
     loadNodes = [&](uint32_t nodeIndex, uint32_t parent) {
@@ -472,7 +538,7 @@ void loadScene(graph::SceneGraph& sg,
             parentName = rawModel.nodes[parent].name;
         }
         if (node.mesh != -1) {
-            loadMesh(rawModel, node, sg, parentName, techniques, cmdBuffer, device);
+            loadMesh(rawModel, nodeIndex, sg, parentName, techniques, textures, cmdBuffer, device);
         } else if (node.light != -1) {
             loadLights(rawModel, node.light, sg, parentName);
         } else if (node.camera != -1) {

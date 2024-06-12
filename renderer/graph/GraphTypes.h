@@ -179,9 +179,7 @@ struct ShaderResource {
     std::unordered_map<std::string, ShaderBindingDesc, hash_string, std::equal_to<>> bindings;
     std::array<rhi::DescriptorSetLayoutPtr, rhi::BindingRateCount> descriptorLayouts;
     rhi::PipelineLayoutPtr pipelineLayout;
-    boost::container::flat_map<std::string, std::string> shaderSources;
-    boost::container::flat_map<std::string, std::vector<uint32_t>> shaderSourceSpvs;
-    boost::container::flat_map<rhi::ShaderStage, rhi::ShaderPtr> shaders;
+    boost::container::flat_map<ShaderStage, std::string> shaderSources;
 };
 
 using ShaderResources = std::unordered_map<std::string, ShaderResource, hash_string, std::equal_to<>>;

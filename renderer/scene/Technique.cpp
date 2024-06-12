@@ -1,13 +1,14 @@
 #include "Technique.h"
+#include <algorithm>
 #include "RHIDevice.h"
 #include "RHIUtils.h"
-#include <algorithm>
-
+#include <boost/functional/hash.hpp>
 #include <set>
 namespace raum::scene {
 
 namespace {
 std::unordered_map<rhi::GraphicsPipelineInfo, rhi::GraphicsPipelinePtr, rhi::RHIHash<rhi::GraphicsPipelineInfo>> _psoMap;
+std::unordered_map<std::size_t, rhi::ShaderPtr> _shaderMap;
 }
 
 Technique::Technique(MaterialPtr material, std::string_view phaseName)
@@ -49,7 +50,7 @@ void Technique::setPrimitiveType(rhi::PrimitiveType type) {
 void Technique::bake(rhi::RenderPassPtr renderpass,
                      rhi::PipelineLayoutPtr pplLayout,
                      rhi::VertexLayout vertexLayout,
-                     const boost::container::flat_map<rhi::ShaderStage, rhi::ShaderPtr>& shaderIn,
+                     const boost::container::flat_map<rhi::ShaderStage, std::string>& shaderIn,
                      const boost::container::flat_map<std::string_view, uint32_t>& perBatchBinding,
                      rhi::DescriptorSetLayoutPtr batchLayout,
                      rhi::DevicePtr device) {
@@ -59,8 +60,26 @@ void Technique::bake(rhi::RenderPassPtr renderpass,
     }
     std::vector<rhi::RHIShader*> shaders;
     shaders.reserve(shaderIn.size());
-    std::for_each(shaderIn.begin(), shaderIn.end(), [&shaders](const auto& p) {
-        shaders.emplace_back(p.second.get());
+
+    std::ranges::for_each(shaderIn, [device, &shaders, this](const auto& p) {
+        auto shaderPath = _material->shaderName();
+        size_t seed = 9527;
+        boost::hash_combine(seed, shaderPath);
+        std::string prefix = "#version 450 core\n";
+        std::ranges::for_each(_material->defines(), [&seed, &prefix](const std::string& s) {
+            boost::hash_combine(seed, s);
+            prefix.append("#define " + s + '\n');
+        });
+        boost::hash_combine(seed, p.first);
+        if (!_shaderMap.contains(seed)) {
+            rhi::ShaderSourceInfo info{
+                shaderPath.data(),
+                {p.first, prefix + p.second},
+            };
+            _shaderMap.emplace(seed, rhi::ShaderPtr(device->createShader(info)));
+        }
+        auto shader = _shaderMap.at(seed);
+        shaders.emplace_back(shader.get());
     });
 
     const auto& attachments = renderpass->attachments();
@@ -82,14 +101,12 @@ void Technique::bake(rhi::RenderPassPtr renderpass,
         .depthStencilInfo = _depthStencilInfo,
         .colorBlendInfo = _blendInfo,
     };
-    if(!_psoMap.contains(info)) {
+    if (!_psoMap.contains(info)) {
         _psoMap.emplace(info, rhi::GraphicsPipelinePtr(device->createGraphicsPipeline(info)));
     }
     _pso = _psoMap.at(info);
 
     _material->initBindGroup(perBatchBinding, batchLayout, device);
 }
-
-
 
 } // namespace raum::scene

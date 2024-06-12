@@ -22,9 +22,9 @@ public:
         _mainWindow->statusBar()->setVisible(true);
 
         auto* controlPanel = new QDockWidget(_mainWindow);
-        controlPanel->setFloating(true);
-        _mainWindow->addDockWidget(Qt::LeftDockWidgetArea, controlPanel);
-        controlPanel->setVisible(true);
+//        controlPanel->setFloating(true);
+//        _mainWindow->addDockWidget(Qt::LeftDockWidgetArea, controlPanel);
+//        controlPanel->setVisible(true);
         controlPanel->setContentsMargins(0, 0, 0, 0);
 
         QListWidget* list = new QListWidget(controlPanel);

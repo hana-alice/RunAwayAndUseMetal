@@ -25,7 +25,7 @@ public:
     void bake(rhi::RenderPassPtr renderpass,
               rhi::PipelineLayoutPtr pplLayout,
               rhi::VertexLayout vertexLayout,
-              const boost::container::flat_map<rhi::ShaderStage, rhi::ShaderPtr>& shaderIn,
+              const boost::container::flat_map<rhi::ShaderStage, std::string>& shaderIn,
               const boost::container::flat_map<std::string_view, uint32_t>& perBatchBinding,
               rhi::DescriptorSetLayoutPtr batchLayout,
               rhi::DevicePtr device);
@@ -39,6 +39,7 @@ private:
     rhi::DepthStencilInfo _depthStencilInfo;
     rhi::BlendInfo _blendInfo;
     rhi::MultisamplingInfo _multisamplingInfo;
+    std::vector<rhi::ShaderPtr> _shaders;
 };
 using TechniquePtr = std::shared_ptr<Technique>;
 

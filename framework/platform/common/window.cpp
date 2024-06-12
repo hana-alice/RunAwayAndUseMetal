@@ -194,6 +194,9 @@ void NativeWindow::closeEvent(QCloseEvent* evt) {
 
 Window::Window(int argc, char** argv, uint32_t w, uint32_t h, void* instance) {
     _app = new QApplication(argc, argv);
+//    QCursor cursor(Qt::BlankCursor);
+//    QApplication::setOverrideCursor(cursor);
+//    QApplication::changeOverrideCursor(cursor);
 
     static QVulkanInstance inst;
     inst.setVkInstance((VkInstance)instance);

@@ -30,7 +30,7 @@ public:
 
         // load scene from gltf
         auto& sceneGraph = _graphScheduler->sceneGraph();
-        asset::serialize::load(sceneGraph, resourcePath / "models" / "sponza" / "sponza.gltf", _device);
+        asset::serialize::load(sceneGraph, resourcePath / "models" / "DamagedHelmet" / "DamagedHelmet.gltf", _device);
 
         // reflect shader slot for material and mesh local data
         std::ranges::for_each(sceneGraph.models(), [](auto& node) {
@@ -43,11 +43,11 @@ public:
         auto width = _swapchain->width();
         auto height = _swapchain->height();
         if (sceneGraph.cameras().empty()) {
-            scene::Frustum frustum{45.0f, width / (float)height, 0.1f, 1000.0f};
+            scene::Frustum frustum{45.0f, width / (float)height, 0.01f, 10.0f};
             _cam = std::make_shared<scene::Camera>(frustum, scene::Projection::PERSPECTIVE);
             auto& eye = _cam->eye();
-            eye.setPosition(0.0, 10.0, 0.0);
-            eye.lookAt({100.0f, 10.0f, 0.0f}, {0.0f, 1.0f, 0.0f});
+            eye.setPosition(0.0, 0.0f, 4.0);
+            eye.lookAt({0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f});
             eye.update();
         } else {
             // :))))))
@@ -57,8 +57,6 @@ public:
             eye.setTransform(camNode.node.transform());
             eye.update();
         }
-
-
 
         auto& resourceGraph = _graphScheduler->resourceGraph();
         if (!resourceGraph.contains(_forwardRT)) {
@@ -77,9 +75,9 @@ public:
         auto keyHandler = [&](framework::Keyboard key, framework::KeyboardType type) {
             if (key != framework::Keyboard::OTHER && type == framework::KeyboardType::PRESS) {
                 auto front = _cam->eye().forward();
-                front = glm::normalize(front);
+                front = glm::normalize(front) * 0.1f;
                 auto right = glm::cross(front, _cam->eye().up());
-                right = glm::normalize(right);
+                right = glm::normalize(right) * 0.1f;
                 if (key == framework::Keyboard::W) {
                     _cam->eye().translate(front);
                 } else if (key == framework::Keyboard::S) {
@@ -92,28 +90,47 @@ public:
                 _cam->eye().update();
             }
         };
-        _keyListener.add(keyHandler);
+//        _keyListener.add(keyHandler);
 
         auto mouseHandler = [&, width, height](int32_t x, int32_t y, framework::MouseButton btn, framework::ButtonStatus status) {
+            static bool firstPress{true};
+            static bool pressed{false};
             static int32_t lastX = x;
             static int32_t lastY = y;
+                if(status == framework::ButtonStatus::RELEASE) {
+                    firstPress = true;
+                    pressed = false;
+                } else if(status == framework::ButtonStatus::PRESS && btn != framework::MouseButton::OTHER) {
+                    pressed = true;
+                }
+                if(pressed) {
+                    if(firstPress) {
+                        firstPress = false;
+                        lastX = x;
+                        lastY = y;
+                    } else {
+                        static float curDeg = 0.0f;
+                        auto deltaX = x - lastX;
+                        curDeg += deltaX * 0.1f;
+                        auto radius = 4.0f;
 
-            auto deltaX = x - lastX;
-            auto deltaY = y - lastY;
+                        auto curRad = curDeg / 180.0f * 3.141593f;
+                        auto zpos = radius * cos(-curRad);
+                        auto xpos = radius * sin(-curRad);
 
-            float factorX = deltaX / (float)width;
-            float factorY = deltaY / (float)height;
+                        auto& eye = _cam->eye();
+                        eye.setPosition(xpos, 0.0f,  zpos);
+                        eye.lookAt({0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f});
+                        eye.update();
+                        lastX = x;
+                        lastY = y;
 
-            auto& eye = _cam->eye();
-            auto right = glm::cross(eye.forward(), eye.up());
+                        if(curRad > 6.283186f) {
+                            curRad -= 6.283186f;
+                        }
+                    }
+                }
 
-            _cam->eye().rotate(right, scene::Degree{-90.0f * factorY});
-            _cam->eye().rotate(eye.up(), scene::Degree{-90.0f * factorX});
-
-            _cam->eye().update();
-
-            lastX = x;
-            lastY = y;
         };
         _mouseListener.add(mouseHandler);
     }
@@ -137,12 +154,12 @@ public:
 
         uploadPass.uploadBuffer(&eye.getPosition()[0], 12, _camPose, 0);
         Vec4f color{1.0, 1.0, 1.0, 1.0};
-        Vec4f lightPos{10.0, 100.0, 0.0, 1.0};
+        Vec4f lightPos{5.0, 5.0, 0.0, 1.0};
         uploadPass.uploadBuffer(&lightPos[0], 16, _light, 0);
         uploadPass.uploadBuffer(&color[0], 16, _light, 16);
 
         auto renderPass = renderGraph.addRenderPass("forward");
-        renderPass.addColor(_forwardRT, graph::LoadOp::CLEAR, graph::StoreOp::STORE, {0.8, 0.1, 0.3, 1.0})
+        renderPass.addColor(_forwardRT, graph::LoadOp::CLEAR, graph::StoreOp::STORE, {0.3, 0.3, 0.3, 1.0})
             .addDepthStencil(_forwardDS, graph::LoadOp::CLEAR, graph::StoreOp::STORE, graph::LoadOp::CLEAR, graph::StoreOp::STORE, 1.0, 0);
         auto queue = renderPass.addQueue("default");
 

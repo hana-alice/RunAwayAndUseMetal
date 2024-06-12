@@ -34,14 +34,6 @@ ShaderGraph::ShaderGraph(rhi::DevicePtr device):_device(device) {
 
 namespace {
 
-std::unordered_map<std::string_view, rhi::ShaderStage> str2ShaderStage = {
-    {".vert", rhi::ShaderStage::VERTEX},
-    {".frag", rhi::ShaderStage::FRAGMENT},
-    {".comp", rhi::ShaderStage::COMPUTE},
-    {".mesh", rhi::ShaderStage::MESH},
-    {".task", rhi::ShaderStage::TASK},
-};
-
 void generateDescriptorSetLayouts(ShaderResource& resource, rhi::DevicePtr device) {
     std::array<rhi::DescriptorSetLayoutInfo, rhi::BindingRateCount> infos;
     auto& layouts = resource.descriptorLayouts;
@@ -86,33 +78,33 @@ struct ShaderVisitor: public boost::dfs_visitor<>{
         }
 
         auto& resource = resources.at(name);
-        for(const auto& [idName, src] : resource.shaderSources) {
-            std::string_view ext(&idName[idName.length() - 5], 5);
-            auto stage  = str2ShaderStage.at(ext);
-            rhi::ShaderSourceInfo info{
-                idName,
-                {
-                    stage,
-                    src,
-                }
-            };
-            auto shaderPtr = rhi::ShaderPtr(device->createShader(info));
-            resource.shaders.emplace(stage, shaderPtr);
-        }
+        //for(const auto& [idName, src] : resource.shaderSources) {
+        //    std::string_view ext(&idName[idName.length() - 5], 5);
+        //    auto stage  = str2ShaderStage.at(ext);
+        //    rhi::ShaderSourceInfo info{
+        //        idName,
+        //        {
+        //            stage,
+        //            src,
+        //        }
+        //    };
+        //    auto shaderPtr = rhi::ShaderPtr(device->createShader(info));
+        //    resource.shaders.emplace(stage, shaderPtr);
+        //}
 
-        for(const auto& [idName, src] : resource.shaderSourceSpvs) {
-            std::string_view ext(&idName[idName.length() - 5], 5);
-            auto stage  = str2ShaderStage.at(ext);
-            rhi::ShaderBinaryInfo info {
-                idName,
-                {
-                    stage,
-                    src,
-                }
-            };
-            auto shaderPtr = rhi::ShaderPtr(device->createShader(info));
-            resource.shaders.emplace(stage, shaderPtr);
-        }
+        //for(const auto& [idName, src] : resource.shaderSourceSpvs) {
+        //    std::string_view ext(&idName[idName.length() - 5], 5);
+        //    auto stage  = str2ShaderStage.at(ext);
+        //    rhi::ShaderBinaryInfo info {
+        //        idName,
+        //        {
+        //            stage,
+        //            src,
+        //        }
+        //    };
+        //    auto shaderPtr = rhi::ShaderPtr(device->createShader(info));
+        //    resource.shaders.emplace(stage, shaderPtr);
+        //}
 
         generateDescriptorSetLayouts(resource, device);
     }

@@ -51,7 +51,7 @@ struct WarmUpVisitor : public boost::dfs_visitor<> {
                         technique->bake(_renderpass,
                                         shaderResource.pipelineLayout,
                                         meshrenderer->mesh()->meshData().vertexLayout,
-                                        shaderResource.shaders,
+                                        shaderResource.shaderSources,
                                         perBatchBindings,
                                         shaderResource.descriptorLayouts[static_cast<uint32_t>(Rate::PER_BATCH)],
                                         _device);

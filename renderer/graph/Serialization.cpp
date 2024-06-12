@@ -233,7 +233,7 @@ std::map<std::string, std::string> loadResource(std::filesystem::path dir, std::
 //}
 
 void reflect(const std::string& source, BindingMap& bindingMap) {
-    const char* pattern = R"(\s*layout\([^\)]*binding\s*=\s(\d+)\).*?(\w+)\s*[{;])";
+    const char* pattern = R"(\s*layout\s*\([^\)]*binding\s*=\s(\d+)\).*?(\w+)\s*[{;])";
     boost::regex reg(pattern);
 
     boost::sregex_iterator it(source.begin(), source.end(), reg);
@@ -263,6 +263,13 @@ BindingMap reflect(const std::map<std::string, std::string>& sources) {
     return bindingMap;
 }
 
+std::unordered_map<std::string_view, rhi::ShaderStage> str2ShaderStage = {
+    {".vert", rhi::ShaderStage::VERTEX},
+    {".frag", rhi::ShaderStage::FRAGMENT},
+    {".comp", rhi::ShaderStage::COMPUTE},
+    {".mesh", rhi::ShaderStage::MESH},
+    {".task", rhi::ShaderStage::TASK},
+};
 
 void deserialize(const std::filesystem::path &path, std::string_view name, ShaderGraph& shaderGraph) {
     auto layoutPath = (path / name ).concat(".layout");
@@ -270,13 +277,13 @@ void deserialize(const std::filesystem::path &path, std::string_view name, Shade
 
     auto shaderSrc = loadResource(path, name);
     const auto& bindingMap = reflect(shaderSrc);
-    {
-        ShaderResource resource{};
-        const auto& logicPath = deserialize(layoutPath, resource, bindingMap);
-        for(auto& src : shaderSrc) {
-            resource.shaderSources.emplace(logicPath.string() + src.first, std::move(src.second));
-        }
-        shaderGraph.addVertex(logicPath, std::move(resource));
+    
+    ShaderResource resource{};
+    const auto& logicPath = deserialize(layoutPath, resource, bindingMap);
+    for(auto& src : shaderSrc) {
+        resource.shaderSources.emplace(str2ShaderStage.at(src.first), std::move(src.second));
     }
+    shaderGraph.addVertex(logicPath, std::move(resource));
+    
 }
 }

@@ -22,10 +22,10 @@ private:
     bool _enable{true};
     bool _dirty{false};
 
-    Mat4 _transform{};
+    Mat4 _transform{1.0f};
     Vec3f _translation;
     Quaternion _orientation;
-    Vec3f _scale;
+    Vec3f _scale{1.0f};
 
 };
 
