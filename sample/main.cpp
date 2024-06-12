@@ -1,6 +1,6 @@
-#include "sample.h"
+#include "ui.h"
 int main(int argc, char** argv) {
-    raum::Sample sample(argc, argv);
-    sample.show();
+    raum::sample::UI ui(argc, argv);
+    ui.mainLoop();
     return 0;
 }

@@ -43,8 +43,18 @@ void log(const T& t) {
 }
 
 template<typename ...Args>
-void error(fmt::format_string<Args...> s, Args&&... args) {
+void raum_error(fmt::format_string<Args...> s, Args&&... args) {
     spdlog::error(s, std::forward<Args>(args)...);
+}
+
+template<typename ...Args>
+void raum_warn(fmt::format_string<Args...> s, Args&&... args) {
+    spdlog::warn(s, std::forward<Args>(args)...);
+}
+
+template<typename ...Args>
+void raum_info(fmt::format_string<Args...> s, Args&&... args) {
+    spdlog::info(s, std::forward<Args>(args)...);
 }
 
 } // namespace raum

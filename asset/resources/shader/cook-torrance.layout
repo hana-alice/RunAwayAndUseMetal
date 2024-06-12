@@ -1,97 +1,140 @@
 {
-    "path": "asset/layout/cook-torrance",
-    "vertex": {
-        "bindings": [
-            {
-                "slot": 0,
-                "resource": "buffer",
-                "usage": "uniform",
-                "rate": "per_pass",
-                "elements": [
-                    {
-                        "type": "mat4",
-                        "count": 1
-                    },
-                    {
-                        "type": "mat4",
-                        "count": 1
-                    }
-                ],
-                "count": 1
-            }
-        ]
-    },
-    "fragment": {
-        "bindings": [
-            {
-                "slot": 1,
-                "rate": "per_pass",
-                "resource": "buffer",
-                "usage": "uniform",
-                "elements": [
-                    {
-                        "type": "float3",
-                        "count": 1
-                    }
-                ],
-                "count": 1
-            },
-            {
-                "slot": 2,
-                "rate": "per_pass",
-                "resource": "buffer",
-                "usage": "uniform",
-                "elements": [
-                    {
-                        "type": "float4",
-                        "count": 1
-                    },
-                    {
-                        "type": "float4",
-                        "count": 1
-                    }
-                ],
-                "count": 1
-            },
-            {
-                "slot": 0,
-                "rate": "per_batch",
-                "resource": "image",
-                "type": "2d",
-                "usage": "sampled",
-                "count": 1
-            },
-            {
-                "slot": 1,
-                "rate": "per_batch",
-                "resource": "image",
-                "type": "2d",
-                "usage": "sampled",
-                "count": 1
-            },
-            {
-                "slot": 2,
-                "rate": "per_batch",
-                "resource": "image",
-                "type": "2d",
-                "usage": "sampled",
-                "count": 1
-            },
-            {
-                "slot": 3,
-                "rate": "per_batch",
-                "resource": "image",
-                "type": "2d",
-                "usage": "sampled",
-                "count": 1
-            },
-            {
-                "slot": 4,
-                "rate": "per_batch",
-                "resource": "sampler",
-                "count": 1,
-                "immutable": true
-            }
-        ]
-    }
+  "path": "asset/layout/cook-torrance",
+  "vertex": {
+    "bindings": [
+      {
+        "slot": 0,
+        "resource": "buffer",
+        "usage": "uniform",
+        "rate": "per_pass",
+        "elements": [
+          {
+            "type": "mat4",
+            "count": 1
+          },
+          {
+            "type": "mat4",
+            "count": 1
+          }
+        ],
+        "count": 1
+      },
+      {
+        "slot": 0,
+        "resource": "buffer",
+        "usage": "uniform",
+        "rate": "per_instance",
+        "elements": [
+          {
+            "type": "mat4",
+            "count": 1
+          }
+        ],
+        "count": 1
+      }
+    ]
+  },
+  "fragment": {
+    "bindings": [
+      {
+        "slot": 1,
+        "rate": "per_pass",
+        "resource": "buffer",
+        "usage": "uniform",
+        "elements": [
+          {
+            "type": "float3",
+            "count": 1
+          }
+        ],
+        "count": 1
+      },
+      {
+        "slot": 2,
+        "rate": "per_pass",
+        "resource": "buffer",
+        "usage": "uniform",
+        "elements": [
+          {
+            "type": "float4",
+            "count": 1
+          },
+          {
+            "type": "float4",
+            "count": 1
+          }
+        ],
+        "count": 1
+      },
+      {
+        "slot": 0,
+        "rate": "per_batch",
+        "resource": "image",
+        "type": "2d",
+        "usage": "sampled",
+        "count": 1
+      },
+      {
+        "slot": 1,
+        "rate": "per_batch",
+        "resource": "image",
+        "type": "2d",
+        "usage": "sampled",
+        "count": 1
+      },
+      {
+        "slot": 2,
+        "rate": "per_batch",
+        "resource": "image",
+        "type": "2d",
+        "usage": "sampled",
+        "count": 1
+      },
+      {
+        "slot": 3,
+        "rate": "per_batch",
+        "resource": "image",
+        "type": "2d",
+        "usage": "sampled",
+        "count": 1
+      },
+      {
+        "slot": 4,
+        "rate": "per_batch",
+        "resource": "image",
+        "type": "2d",
+        "usage": "sampled",
+        "count": 1
+      },
+      {
+        "slot": 5,
+        "rate": "per_batch",
+        "resource": "sampler",
+        "count": 1,
+        "immutable": true
+      },
+      {
+        "slot": 6,
+        "rate": "per_batch",
+        "resource": "buffer",
+        "count": 1,
+        "usage": "uniform",
+        "elements": [
+          {
+            "type": "float4",
+            "count": 1
+          },
+          {
+            "type": "float4",
+            "count": 1
+          },
+          {
+            "type": "float4",
+            "count": 1
+          }
+        ],
+        "count": 1
+      }
+    ]
+  }
 }
