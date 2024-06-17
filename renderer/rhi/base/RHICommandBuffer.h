@@ -33,7 +33,7 @@ public:
 
     virtual void applyBarrier(DependencyFlags flags) = 0;
 
-    virtual void onComplete(const std::function<void()>&) = 0;
+    virtual void onComplete(std::function<void()>&&) = 0;
 
 protected:
     explicit RHICommandBuffer(const CommandBufferInfo& info, RHIDevice* device) {}

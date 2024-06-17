@@ -81,12 +81,14 @@ void MeshRenderer::prepare(
 }
 
 void MeshRenderer::update(rhi::CommandBufferPtr cmdBuffer) {
-    if(_dirty) {
-        auto blitEncoder = rhi::BlitEncoderPtr(cmdBuffer->makeBlitEncoder());
-        blitEncoder->updateBuffer(_localBuffer.get(), 0, &_transform[0], 16 * sizeof(float));
+    if (!_localSLotName.empty()) {
+        if (_dirty) {
+            auto blitEncoder = rhi::BlitEncoderPtr(cmdBuffer->makeBlitEncoder());
+            blitEncoder->updateBuffer(_localBuffer.get(), 0, &_transform[0], 16 * sizeof(float));
+        }
+        _bindGroup->bindBuffer(_localSLotName, 0, _localBuffer);
+        _bindGroup->update();
     }
-    _bindGroup->bindBuffer(_localSLotName, 0, _localBuffer);
-    _bindGroup->update();
 }
 
 

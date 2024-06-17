@@ -28,7 +28,7 @@ public:
     void appendImageBarrier(const ImageBarrierInfo& info) override;
     void appendBufferBarrier(const BufferBarrierInfo& info) override;
     void applyBarrier(DependencyFlags flags) override;
-    void onComplete(const std::function<void()>&) override;
+    void onComplete(std::function<void()>&&) override;
 
     CommandBufferType type() const { return _info.type; }
 

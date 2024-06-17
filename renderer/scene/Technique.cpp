@@ -82,11 +82,14 @@ void Technique::bake(rhi::RenderPassPtr renderpass,
         shaders.emplace_back(shader.get());
     });
 
-    const auto& attachments = renderpass->attachments();
-    auto colorSize = std::count_if(attachments.begin(), attachments.end(), [](const rhi::AttachmentInfo& attachment) {
-        return attachment.finalLayout == rhi::ImageLayout::COLOR_ATTACHMENT_OPTIMAL;
-    });
-    _blendInfo.attachmentBlends.resize(colorSize);
+    const auto& setLayouts = pplLayout->info().setLayouts;
+    raum_check(setLayouts.size() == 4, "incorrect setlayout count!");
+    if(!setLayouts.empty()) {
+        _perPassBinding |= !setLayouts[0]->info().descriptorBindings.empty();
+        _perBatchBinding |= !setLayouts[1]->info().descriptorBindings.empty();
+        _perInstanceBinding |= !setLayouts[2]->info().descriptorBindings.empty();
+        _perDrawBinding |= !setLayouts[3]->info().descriptorBindings.empty();
+    }
 
     rhi::GraphicsPipelineInfo info{
         .primitiveType = _primitiveType,
@@ -107,6 +110,23 @@ void Technique::bake(rhi::RenderPassPtr renderpass,
     _pso = _psoMap.at(info);
 
     _material->initBindGroup(perBatchBinding, batchLayout, device);
+    _material->update();
+}
+
+bool Technique::hasPassBinding() const {
+    return _perPassBinding;
+}
+
+bool Technique::hasBatchBinding() const {
+    return _perBatchBinding;
+}
+
+bool Technique::hasInstanceBinding() const {
+    return _perInstanceBinding;
+}
+
+bool Technique::hasDrawBinding() const {
+    return _perDrawBinding;
 }
 
 } // namespace raum::scene

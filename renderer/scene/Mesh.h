@@ -92,6 +92,10 @@ public:
 
     void update(rhi::CommandBufferPtr cmdBuffer);
 
+    
+    bool hasInstanceBinding() const;
+    bool hasPassBinding() const;
+
 private:
     bool _dirty{false};
     std::string _localSLotName;

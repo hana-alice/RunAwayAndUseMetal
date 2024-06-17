@@ -89,9 +89,8 @@ void Queue::submit() {
     // image available & pre task
     std::vector<VkSemaphore> waitSems;
     std::vector<VkPipelineStageFlags> waitStages;
-    auto presentSem = _presentSemaphores[_currFrameIndex];
-    if (presentSem != VK_NULL_HANDLE) {
-        waitSems.emplace_back(presentSem);
+    if (_presentSemaphores.size() > _currFrameIndex && _presentSemaphores[_currFrameIndex] != VK_NULL_HANDLE) {
+        waitSems.emplace_back(_presentSemaphores[_currFrameIndex]);
         waitStages.emplace_back(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
         _presentSemaphores[_currFrameIndex] = VK_NULL_HANDLE;
     }
@@ -101,8 +100,8 @@ void Queue::submit() {
         waitSems.emplace_back(preTaskSem);
     }
     info.waitSemaphoreCount = waitSems.size();
-    info.pWaitSemaphores = waitSems.data();
-    info.pWaitDstStageMask = waitStages.data();
+    info.pWaitSemaphores = waitSems.size() ? waitSems.data() : nullptr;
+    info.pWaitDstStageMask = waitStages.size() ? waitStages.data() : nullptr;
     info.commandBufferCount = static_cast<uint32_t>(_commandBuffers.size());
     info.signalSemaphoreCount = 1;
     info.pSignalSemaphores = &_commandSemaphores[_currFrameIndex];
@@ -131,8 +130,8 @@ VkSemaphore Queue::popCommandSemaphore() {
     return res;
 }
 
-void Queue::addCompleteHandler(const std::function<void()>& func) {
-    _completeHandlers[_currFrameIndex].emplace_back(func);
+void Queue::addCompleteHandler(std::function<void()>&& func) {
+    _completeHandlers[_currFrameIndex].emplace_back(std::forward<std::function<void()>>(func));
 }
 
 } // namespace raum::rhi

@@ -708,8 +708,29 @@ VkImageCreateFlags imageFlag(ImageFlag flag) {
     if (test(flag, ImageFlag::MUTABLE_FORMAT)) {
         res |= VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT;
     }
+    if (test(flag, ImageFlag::CUBE_COMPATIBLE)) {
+        res |= VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
+    }
     if (test(flag, ImageFlag::ALIAS)) {
         res |= VK_IMAGE_CREATE_ALIAS_BIT;
+    }
+    if (test(flag, ImageFlag::SPLIT_INSTANCE_BIND_REGIONS)) {
+        res |= VK_IMAGE_CREATE_SPLIT_INSTANCE_BIND_REGIONS_BIT;
+    }
+    if (test(flag, ImageFlag::ARRAY_2D_COMPATIBLE)) {
+        res |= VK_IMAGE_CREATE_2D_ARRAY_COMPATIBLE_BIT;
+    }
+    if (test(flag, ImageFlag::BLOCK_TEXEL_VIEW_COMPATIBLE)) {
+        res |= VK_IMAGE_CREATE_BLOCK_TEXEL_VIEW_COMPATIBLE_BIT;
+    }
+    if (test(flag, ImageFlag::EXTENDED_USAGE)) {
+        res |= VK_IMAGE_CREATE_EXTENDED_USAGE_BIT;
+    }
+    if (test(flag, ImageFlag::PROTECTED)) {
+        res |= VK_IMAGE_CREATE_PROTECTED_BIT;
+    }
+    if (test(flag, ImageFlag::DISJOINT)) {
+        res |= VK_IMAGE_CREATE_DISJOINT_BIT;
     }
     return res;
 }

@@ -30,16 +30,25 @@ public:
               rhi::DescriptorSetLayoutPtr batchLayout,
               rhi::DevicePtr device);
 
+    bool hasPassBinding() const;
+    bool hasBatchBinding() const;
+    bool hasInstanceBinding() const;
+    bool hasDrawBinding() const;
+
 private:
     std::string _phaseName;
     MaterialPtr _material;
     rhi::GraphicsPipelinePtr _pso;
-    rhi::PrimitiveType _primitiveType{rhi::PrimitiveType::TRIANGLE_STRIP};
+    rhi::PrimitiveType _primitiveType{rhi::PrimitiveType::TRIANGLE_LIST};
     rhi::RasterizationInfo _rasterizationInfo;
     rhi::DepthStencilInfo _depthStencilInfo;
     rhi::BlendInfo _blendInfo;
     rhi::MultisamplingInfo _multisamplingInfo;
     std::vector<rhi::ShaderPtr> _shaders;
+    bool _perPassBinding{false};
+    bool _perBatchBinding{false};
+    bool _perInstanceBinding{false};
+    bool _perDrawBinding{false};
 };
 using TechniquePtr = std::shared_ptr<Technique>;
 
