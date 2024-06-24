@@ -1,15 +1,15 @@
 #include "Technique.h"
 #include <algorithm>
-#include "RHIDevice.h"
-#include "RHIUtils.h"
 #include <boost/functional/hash.hpp>
 #include <set>
+#include "RHIDevice.h"
+#include "RHIUtils.h"
 namespace raum::scene {
 
 namespace {
 std::unordered_map<rhi::GraphicsPipelineInfo, rhi::GraphicsPipelinePtr, rhi::RHIHash<rhi::GraphicsPipelineInfo>> _psoMap;
 std::unordered_map<std::size_t, rhi::ShaderPtr> _shaderMap;
-}
+} // namespace
 
 Technique::Technique(MaterialPtr material, std::string_view phaseName)
 : _material(material), _phaseName(phaseName) {
@@ -47,15 +47,27 @@ void Technique::setPrimitiveType(rhi::PrimitiveType type) {
     _primitiveType = type;
 }
 
-void Technique::bake(rhi::RenderPassPtr renderpass,
-                     rhi::PipelineLayoutPtr pplLayout,
-                     rhi::VertexLayout vertexLayout,
-                     const boost::container::flat_map<rhi::ShaderStage, std::string>& shaderIn,
-                     const boost::container::flat_map<std::string_view, uint32_t>& perBatchBinding,
-                     rhi::DescriptorSetLayoutPtr batchLayout,
-                     rhi::DevicePtr device) {
+void Technique::bakeMaterial(const boost::container::flat_map<std::string_view, uint32_t>& perBatchBinding,
+                             rhi::DescriptorSetLayoutPtr batchLayout,
+                             rhi::DevicePtr device) {
     if (_material->bindGroup()) {
         // shared material, already been initialized.
+        return;
+    }
+    _material->initBindGroup(perBatchBinding, batchLayout, device);
+    _material->update();
+}
+
+void Technique::bakePipeline(rhi::RenderPassPtr renderpass,
+                             rhi::DescriptorSetLayoutPtr passDescSet,
+                             rhi::DescriptorSetLayoutPtr batchDescSet,
+                             rhi::DescriptorSetLayoutPtr instDescSet,
+                             rhi::DescriptorSetLayoutPtr drawDescSet,
+                             const std::vector<rhi::PushConstantRange>& constants,
+                             rhi::VertexLayout vertexLayout,
+                             const boost::container::flat_map<rhi::ShaderStage, std::string>& shaderIn,
+                             rhi::DevicePtr device) {
+    if (_pso) {
         return;
     }
     std::vector<rhi::RHIShader*> shaders;
@@ -81,15 +93,24 @@ void Technique::bake(rhi::RenderPassPtr renderpass,
         auto shader = _shaderMap.at(seed);
         shaders.emplace_back(shader.get());
     });
+    std::vector<rhi::RHIDescriptorSetLayout*> setLayouts = {
+        passDescSet.get(),
+        batchDescSet.get(),
+        instDescSet.get(),
+        drawDescSet.get(),
+    };
 
-    const auto& setLayouts = pplLayout->info().setLayouts;
-    raum_check(setLayouts.size() == 4, "incorrect setlayout count!");
-    if(!setLayouts.empty()) {
-        _perPassBinding |= !setLayouts[0]->info().descriptorBindings.empty();
-        _perBatchBinding |= !setLayouts[1]->info().descriptorBindings.empty();
-        _perInstanceBinding |= !setLayouts[2]->info().descriptorBindings.empty();
-        _perDrawBinding |= !setLayouts[3]->info().descriptorBindings.empty();
-    }
+    _bindingBound = {
+        passDescSet && !passDescSet->info().descriptorBindings.empty(),
+        batchDescSet && !batchDescSet->info().descriptorBindings.empty(),
+        instDescSet && !instDescSet->info().descriptorBindings.empty(),
+        drawDescSet && !drawDescSet->info().descriptorBindings.empty(),
+    };
+    rhi::PipelineLayoutInfo layoutInfo = {
+        constants,
+        setLayouts,
+    };
+    auto pplLayout = rhi::getOrCreatePipelineLayout(layoutInfo, device);
 
     rhi::GraphicsPipelineInfo info{
         .primitiveType = _primitiveType,
@@ -108,25 +129,22 @@ void Technique::bake(rhi::RenderPassPtr renderpass,
         _psoMap.emplace(info, rhi::GraphicsPipelinePtr(device->createGraphicsPipeline(info)));
     }
     _pso = _psoMap.at(info);
-
-    _material->initBindGroup(perBatchBinding, batchLayout, device);
-    _material->update();
 }
 
 bool Technique::hasPassBinding() const {
-    return _perPassBinding;
+    return _bindingBound[0];
 }
 
 bool Technique::hasBatchBinding() const {
-    return _perBatchBinding;
+    return _bindingBound[1];
 }
 
 bool Technique::hasInstanceBinding() const {
-    return _perInstanceBinding;
+    return _bindingBound[2];
 }
 
 bool Technique::hasDrawBinding() const {
-    return _perDrawBinding;
+    return _bindingBound[3];
 }
 
 } // namespace raum::scene

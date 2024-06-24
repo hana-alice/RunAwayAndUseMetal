@@ -60,17 +60,11 @@ void generateDescriptorSetLayouts(ShaderResource& resource, rhi::DevicePtr devic
 
     std::vector<rhi::RHIDescriptorSetLayout*> descriptors;
     for (size_t i = 0; i < rhi::BindingRateCount; ++i) {
-//        if (!infos[i].descriptorBindings.empty()) {
-            layouts[i] = rhi::getOrCreateDescriptorSetLayout(infos[i], device);
-            descriptors.emplace_back(layouts[i].get());
-//        } else {
-//            rhi::DescriptorSetInfo info{};
-//            layouts[i] = rhi::getOrCreateDescriptorSetLayout(infos[i], device);
-//            descriptors.emplace_back(layouts[i].get());
-//        }
+        layouts[i] = rhi::getOrCreateDescriptorSetLayout(infos[i], device);
+        descriptors.emplace_back(layouts[i].get());
     }
 
-    resource.pipelineLayout = rhi::getOrCreatePipelineLayout({{}, descriptors}, device);
+    // resource.pipelineLayout = rhi::getOrCreatePipelineLayout({{}, descriptors}, device);
 }
 
 struct ShaderVisitor: public boost::dfs_visitor<>{

@@ -56,31 +56,33 @@ mat3x3 getTBN(vec3 pos, vec2 uv, vec3 normal) {
     return mat3x3(T, B, N);
 }
 
-layout(location = 0) out vec4 FragColor;
-layout(location = 0) in vec3 f_worldPos;
-layout(location = 1) in vec2 f_uv;
-layout(location = 2) in vec4 f_tan;
-layout(location = 3) in vec3 f_normal;
+layout (location = 0) out vec4 FragColor;
+layout (location = 0) in vec3 f_worldPos;
+layout (location = 1) in vec2 f_uv;
+layout (location = 2) in vec4 f_tan;
+layout (location = 3) in vec3 f_normal;
 
-layout(set = 0, binding = 1) uniform CamPos {
+layout (set = 0, binding = 1) uniform CamPos {
     vec3 camPos;
 };
-layout(set = 0, binding = 2) uniform Light {
+layout (set = 0, binding = 2) uniform Light {
     vec4 lightPos;
     vec4 lightColor;
 };
 
-layout(set = 1, binding = 0) uniform texture2D albedoMap;
-layout(set = 1, binding = 1) uniform texture2D normalMap;
-layout(set = 1, binding = 2) uniform texture2D metallicRoughnessMap;
-layout(set = 1, binding = 3) uniform texture2D emissiveMap;
-layout(set = 1, binding = 4) uniform texture2D aoMap;
-layout(set = 1, binding = 5) uniform textureCube diffuseEnvMap;
+layout (set = 1, binding = 0) uniform texture2D albedoMap;
+layout (set = 1, binding = 1) uniform texture2D normalMap;
+layout (set = 1, binding = 2) uniform texture2D metallicRoughnessMap;
+layout (set = 1, binding = 3) uniform texture2D emissiveMap;
+layout (set = 1, binding = 4) uniform texture2D aoMap;
+layout (set = 1, binding = 5) uniform textureCube diffuseEnvMap;
+layout (set = 1, binding = 6) uniform textureCube specularMap;
+layout (set = 1, binding = 7) uniform texture2D brdfLUT;
 
-layout(set = 1, binding = 6) uniform sampler linearSampler;
-layout(set = 1, binding = 7) uniform sampler pointSampler;
+layout (set = 1, binding = 8) uniform sampler linearSampler;
+layout (set = 1, binding = 9) uniform sampler pointSampler;
 
-layout(set = 1, binding = 8) uniform PBRParams {
+layout (set = 1, binding = 10) uniform PBRParams {
     vec4 baseColorFactor;
     vec4 emissiveFactor;
     vec4 mrno; // metallic, roughness, normalscale, occlusionscale
@@ -108,15 +110,15 @@ vec3 perturb_normal(vec3 N, vec3 V, vec2 texcoord) {
     // assume N, the interpolated vertex normal and
     // V, the view vector (vertex to eye)
     vec3 map = texture(sampler2D(normalMap, pointSampler), texcoord).xyz;
-#ifdef WITH_NORMALMAP_UNSIGNED
+    #ifdef WITH_NORMALMAP_UNSIGNED
     map = map * 255. / 127. - 128. / 127.;
-#endif
+    #endif
 #ifdef WITH_NORMALMAP_2CHANNEL
     map.z = sqrt(1. - dot(map.xy, map.xy));
-#endif
+    #endif
 #ifdef WITH_NORMALMAP_GREEN_UP
     map.y = -map.y;
-#endif
+    #endif
     mat3 TBN = cotangent_frame(N, -V, texcoord);
     return normalize(TBN * map);
 }
@@ -127,13 +129,13 @@ void main() {
     albedo = albedo * baseColorFactor.xyz;
     float metallic = texture(sampler2D(metallicRoughnessMap, linearSampler), f_uv).b * mrno.x;
     float roughness = texture(sampler2D(metallicRoughnessMap, linearSampler), f_uv).g * mrno.y;
-#ifdef VERTEX_TANGENT
+    #ifdef VERTEX_TANGENT
     vec3 sn = texture(sampler2D(normalMap, pointSampler), f_uv).rgb;
     sn = (sn * 2.0 - vec3(1.0f)) * vec3(mrno.z, mrno.z, 1.0f);
     vec3 bi = cross(f_normal, f_tan.xyz) * f_tan.w;
     mat3x3 tbn = mat3x3(f_tan.xyz, bi, f_normal);
     vec3 N = tbn * sn;
-#else
+    #else
     #ifdef NORMAL_MAP
     vec3 sn = texture(sampler2D(normalMap, pointSampler), f_uv).rgb;
     sn = (sn * 2.0 - vec3(1.0f)) * vec3(mrno.z, mrno.z, 1.0f);
@@ -165,35 +167,43 @@ void main() {
     vec3 KD = vec3(1.0) - Ks;
     KD *= 1.0 - metallic;
 
-    vec3 nominator = NDF * G * F;
-    float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + 0.001;
-    vec3 specular = nominator / denominator;
-
-    float NdotL = max(dot(N, L), 0.0);
-    Lo += (KD * albedo / PI + specular) * radiance * NdotL;
+//    vec3 nominator = NDF * G * F;
+//    float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + 0.001;
+//    vec3 specular = nominator / denominator;
+//
+//    float NdotL = max(dot(N, L), 0.0);
+//    Lo += (KD * albedo / PI + specular) * radiance * NdotL;
     // accumulate end
 
-#ifdef OCCLUSION_MAP
+    #ifdef OCCLUSION_MAP
     float ao = texture(sampler2D(aoMap, linearSampler), f_uv).r;
     ao = 1.0f + mrno.w * (ao - 1.0f);
-#else
+    #else
     float ao = 1.0f;
-#endif
+    #endif
     vec3 irradiance = texture(samplerCube(diffuseEnvMap, linearSampler), N).rgb;
     irradiance = pow(irradiance, vec3(2.2));
     albedo *= irradiance;
 
-    Ks = fresnelSchlick(max(dot(N, V), 0.0), F0, roughness);
+    F = fresnelSchlick(max(dot(N, V), 0.0), F0, roughness);
+    Ks = F;
     KD = 1.0 - Ks;
     KD *= 1.0 - metallic;
 
-    vec3 ambient = KD * albedo * lightColor.rgb * ao;
+    vec3 R = reflect(-V, N);
+    const float MAX_REFLECTION_LOD = 4.0;
+    vec3 prefilteredColor = textureLod(samplerCube(specularMap, linearSampler), R, roughness * MAX_REFLECTION_LOD).rgb;
+    vec2 envBRDF = texture(sampler2D(brdfLUT, linearSampler), vec2(max(dot(N, V), 0.0), roughness)).rg;
+    vec3 specular = prefilteredColor * (F * envBRDF.x + envBRDF.y);
 
-#ifdef EMISSIVE_MAP
+    vec3 ambient = (KD * albedo * lightColor.rgb + specular) * ao;
+
+
+    #ifdef EMISSIVE_MAP
     vec3 emissive = texture(sampler2D(emissiveMap, linearSampler), f_uv).rgb * emissiveFactor.xyz;
-#else
+    #else
     vec3 emissive = vec3(0.0f);
-#endif
+    #endif
     vec3 color = ambient + Lo + emissive;
     color = color / (color + vec3(1.0));
     color = pow(color, vec3(1.0 / 2.2));

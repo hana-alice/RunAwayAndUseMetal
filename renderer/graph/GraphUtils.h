@@ -27,6 +27,4 @@ void collectRenderables(std::vector<scene::RenderablePtr>& renderables, const Sc
 
 void warmUp(SceneGraph& sg, ShaderGraph& shg, rhi::DevicePtr device);
 
-void bakePipelineState(scene::MeshRendererPtr meshRenderer, rhi::RenderPassPtr renderPass, scene::TechniquePtr technique, rhi::DevicePtr device);
-
 }

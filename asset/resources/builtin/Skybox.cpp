@@ -16,12 +16,13 @@ constexpr auto vertSource = R"(
     layout( push_constant ) uniform constants
     {
         mat4 modelMat;
+        mat4 projMat;
     } Mat;
 
     void main()
     {
         WorldPos = aPos;
-        gl_Position = Mat.modelMat * vec4(WorldPos, 1.0);
+        gl_Position = Mat.projMat * Mat.modelMat * vec4(WorldPos, 1.0);
     } 
 )";
 
@@ -44,8 +45,8 @@ constexpr auto fragSource = R"(
 
     void main()
     {
-        vec2 uv = SampleSphericalMap(normalize(WorldPos));
-        uv.y = uv.y;
+        vec3 pos = normalize(WorldPos);
+        vec2 uv = SampleSphericalMap(vec3(pos.x, pos.y, pos.z));
         vec3 color = texture(sampler2D(equirectangularMap, linearSampler), uv).rgb;
 
         FragColor = vec4(color, 1.0);
@@ -92,8 +93,296 @@ void main() {
 
 )";
 
-constexpr uint32_t resolution = 4096;
+constexpr auto specularPrefilterSource = R"(
 
+layout (location = 0) out vec4 FragColor;
+layout (location = 0) in vec3 localPos;
+
+layout (set = 1, binding = 0) uniform textureCube environmentMap;
+layout (set = 1, binding = 1) uniform sampler linearSampler;
+layout( push_constant ) uniform constants
+{
+    layout(offset = 128) float val;
+} Roughness;
+
+const float PI = 3.14159265359;
+float DistributionGGX(vec3 N, vec3 H, float roughness)
+{
+    float a = roughness*roughness;
+    float a2 = a*a;
+    float NdotH = max(dot(N, H), 0.0);
+    float NdotH2 = NdotH*NdotH;
+
+    float nom   = a2;
+    float denom = (NdotH2 * (a2 - 1.0) + 1.0);
+    denom = PI * denom * denom;
+
+    return nom / denom;
+}
+
+float RadicalInverse_VdC(uint bits)
+{
+    bits = (bits << 16u) | (bits >> 16u);
+    bits = ((bits & 0x55555555u) << 1u) | ((bits & 0xAAAAAAAAu) >> 1u);
+    bits = ((bits & 0x33333333u) << 2u) | ((bits & 0xCCCCCCCCu) >> 2u);
+    bits = ((bits & 0x0F0F0F0Fu) << 4u) | ((bits & 0xF0F0F0F0u) >> 4u);
+    bits = ((bits & 0x00FF00FFu) << 8u) | ((bits & 0xFF00FF00u) >> 8u);
+    return float(bits) * 2.3283064365386963e-10; // / 0x100000000
+}
+
+vec2 Hammersley(uint i, uint N)
+{
+    return vec2(float(i)/float(N), RadicalInverse_VdC(i));
+}
+
+vec3 ImportanceSampleGGX(vec2 xi, vec3 N, float roughness) {
+    float a = roughness * roughness;
+    float phi = 2.0 * PI * xi.x;
+    float cosTheta = sqrt((1.0 - xi.y) / (1.0 + (a*a - 1.0) * xi.y));
+    float sinTheta = sqrt(1.0 - cosTheta*cosTheta);
+
+    // from spherical coordinates to cartesian coordinates
+    vec3 H;
+    H.x = cos(phi) * sinTheta;
+    H.y = sin(phi) * sinTheta;
+    H.z = cosTheta;
+
+    // from tangent-space vector to world-space sample vector
+    vec3 up        = abs(N.z) < 0.999 ? vec3(0.0, 0.0, 1.0) : vec3(1.0, 0.0, 0.0);
+    vec3 tangent   = normalize(cross(up, N));
+    vec3 bitangent = cross(N, tangent);
+
+    vec3 sampleVec = tangent * H.x + bitangent * H.y + N * H.z;
+    return normalize(sampleVec);
+}
+
+void main() {
+    vec3 N = normalize(localPos);
+    vec3 R = N;
+    vec3 V = R;
+
+    const uint SAMPLE_COUNT = 1024u;
+    float totalWeight = 0.0;
+    vec3 prefilteredColor = vec3(0.0);
+    for(uint i = 0; i < SAMPLE_COUNT; ++i) {
+        vec2 xi = Hammersley(i, SAMPLE_COUNT);
+        vec3 H = ImportanceSampleGGX(xi, N, Roughness.val);
+        vec3 L = normalize(2.0 * dot(V, H) * H - V);
+        float NdotL = max(dot(N, L), 0.0);
+        if(NdotL > 0.0)
+        {
+            // sample from the environment's mip level based on roughness/pdf
+            float D   = DistributionGGX(N, H, Roughness.val);
+            float NdotH = max(dot(N, H), 0.0);
+            float HdotV = max(dot(H, V), 0.0);
+            float pdf = D * NdotH / (4.0 * HdotV) + 0.0001; 
+
+            float resolution = 1024.0; // resolution of source cubemap (per face)
+            float saTexel  = 4.0 * PI / (6.0 * resolution * resolution);
+            float saSample = 1.0 / (float(SAMPLE_COUNT) * pdf + 0.0001);
+
+            float mipLevel = Roughness.val == 0.0 ? 0.0 : 0.5 * log2(saSample / saTexel); 
+            
+            prefilteredColor += textureLod(samplerCube(environmentMap, linearSampler), L, mipLevel).rgb * NdotL;
+            totalWeight      += NdotL;
+        }
+    }
+    prefilteredColor /= totalWeight;
+    FragColor = vec4(prefilteredColor, 1.0);
+}
+)";
+
+std::array<float, 6> angles = {
+    -glm::half_pi<float>(),
+    glm::half_pi<float>(),
+    -glm::half_pi<float>(),
+    glm::half_pi<float>(),
+    0.0f,
+    glm::pi<float>(),
+};
+std::array<Vec3f, 6> axis = {
+    Vec3f{0.0f, 1.0f, 0.0f},
+    Vec3f{0.0f, 1.0f, 0.0f},
+    Vec3f{1.0f, 0.0f, 0.0f},
+    Vec3f{1.0f, 0.0f, 0.0f},
+    Vec3f{0.0f, 1.0f, 0.0f},
+    Vec3f{0.0f, 1.0f, 0.0f},
+};
+
+auto renderCube(rhi::ImagePtr cubeImage,
+                uint32_t resolution,
+                uint32_t mipLevel,
+                rhi::GraphicsPipelinePtr pso,
+                rhi::DescriptorSetPtr desc0,
+                rhi::DescriptorSetPtr desc1,
+                void* fragConstants,
+                uint32_t cSize,
+                rhi::RenderPassPtr renderPass,
+                rhi::CommandBufferPtr cmdBuffer,
+                rhi::DevicePtr device) {
+    std::vector<rhi::ImageViewPtr> views;
+    std::vector<rhi::FrameBufferPtr> frameBuffers;
+    std::vector<Mat4> modelMats = {
+        glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(0.0f, -1.0f, 0.0f)),
+        glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(-1.0f, 0.0f, 0.0f), glm::vec3(0.0f, -1.0f, 0.0f)),
+        glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f)),
+        glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, -1.0f, 0.0f), glm::vec3(0.0f, 0.0f, -1.0f)),
+        glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f), glm::vec3(0.0f, -1.0f, 0.0f)),
+        glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, -1.0f), glm::vec3(0.0f, -1.0f, 0.0f)), 
+    };
+    uint32_t len = static_cast<uint32_t>(resolution * pow(0.5, mipLevel));
+    for (uint32_t i = 0; i < 6; ++i) {
+        rhi::ImageViewInfo arrViewInfo{
+            .type = rhi::ImageViewType::IMAGE_VIEW_2D,
+            .image = cubeImage.get(),
+            .range = {
+                .firstSlice = i,
+                .sliceCount = 1,
+                .firstMip = mipLevel,
+                .mipCount = 1,
+            },
+            .format = cubeImage->info().format,
+        };
+        auto view = views.emplace_back(rhi::ImageViewPtr(device->createImageView(arrViewInfo)));
+
+        rhi::FrameBufferInfo fbInfo{
+            .renderPass = renderPass.get(),
+            .images = {view.get()},
+            .width = len,
+            .height = len,
+            .layers = 1,
+        };
+        frameBuffers.emplace_back(rhi::FrameBufferPtr(device->createFrameBuffer(fbInfo)));
+    }
+
+    auto captureProjection = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 10.0f);
+
+    auto renderEncoder = rhi::RenderEncoderPtr(cmdBuffer->makeRenderEncoder());
+    rhi::ClearValue clear = {1.0f, 1.0f, 1.0f, 1.0f};
+    rhi::Rect2D rect{0, 0, len, len};
+    for (uint32_t i = 0; i < 6; ++i) {
+        rhi::RenderPassBeginInfo beginInfo{
+            .renderPass = renderPass.get(),
+            .frameBuffer = frameBuffers[i].get(),
+            .renderArea = rect,
+            .clearColors = &clear,
+        };
+        renderEncoder->beginRenderPass(beginInfo);
+        renderEncoder->setViewport({rect});
+        renderEncoder->setScissor(rect);
+        renderEncoder->bindPipeline(pso.get());
+        if (desc0) {
+            renderEncoder->bindDescriptorSet(desc0.get(), 0, nullptr, 0);
+        }
+        if (desc1) {
+            renderEncoder->bindDescriptorSet(desc1.get(), 1, nullptr, 0);
+        }
+        renderEncoder->pushConstants(rhi::ShaderStage::VERTEX, 0, &modelMats[i], 16 * sizeof(float));
+        renderEncoder->pushConstants(rhi::ShaderStage::VERTEX, 16 * sizeof(float), &captureProjection[0], 16 * sizeof(float));
+        if (fragConstants) {
+            renderEncoder->pushConstants(rhi::ShaderStage::FRAGMENT, 32 * sizeof(float), fragConstants, cSize);
+        }
+        renderEncoder->bindVertexBuffer(scene::Cube::vertexBuffer.buffer.get(), 0);
+        renderEncoder->draw(scene::Cube::vertexCount, 1, 0, 0);
+        renderEncoder->endRenderPass();
+    }
+    return std::make_tuple(views, frameBuffers);
+}
+
+auto generateResources(rhi::ImageViewPtr imgView,
+                       const std::string& vert,
+                       const std::string_view vertPath,
+                       const std::string& frag,
+                       const std::string_view fragPath,
+                       uint32_t fSize,
+                       rhi::DevicePtr device) {
+    rhi::DescriptorSetLayoutInfo layoutInfo;
+    auto& imgBindinng = layoutInfo.descriptorBindings.emplace_back();
+    imgBindinng.binding = 0;
+    imgBindinng.count = 1;
+    imgBindinng.type = rhi::DescriptorType::SAMPLED_IMAGE;
+    imgBindinng.visibility = rhi::ShaderStage::FRAGMENT;
+    auto& samplerBinding = layoutInfo.descriptorBindings.emplace_back();
+    samplerBinding.binding = 1;
+    samplerBinding.count = 1;
+    samplerBinding.type = rhi::DescriptorType::SAMPLER;
+    samplerBinding.visibility = rhi::ShaderStage::FRAGMENT;
+    auto layout = rhi::DescriptorSetLayoutPtr(device->createDescriptorSetLayout(layoutInfo));
+
+    auto layout0 = rhi::DescriptorSetLayoutPtr(device->createDescriptorSetLayout(rhi::DescriptorSetLayoutInfo{}));
+    rhi::PipelineLayoutInfo pplLayoutInfo;
+    pplLayoutInfo.setLayouts.emplace_back(layout0.get());
+    pplLayoutInfo.setLayouts.emplace_back(layout.get());
+    pplLayoutInfo.pushConstantRanges = {
+        {.size = 32 * sizeof(float)}};
+    if (fSize) {
+        pplLayoutInfo.pushConstantRanges.emplace_back(rhi::ShaderStage::FRAGMENT, static_cast<uint32_t>(32 * sizeof(float)), fSize);
+    }
+    auto pplLayout = rhi::PipelineLayoutPtr(device->createPipelineLayout(pplLayoutInfo));
+
+    rhi::DescriptorSetInfo setInfo;
+    setInfo.layout = layout.get();
+    auto& imgBd = setInfo.bindingInfos.imageBindings.emplace_back();
+    imgBd.type = rhi::DescriptorType::SAMPLED_IMAGE;
+    imgBd.binding = 0;
+    imgBd.arrayElement = 0;
+    imgBd.imageViews.emplace_back(rhi::ImageLayout::SHADER_READ_ONLY_OPTIMAL, imgView.get());
+    auto& samplerBd = setInfo.bindingInfos.samplerBindings.emplace_back();
+    samplerBd.arrayElement = 0;
+    samplerBd.binding = 1;
+    rhi::SamplerInfo samplerInfo{
+        .magFilter = rhi::Filter::LINEAR,
+        .minFilter = rhi::Filter::LINEAR,
+    };
+    samplerBd.samplers.emplace_back(device->getSampler(samplerInfo));
+
+    const auto& descPoolInfo = rhi::makeDescriptorPoolInfo(pplLayout->info().setLayouts);
+    auto descPool = rhi::DescriptorPoolPtr(device->createDescriptorPool(descPoolInfo));
+    auto descSet = rhi::DescriptorSetPtr(descPool->makeDescriptorSet(setInfo));
+    rhi::DescriptorSetInfo set0Info;
+    set0Info.layout = layout0.get();
+    auto descSet0 = rhi::DescriptorSetPtr(descPool->makeDescriptorSet(set0Info));
+
+    rhi::GraphicsPipelineInfo pplInfo;
+    pplInfo.colorBlendInfo.attachmentBlends.emplace_back();
+    pplInfo.depthStencilInfo.depthTestEnable = false;
+    pplInfo.depthStencilInfo.depthWriteEnable = false;
+    pplInfo.primitiveType = rhi::PrimitiveType::TRIANGLE_LIST;
+    pplInfo.vertexLayout = scene::Cube::vertexLayout;
+
+    rhi::RenderPassInfo rpInfo{};
+    auto& attachment = rpInfo.attachments.emplace_back();
+    attachment.format = rhi::Format::RGBA16_SFLOAT;
+    attachment.initialLayout = rhi::ImageLayout::UNDEFINED;
+    attachment.finalLayout = rhi::ImageLayout::SHADER_READ_ONLY_OPTIMAL;
+    auto& subpass = rpInfo.subpasses.emplace_back();
+    subpass.colors.emplace_back(0, rhi::ImageLayout::COLOR_ATTACHMENT_OPTIMAL);
+    auto renderPass = rhi::RenderPassPtr(device->createRenderPass(rpInfo));
+
+    std::string vsrc{"#version 450 core\n"};
+    vsrc.append(vert);
+    rhi::ShaderSourceInfo vertSourceInfo{
+        vertPath.data(),
+        {rhi::ShaderStage::VERTEX, vsrc},
+    };
+    auto vertShader = rhi::ShaderPtr(device->createShader(vertSourceInfo));
+    std::string fsrc{"#version 450 core\n"};
+    fsrc.append(frag);
+    rhi::ShaderSourceInfo fragSourceInfo{
+        fragPath.data(),
+        {rhi::ShaderStage::FRAGMENT, fsrc},
+    };
+    auto fragShader = rhi::ShaderPtr(device->createShader(fragSourceInfo));
+    pplInfo.shaders.emplace_back(vertShader.get());
+    pplInfo.shaders.emplace_back(fragShader.get());
+    pplInfo.pipelineLayout = pplLayout.get();
+    pplInfo.renderPass = renderPass.get();
+    auto pso = rhi::GraphicsPipelinePtr(device->createGraphicsPipeline(pplInfo));
+
+    return std::make_tuple(layout0, layout, pplLayout, descPool, descSet0, descSet, renderPass, vertShader, fragShader, pso);
+}
+
+constexpr uint32_t diffuseResolution = 1024;
 void sampleEquirectangular(rhi::BufferPtr data,
                            uint32_t width,
                            uint32_t height,
@@ -163,138 +452,36 @@ void sampleEquirectangular(rhi::BufferPtr data,
         .format = imgInfo.format,
     };
 
-    scene::Texture texture{
-        .name = "equirectangularMap",
-        .texture = image,
-        .textureView = rhi::ImageViewPtr(device->createImageView(imgViewInfo)),
-    };
+    auto view = rhi::ImageViewPtr(device->createImageView(imgViewInfo));
+    auto [layout0,
+          layout,
+          pplLayout,
+          descPool,
+          descSet0,
+          descSet,
+          renderPass,
+          vertShader,
+          fragShader,
+          pso] = generateResources(view, vertSource, "equirectangularSource", fragSource, "equirectangularFrag", 0, device);
 
-    scene::MaterialTemplatePtr matTemplate = std::make_shared<scene::MaterialTemplate>("builtin-skybox_bake");
-    auto mat = matTemplate->instantiate("builtin-skybox_bake", scene::MaterialType::CUSTOM);
-    mat->add(texture);
-    scene::Sampler sampler{
-        "linearSampler",
-        rhi::SamplerInfo{
-            .magFilter = rhi::Filter::LINEAR,
-            .minFilter = rhi::Filter::LINEAR,
-        },
-    };
-    mat->add(sampler);
+    auto [views, frameBuffers] = renderCube(cubeImage, diffuseResolution, 0, pso, descSet0, descSet, nullptr, 0, renderPass, cmdBuffer, device);
 
-    boost::container::flat_map<std::string_view, uint32_t> bindings = {
-        {"equirectangularMap", 0},
-        {"linearSampler", 1}};
+    cmdBuffer->onComplete([=]() mutable {
+        layout0.reset();
+        layout.reset();
+        pplLayout.reset();
+        descSet0.reset();
+        descSet.reset();
+        descPool.reset();
+        renderPass.reset();
+        vertShader.reset();
+        fragShader.reset();
+        pso.reset();
+        view.reset();
+        image.reset();
 
-    rhi::DescriptorSetLayoutInfo descLayoutInfo;
-    descLayoutInfo.descriptorBindings.emplace_back(0, rhi::DescriptorType::SAMPLED_IMAGE, 1, rhi::ShaderStage::FRAGMENT);
-    descLayoutInfo.descriptorBindings.emplace_back(1, rhi::DescriptorType::SAMPLER, 1, rhi::ShaderStage::FRAGMENT);
-
-    auto layout = rhi::getOrCreateDescriptorSetLayout(descLayoutInfo, device);
-
-    const auto& meshData = meshRenderer->mesh()->meshData();
-    scene::TechniquePtr tech = std::make_shared<scene::Technique>(mat, "default");
-    tech->setPrimitiveType(rhi::PrimitiveType::TRIANGLE_LIST);
-    auto& ds = tech->depthStencilInfo();
-    ds.depthTestEnable = false;
-    ds.depthWriteEnable = true;
-    ds.depthCompareOp = rhi::CompareOp::LESS_OR_EQUAL;
-    auto& bs = tech->blendInfo();
-    bs.attachmentBlends.emplace_back();
-
-    rhi::PipelineLayoutInfo layoutInfo{};
-    layoutInfo.pushConstantRanges = {
-        {.size = 16 * sizeof(float)}};
-    layoutInfo.setLayouts.emplace_back(layout.get()); // 0
-    layoutInfo.setLayouts.emplace_back(layout.get()); // 1
-    layoutInfo.setLayouts.emplace_back(layout.get()); // 2
-    layoutInfo.setLayouts.emplace_back(layout.get()); // 3
-    auto pplLayout = rhi::getOrCreatePipelineLayout(layoutInfo, device);
-
-    rhi::RenderPassInfo rpInfo{};
-    auto& attachment = rpInfo.attachments.emplace_back();
-    attachment.format = rhi::Format::RGBA32_SFLOAT;
-    attachment.initialLayout = rhi::ImageLayout::UNDEFINED;
-    attachment.finalLayout = rhi::ImageLayout::SHADER_READ_ONLY_OPTIMAL;
-    auto& subpass = rpInfo.subpasses.emplace_back();
-    subpass.colors.emplace_back(0, rhi::ImageLayout::COLOR_ATTACHMENT_OPTIMAL);
-    auto renderPass = rhi::RenderPassPtr(device->createRenderPass(rpInfo));
-
-    boost::container::flat_map<rhi::ShaderStage, std::string> shaders = {
-        {rhi::ShaderStage::VERTEX, vertSource},
-        {rhi::ShaderStage::FRAGMENT, fragSource},
-    };
-    tech->bake(renderPass, pplLayout, meshData.vertexLayout, shaders, bindings, layout, device);
-    meshRenderer->addTechnique(tech);
-    meshRenderer->prepare({}, layout, device);
-    meshRenderer->update(cmdBuffer);
-
-    std::vector<rhi::ImageViewPtr> views;
-    std::vector<rhi::FrameBufferPtr> frameBuffers;
-    std::vector<Mat4> modelMats;
-    std::array<float, 6> angles = {
-        glm::half_pi<float>(),
-        -glm::half_pi<float>(),
-        -glm::half_pi<float>(),
-        glm::half_pi<float>(),
-        0.0f,
-        glm::pi<float>(),
-    };
-    std::array<Vec3f, 6> axis = {
-        Vec3f{0.0f, 1.0f, 0.0f},
-        Vec3f{0.0f, 1.0f, 0.0f},
-        Vec3f{1.0f, 0.0f, 0.0f},
-        Vec3f{1.0f, 0.0f, 0.0f},
-        Vec3f{0.0f, 0.0f, 1.0f},
-        Vec3f{0.0f, 0.0f, 1.0f},
-    };
-    for (uint32_t i = 0; i < 6; ++i) {
-        rhi::ImageViewInfo arrViewInfo{
-            .type = rhi::ImageViewType::IMAGE_VIEW_2D,
-            .image = cubeImage.get(),
-            .range = {
-                .firstSlice = i,
-                .sliceCount = 1,
-                .mipCount = 1,
-            },
-            .format = cubeImage->info().format,
-        };
-        auto view = views.emplace_back(rhi::ImageViewPtr(device->createImageView(arrViewInfo)));
-
-        rhi::FrameBufferInfo fbInfo{
-            .renderPass = renderPass.get(),
-            .images = {view.get()},
-            .width = resolution,
-            .height = resolution,
-            .layers = 1,
-        };
-        frameBuffers.emplace_back(rhi::FrameBufferPtr(device->createFrameBuffer(fbInfo)));
-
-        auto matrix = glm::rotate(Mat4(1.0f), angles[i], axis[i]);
-        modelMats.emplace_back(matrix);
-    }
-
-    auto renderEncoder = rhi::RenderEncoderPtr(cmdBuffer->makeRenderEncoder());
-    rhi::ClearValue clear = {1.0f, 1.0f, 1.0f, 1.0f};
-    rhi::Rect2D rect{0, 0, resolution, resolution};
-    for (uint32_t i = 0; i < 6; ++i) {
-        rhi::RenderPassBeginInfo beginInfo{
-            .renderPass = renderPass.get(),
-            .frameBuffer = frameBuffers[i].get(),
-            .renderArea = rect,
-            .clearColors = &clear,
-        };
-        renderEncoder->beginRenderPass(beginInfo);
-        renderEncoder->setViewport({rect});
-        renderEncoder->setScissor(rect);
-        renderEncoder->bindPipeline(tech->pipelineState().get());
-        renderEncoder->bindDescriptorSet(mat->bindGroup()->descriptorSet().get(), 1, nullptr, 0);
-        renderEncoder->pushConstants(rhi::ShaderStage::VERTEX, 0, &modelMats[i], 16 * sizeof(float));
-        renderEncoder->bindVertexBuffer(meshData.vertexBuffer.buffer.get(), 0);
-        renderEncoder->draw(meshData.vertexCount, 1, 0, 0);
-        renderEncoder->endRenderPass();
-    }
-    cmdBuffer->onComplete([views, frameBuffers, renderPass, image, mat]() mutable {
-        mat.reset();
+        views.clear();
+        frameBuffers.clear();
     });
 }
 
@@ -328,7 +515,7 @@ void bakeIrradiance(rhi::ImagePtr& diffuse,
     rhi::ImageInfo diffuseInfo{
         .usage = rhi::ImageUsage::SAMPLED | rhi::ImageUsage::COLOR_ATTACHMENT,
         .imageFlag = rhi::ImageFlag::CUBE_COMPATIBLE,
-        .format = rhi::Format::RGBA32_SFLOAT,
+        .format = rhi::Format::RGBA16_SFLOAT,
         .sliceCount = 6,
         .extent = {32, 32, 1},
     };
@@ -345,164 +532,95 @@ void bakeIrradiance(rhi::ImagePtr& diffuse,
     };
     diffuseView = rhi::ImageViewPtr(device->createImageView(dvInfo));
 
-    rhi::RenderPassInfo rpInfo{};
-    auto& attachment = rpInfo.attachments.emplace_back();
-    attachment.format = rhi::Format::RGBA32_SFLOAT;
-    attachment.initialLayout = rhi::ImageLayout::UNDEFINED;
-    attachment.finalLayout = rhi::ImageLayout::SHADER_READ_ONLY_OPTIMAL;
-    auto& subpass = rpInfo.subpasses.emplace_back();
-    subpass.colors.emplace_back(0, rhi::ImageLayout::COLOR_ATTACHMENT_OPTIMAL);
-    auto renderPass = rhi::RenderPassPtr(device->createRenderPass(rpInfo));
+    auto [layout0,
+          layout,
+          pplLayout,
+          descPool,
+          descSet0,
+          descSet,
+          renderPass,
+          vertShader,
+          fragShader,
+          pso] = generateResources(cubeView, vertSource, "bakeDiffuseVert", diffuseIrradianceSource, "bakeDiffuseFrag", 0, device);
 
-    rhi::DescriptorSetLayoutInfo layoutInfo;
-    auto& imgBindinng = layoutInfo.descriptorBindings.emplace_back();
-    imgBindinng.binding = 0;
-    imgBindinng.count = 1;
-    imgBindinng.type = rhi::DescriptorType::SAMPLED_IMAGE;
-    imgBindinng.visibility = rhi::ShaderStage::FRAGMENT;
-    auto& samplerBinding = layoutInfo.descriptorBindings.emplace_back();
-    samplerBinding.binding = 1;
-    samplerBinding.count = 1;
-    samplerBinding.type = rhi::DescriptorType::SAMPLER;
-    samplerBinding.visibility = rhi::ShaderStage::FRAGMENT;
-    auto layout = rhi::DescriptorSetLayoutPtr(device->createDescriptorSetLayout(layoutInfo));
+    auto [views, frameBuffers] = renderCube(diffuse, 32, 0, pso, descSet0, descSet, nullptr, 0, renderPass, cmdBuffer, device);
 
-    auto layout0 = rhi::DescriptorSetLayoutPtr(device->createDescriptorSetLayout(rhi::DescriptorSetLayoutInfo{}));
-    rhi::PipelineLayoutInfo pplLayoutInfo;
-    pplLayoutInfo.setLayouts.emplace_back(layout0.get());
-    pplLayoutInfo.setLayouts.emplace_back(layout.get());
-    pplLayoutInfo.pushConstantRanges = {
-        {.size = 16 * sizeof(float)}};
-    auto pplLayout = rhi::PipelineLayoutPtr(device->createPipelineLayout(pplLayoutInfo));
-
-    rhi::DescriptorSetInfo setInfo;
-    setInfo.layout = layout.get();
-    auto& imgBd = setInfo.bindingInfos.imageBindings.emplace_back();
-    imgBd.type = rhi::DescriptorType::SAMPLED_IMAGE;
-    imgBd.binding = 0;
-    imgBd.arrayElement = 0;
-    imgBd.imageViews.emplace_back(rhi::ImageLayout::SHADER_READ_ONLY_OPTIMAL, cubeView.get());
-    auto& samplerBd = setInfo.bindingInfos.samplerBindings.emplace_back();
-    samplerBd.arrayElement = 0;
-    samplerBd.binding = 1;
-    rhi::SamplerInfo samplerInfo{
-        .magFilter = rhi::Filter::LINEAR,
-        .minFilter = rhi::Filter::LINEAR,
-    };
-    samplerBd.samplers.emplace_back(device->getSampler(samplerInfo));
-
-    const auto& descPoolInfo = rhi::makeDescriptorPoolInfo(pplLayout->info().setLayouts);
-    auto descPool = rhi::DescriptorPoolPtr(device->createDescriptorPool(descPoolInfo));
-    auto descSet = rhi::DescriptorSetPtr(descPool->makeDescriptorSet(setInfo));
-    descSet->updateImage(imgBd);
-    descSet->updateSampler(samplerBd);
-
-    rhi::GraphicsPipelineInfo pplInfo;
-    pplInfo.colorBlendInfo.attachmentBlends.emplace_back();
-    pplInfo.depthStencilInfo.depthTestEnable = false;
-    pplInfo.depthStencilInfo.depthWriteEnable = false;
-    pplInfo.primitiveType = rhi::PrimitiveType::TRIANGLE_LIST;
-    pplInfo.vertexLayout = scene::Cube::vertexLayout;
-
-    std::string vsrc{"#version 450 core\n"};
-    vsrc.append(vertSource);
-    rhi::ShaderSourceInfo vertSourceInfo{
-        "ndc-pos",
-        {rhi::ShaderStage::VERTEX, vsrc},
-    };
-    auto vertShader = rhi::ShaderPtr(device->createShader(vertSourceInfo));
-    std::string fsrc{"#version 450 core\n"};
-    fsrc.append(diffuseIrradianceSource);
-    rhi::ShaderSourceInfo fragSourceInfo{
-        "diffuseIrradianceSource",
-        {rhi::ShaderStage::FRAGMENT, fsrc},
-    };
-    auto fragShader = rhi::ShaderPtr(device->createShader(fragSourceInfo));
-    pplInfo.shaders.emplace_back(vertShader.get());
-    pplInfo.shaders.emplace_back(fragShader.get());
-    pplInfo.pipelineLayout = pplLayout.get();
-    pplInfo.renderPass = renderPass.get();
-    auto pso = rhi::GraphicsPipelinePtr(device->createGraphicsPipeline(pplInfo));
-
-    auto renderEncoder = rhi::RenderEncoderPtr(cmdBuffer->makeRenderEncoder());
-    rhi::ClearValue clear = {1.0f, 1.0f, 1.0f, 1.0f};
-    rhi::Rect2D rect{0, 0, 32, 32};
-
-    std::vector<rhi::ImageViewPtr> views;
-    std::vector<rhi::FrameBufferPtr> frameBuffers;
-    std::vector<Mat4> modelMats;
-    std::array<float, 6> angles = {
-        glm::half_pi<float>(),
-        -glm::half_pi<float>(),
-        -glm::half_pi<float>(),
-        glm::half_pi<float>(),
-        0.0f,
-        glm::pi<float>(),
-    };
-    std::array<Vec3f, 6> axis = {
-        Vec3f{0.0f, 1.0f, 0.0f},
-        Vec3f{0.0f, 1.0f, 0.0f},
-        Vec3f{1.0f, 0.0f, 0.0f},
-        Vec3f{1.0f, 0.0f, 0.0f},
-        Vec3f{0.0f, 0.0f, 1.0f},
-        Vec3f{0.0f, 0.0f, 1.0f},
-    };
-    for (uint32_t i = 0; i < 6; ++i) {
-        rhi::ImageViewInfo arrViewInfo{
-            .type = rhi::ImageViewType::IMAGE_VIEW_2D,
-            .image = diffuse.get(),
-            .range = {
-                .firstSlice = i,
-                .sliceCount = 1,
-                .mipCount = 1,
-            },
-            .format = diffuse->info().format,
-        };
-        auto view = views.emplace_back(rhi::ImageViewPtr(device->createImageView(arrViewInfo)));
-
-        rhi::FrameBufferInfo fbInfo{
-            .renderPass = renderPass.get(),
-            .images = {view.get()},
-            .width = 32,
-            .height = 32,
-            .layers = 1,
-        };
-        frameBuffers.emplace_back(rhi::FrameBufferPtr(device->createFrameBuffer(fbInfo)));
-
-        auto matrix = glm::rotate(Mat4(1.0f), angles[i], axis[i]);
-        modelMats.emplace_back(matrix);
-    }
-    for (uint32_t i = 0; i < 6; ++i) {
-        rhi::RenderPassBeginInfo beginInfo{
-            .renderPass = renderPass.get(),
-            .frameBuffer = frameBuffers[i].get(),
-            .renderArea = rect,
-            .clearColors = &clear,
-        };
-        renderEncoder->beginRenderPass(beginInfo);
-        renderEncoder->setViewport({rect});
-        renderEncoder->setScissor(rect);
-        renderEncoder->bindPipeline(pso.get());
-        renderEncoder->bindDescriptorSet(descSet.get(), 1, nullptr, 0);
-        renderEncoder->bindVertexBuffer(scene::Cube::vertexBuffer.buffer.get(), 0);
-        renderEncoder->pushConstants(rhi::ShaderStage::VERTEX, 0, &modelMats[i], 16 * sizeof(float));
-        renderEncoder->draw(scene::Cube::vertexCount, 1, 0, 0);
-        renderEncoder->endRenderPass();
-    }
-
-    cmdBuffer->onComplete([renderPass,
-                           layout,
-                           descSet,
-                           pplLayout,
-                           vertShader,
-                           fragShader,
-                           pso,
-                           frameBuffers,
-                           views,
-                           descPool]() mutable {
+    cmdBuffer->onComplete([=]() mutable {
+        layout0.reset();
+        layout.reset();
+        pplLayout.reset();
+        descSet0.reset();
         descSet.reset();
         descPool.reset();
-        });
+        renderPass.reset();
+        vertShader.reset();
+        fragShader.reset();
+        pso.reset();
+        views.clear();
+        frameBuffers.clear();
+    });
+}
+
+void prefilterSpecular(rhi::ImagePtr& specular,
+                       rhi::ImageViewPtr& specularView,
+                       rhi::ImageViewPtr cubeView,
+                       rhi::CommandBufferPtr cmdBuffer,
+                       rhi::DevicePtr device) {
+    rhi::ImageInfo specularInfo{
+        .usage = rhi::ImageUsage::SAMPLED | rhi::ImageUsage::COLOR_ATTACHMENT,
+        .imageFlag = rhi::ImageFlag::CUBE_COMPATIBLE,
+        .format = rhi::Format::RGBA16_SFLOAT,
+        .sliceCount = 6,
+        .mipCount = 8,
+        .extent = {128, 128, 1},
+    };
+    specular = rhi::ImagePtr(device->createImage(specularInfo));
+
+    rhi::ImageViewInfo dvInfo{
+        .type = rhi::ImageViewType::IMAGE_VIEW_CUBE,
+        .image = specular.get(),
+        .range = {
+            .sliceCount = 6,
+            .mipCount = 8,
+        },
+        .format = specularInfo.format,
+    };
+    specularView = rhi::ImageViewPtr(device->createImageView(dvInfo));
+
+    auto [layout0,
+          layout,
+          pplLayout,
+          descPool,
+          descSet0,
+          descSet,
+          renderPass,
+          vertShader,
+          fragShader,
+          pso] = generateResources(cubeView, vertSource, "prefilterVert", specularPrefilterSource, "prefilterFrag", 4, device);
+
+    std::vector<std::vector<rhi::ImageViewPtr>> views;
+    std::vector<std::vector<rhi::FrameBufferPtr>> frameBuffers;
+    for(size_t i = 0; i < 8; ++i) {
+        float roughness = 1.0f / 7 * i;
+        auto [vs, fbs] = renderCube(specular, 128, i, pso, descSet0, descSet, &roughness, 4, renderPass, cmdBuffer, device);
+        views.emplace_back(vs);
+        frameBuffers.emplace_back(fbs);
+    }
+
+    cmdBuffer->onComplete([=]() mutable {
+        layout0.reset();
+        layout.reset();
+        pplLayout.reset();
+        descSet0.reset();
+        descSet.reset();
+        descPool.reset();
+        renderPass.reset();
+        vertShader.reset();
+        fragShader.reset();
+        pso.reset();
+        views.clear();
+        frameBuffers.clear();
+    });
 }
 
 Skybox::Skybox(rhi::BufferPtr data,
@@ -519,12 +637,12 @@ Skybox::Skybox(rhi::BufferPtr data,
         .usage = rhi::ImageUsage::COLOR_ATTACHMENT | rhi::ImageUsage::SAMPLED,
         .imageFlag = rhi::ImageFlag::CUBE_COMPATIBLE,
         .intialLayout = rhi::ImageLayout::UNDEFINED,
-        .format = rhi::Format::RGBA32_SFLOAT,
+        .format = rhi::Format::RGBA16_SFLOAT,
         .sliceCount = 6,
         .mipCount = 1,
         .extent = {
-            resolution,
-            resolution,
+            diffuseResolution,
+            diffuseResolution,
             1,
         }};
     _cubeImage = rhi::ImagePtr(device->createImage(cubeImageInfo));
@@ -532,6 +650,7 @@ Skybox::Skybox(rhi::BufferPtr data,
     sampleEquirectangular(data, width, height, cmdBuffer, device, shaderGraph, _cubeImage, meshRenderer);
     init(meshRenderer, cmdBuffer, device);
     bakeIrradiance(_diffuse, _diffuseView, _cubeView, cmdBuffer, device);
+    prefilterSpecular(_specular, _specularView, _cubeView, cmdBuffer, device);
 }
 
 void Skybox::init(scene::MeshRendererPtr meshRenderer, rhi::CommandBufferPtr cmdBuffer, rhi::DevicePtr device) {
@@ -571,8 +690,10 @@ void Skybox::init(scene::MeshRendererPtr meshRenderer, rhi::CommandBufferPtr cmd
     ds.depthCompareOp = rhi::CompareOp::LESS_OR_EQUAL;
     auto& bs = skyboxTech->blendInfo();
     bs.attachmentBlends.emplace_back();
+    //auto& rs = skyboxTech->rasterizationInfo();
+    //rs.frontFace = rhi::FrontFace::COUNTER_CLOCKWISE;
+    //rs.cullMode = rhi::FaceMode::BACK;
 
-    meshRenderer->removeTechnique(0);
     meshRenderer->addTechnique(skyboxTech);
     meshRenderer->setVertexInfo(0, 36, 0);
 }
@@ -587,6 +708,14 @@ rhi::ImageViewPtr Skybox::diffuseIrradianceView() const {
 
 scene::ModelPtr Skybox::model() const {
     return _model;
+}
+
+rhi::ImagePtr Skybox::prefilteredSpecularImage() const {
+    return _specular;
+}
+
+rhi::ImageViewPtr Skybox::prefilteredSpecularView() const {
+    return _specularView;
 }
 
 } // namespace raum::asset

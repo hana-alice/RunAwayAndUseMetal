@@ -2,7 +2,25 @@
   "path": "asset/layout/skybox",
   "vertex": {
     "source": "skybox",
-    "bindings": []
+    "bindings": [
+      {
+        "slot": 0,
+        "resource": "buffer",
+        "usage": "uniform",
+        "rate": "per_pass",
+        "elements": [
+          {
+            "type": "mat4",
+            "count": 1
+          },
+          {
+            "type": "mat4",
+            "count": 1
+          }
+        ],
+        "count": 1
+      }
+    ]
   },
   "fragment": {
     "source": "skybox",

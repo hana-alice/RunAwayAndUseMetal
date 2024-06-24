@@ -1,5 +1,6 @@
 #include "SceneSerializer.h"
 #include <numeric>
+#include "BuiltinRes.h"
 #include "Mesh.h"
 #include "PBRMaterial.h"
 #include "RHIBlitEncoder.h"
@@ -7,7 +8,6 @@
 #include "RHIUtils.h"
 #include "Technique.h"
 #include "core/define.h"
-#include "BuiltinRes.h"
 
 #define TINYGLTF_IMPLEMENTATION
 #define STB_IMAGE_IMPLEMENTATION
@@ -214,7 +214,7 @@ void loadMaterial(const tinygltf::Model& rawModel,
         mrno[4] = res.emissiveFactor[0];
         mrno[5] = res.emissiveFactor[1];
         mrno[6] = res.emissiveFactor[2];
-        if(res.emissiveFactor.size() == 4) {
+        if (res.emissiveFactor.size() == 4) {
             mrno[7] = res.emissiveFactor[3];
         } else {
             mrno[7] = 1.0f;
@@ -229,19 +229,33 @@ void loadMaterial(const tinygltf::Model& rawModel,
     auto mrnoBuffer = rhi::BufferPtr(device->createBuffer(bufferInfo));
     pbrMat->add(scene::Buffer{"PBRParams", mrnoBuffer});
 
-    rhi::SamplerInfo linearInfo {
+    rhi::SamplerInfo linearInfo{
         .magFilter = rhi::Filter::LINEAR,
         .minFilter = rhi::Filter::LINEAR,
     };
     pbrMat->add({"linearSampler", linearInfo});
     pbrMat->add({"pointSampler", rhi::SamplerInfo{}});
 
-    scene::Texture diffuseIrradiance {
+    scene::Texture diffuseIrradiance{
         .name = "diffuseEnvMap",
         .texture = BuiltinRes::skybox().diffuseIrradianceImage(),
         .textureView = BuiltinRes::skybox().diffuseIrradianceView(),
     };
     pbrMat->add(diffuseIrradiance);
+
+    scene::Texture prefilteredSpecular{
+        .name = "specularMap",
+        .texture = BuiltinRes::skybox().prefilteredSpecularImage(),
+        .textureView = BuiltinRes::skybox().prefilteredSpecularView(),
+    };
+    pbrMat->add(prefilteredSpecular);
+
+    scene::Texture brdfLUT{
+        .name = "brdfLUT",
+        .texture = BuiltinRes::iblBrdfLUT(),
+        .textureView = BuiltinRes::iblBrdfLUTView(),
+    };
+    pbrMat->add(brdfLUT);
 }
 
 void applyNodeTransform(const tinygltf::Node& rawNode, graph::SceneNode& node) {
@@ -659,7 +673,5 @@ void load(graph::SceneGraph& sg, const std::filesystem::path& filePath, std::str
     commandBuffer->commit();
     queue->submit();
 }
-
-
 
 } // namespace raum::asset::serialize

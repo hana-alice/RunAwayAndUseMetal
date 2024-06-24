@@ -178,7 +178,7 @@ struct ShaderBindingDesc {
 struct ShaderResource {
     std::unordered_map<std::string, ShaderBindingDesc, hash_string, std::equal_to<>> bindings;
     std::array<rhi::DescriptorSetLayoutPtr, rhi::BindingRateCount> descriptorLayouts;
-    rhi::PipelineLayoutPtr pipelineLayout;
+    std::vector<rhi::PushConstantRange> constants;
     boost::container::flat_map<ShaderStage, std::string> shaderSources;
 };
 

@@ -4,6 +4,8 @@
 #include "RHIBufferView.h"
 #include "RHIDefine.h"
 #include "RHIDevice.h"
+#include "RHICommandBuffer.h"
+#include "RHIBlitEncoder.h"
 
 namespace raum::rhi {
 bool operator==(const SamplerInfo& lhs, const SamplerInfo& rhs) {
@@ -379,20 +381,20 @@ std::size_t hash_value(const GraphicsPipelineInfo& info) {
 }
 
 namespace {
-std::unordered_map<rhi::DescriptorSetLayoutInfo, rhi::DescriptorSetLayoutPtr, rhi::RHIHash<rhi::DescriptorSetLayoutInfo>> _descriptorsetLayoutMap;
-std::unordered_map<rhi::PipelineLayoutInfo, rhi::PipelineLayoutPtr, rhi::RHIHash<rhi::PipelineLayoutInfo>> _pplLayoutMap;
+std::unordered_map<DescriptorSetLayoutInfo, DescriptorSetLayoutPtr, RHIHash<DescriptorSetLayoutInfo>> _descriptorsetLayoutMap;
+std::unordered_map<PipelineLayoutInfo, PipelineLayoutPtr, RHIHash<PipelineLayoutInfo>> _pplLayoutMap;
 } // namespace
 
-rhi::DescriptorSetLayoutPtr getOrCreateDescriptorSetLayout(const rhi::DescriptorSetLayoutInfo& info, rhi::DevicePtr device) {
+DescriptorSetLayoutPtr getOrCreateDescriptorSetLayout(const DescriptorSetLayoutInfo& info, DevicePtr device) {
     if (!_descriptorsetLayoutMap.contains(info)) {
-        _descriptorsetLayoutMap[info] = rhi::DescriptorSetLayoutPtr(device->createDescriptorSetLayout(info));
+        _descriptorsetLayoutMap[info] = DescriptorSetLayoutPtr(device->createDescriptorSetLayout(info));
     }
     return _descriptorsetLayoutMap.at(info);
 }
 
-rhi::PipelineLayoutPtr getOrCreatePipelineLayout(const rhi::PipelineLayoutInfo& info, rhi::DevicePtr device) {
+PipelineLayoutPtr getOrCreatePipelineLayout(const PipelineLayoutInfo& info, DevicePtr device) {
     if (!_pplLayoutMap.contains(info)) {
-        _pplLayoutMap[info] = rhi::PipelineLayoutPtr(device->createPipelineLayout(info));
+        _pplLayoutMap[info] = PipelineLayoutPtr(device->createPipelineLayout(info));
     }
     return _pplLayoutMap.at(info);
 }
@@ -542,6 +544,66 @@ SamplerInfo sampler{
 
 [[nodiscard]] SamplerInfo defaultLinearSampler(DevicePtr device) {
     return sampler;
+}
+
+[[nodiscard]]ImagePtr createImageFromBuffer(BufferPtr buffer,
+                                             uint32_t width,
+                                             uint32_t height,
+                                             Format format,
+                                             CommandBufferPtr cmdBuffer,
+                                             DevicePtr device) {
+    ImageInfo imgInfo {
+        .usage = ImageUsage::TRANSFER_DST | ImageUsage::SAMPLED,
+        .format = format,
+        .extent = {width, height, 1},
+    };
+    ImagePtr img = ImagePtr(device->createImage(imgInfo));
+    ImageBarrierInfo transferDstBarrier{
+        .image = img.get(),
+        .dstStage = PipelineStage::TRANSFER,
+        .newLayout = ImageLayout::TRANSFER_DST_OPTIMAL,
+        .dstAccessFlag = AccessFlags::TRANSFER_WRITE,
+        .range = {
+            .sliceCount = 1,
+            .mipCount = 1,
+        }};
+    cmdBuffer->appendImageBarrier(transferDstBarrier);
+    cmdBuffer->applyBarrier({});
+
+    auto blit = BlitEncoderPtr(cmdBuffer->makeBlitEncoder());
+    BufferImageCopyRegion region{
+        .bufferSize = buffer->info().size,
+        .bufferOffset = 0,
+        .bufferRowLength = 0,
+        .bufferImageHeight = 0,
+        .imageAspect = AspectMask::COLOR,
+        .imageExtent = {
+            width,
+            height,
+            1,
+        },
+    };
+    blit->copyBufferToImage(buffer.get(),
+                            img.get(),
+                            ImageLayout::TRANSFER_DST_OPTIMAL,
+                            &region,
+                            1);
+    ImageBarrierInfo imgBarrierInfo{
+        .image = img.get(),
+        .srcStage = PipelineStage::TRANSFER,
+        .dstStage = PipelineStage::FRAGMENT_SHADER,
+        .oldLayout = ImageLayout::TRANSFER_DST_OPTIMAL,
+        .newLayout = ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+        .srcAccessFlag = AccessFlags::TRANSFER_WRITE,
+        .dstAccessFlag = AccessFlags::SHADER_READ,
+        .range = {
+            .sliceCount = 1,
+            .mipCount = 1,
+        }};
+    cmdBuffer->appendImageBarrier(imgBarrierInfo);
+    cmdBuffer->applyBarrier({});
+
+    return img;
 }
 
 } // namespace raum::rhi

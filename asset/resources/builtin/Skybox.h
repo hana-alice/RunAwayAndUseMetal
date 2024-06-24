@@ -24,8 +24,8 @@ public:
     rhi::ImagePtr diffuseIrradianceImage() const;
     rhi::ImageViewPtr diffuseIrradianceView() const;
 
-    rhi::ImagePtr specularIrradianceImage() const;
-    rhi::ImageViewPtr specularIrradianceView() const;
+    rhi::ImagePtr prefilteredSpecularImage() const;
+    rhi::ImageViewPtr prefilteredSpecularView() const;
 
 private:
     void init(scene::MeshRendererPtr meshRenderer, rhi::CommandBufferPtr cmdBuffer, rhi::DevicePtr device);
