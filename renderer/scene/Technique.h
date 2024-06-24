@@ -22,24 +22,36 @@ public:
 
     rhi::GraphicsPipelinePtr pipelineState();
 
-    void bake(rhi::RenderPassPtr renderpass,
-              rhi::PipelineLayoutPtr pplLayout,
-              rhi::VertexLayout vertexLayout,
-              const boost::container::flat_map<rhi::ShaderStage, std::string>& shaderIn,
-              const boost::container::flat_map<std::string_view, uint32_t>& perBatchBinding,
-              rhi::DescriptorSetLayoutPtr batchLayout,
-              rhi::DevicePtr device);
+    void bakePipeline(rhi::RenderPassPtr renderpass,
+                      rhi::DescriptorSetLayoutPtr passDescSet,
+                      rhi::DescriptorSetLayoutPtr batchDescSet,
+                      rhi::DescriptorSetLayoutPtr instDescSet,
+                      rhi::DescriptorSetLayoutPtr drawDescSet,
+                      const std::vector<rhi::PushConstantRange>& constants,
+                      rhi::VertexLayout vertexLayout,
+                      const boost::container::flat_map<rhi::ShaderStage, std::string>& shaderIn,
+                      rhi::DevicePtr device);
+
+    void bakeMaterial(const boost::container::flat_map<std::string_view, uint32_t>& perBatchBinding,
+                      rhi::DescriptorSetLayoutPtr batchLayout,
+                      rhi::DevicePtr device);
+
+    bool hasPassBinding() const;
+    bool hasBatchBinding() const;
+    bool hasInstanceBinding() const;
+    bool hasDrawBinding() const;
 
 private:
     std::string _phaseName;
     MaterialPtr _material;
     rhi::GraphicsPipelinePtr _pso;
-    rhi::PrimitiveType _primitiveType{rhi::PrimitiveType::TRIANGLE_STRIP};
+    rhi::PrimitiveType _primitiveType{rhi::PrimitiveType::TRIANGLE_LIST};
     rhi::RasterizationInfo _rasterizationInfo;
     rhi::DepthStencilInfo _depthStencilInfo;
     rhi::BlendInfo _blendInfo;
     rhi::MultisamplingInfo _multisamplingInfo;
     std::vector<rhi::ShaderPtr> _shaders;
+    std::array<int32_t, 4> _bindingBound;
 };
 using TechniquePtr = std::shared_ptr<Technique>;
 

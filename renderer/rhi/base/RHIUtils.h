@@ -356,8 +356,8 @@ static const std::unordered_map<Format, std::string_view> format2str{
 
 uint32_t getFormatSize(Format format);
 
-rhi::DescriptorSetLayoutPtr getOrCreateDescriptorSetLayout(const rhi::DescriptorSetLayoutInfo& info, rhi::DevicePtr device);
-rhi::PipelineLayoutPtr getOrCreatePipelineLayout(const rhi::PipelineLayoutInfo& info, rhi::DevicePtr device);
+DescriptorSetLayoutPtr getOrCreateDescriptorSetLayout(const DescriptorSetLayoutInfo& info, DevicePtr device);
+PipelineLayoutPtr getOrCreatePipelineLayout(const PipelineLayoutInfo& info, DevicePtr device);
 
 bool hasDepth(Format format);
 bool hasStencil(Format format);
@@ -371,5 +371,13 @@ BufferPtr defaultStorageBuffer(DevicePtr);
 BufferViewPtr defaultUniformBufferView(DevicePtr);
 BufferViewPtr defaultStorageBufferView(DevicePtr);
 SamplerInfo defaultLinearSampler(DevicePtr);
+
+ImagePtr createImageFromBuffer(BufferPtr buffer,
+                               uint32_t width,
+                               uint32_t height,
+                               Format format,
+                               CommandBufferPtr cmdBuffer,
+                               DevicePtr device);
+ImageViewPtr createDefaultView(ImagePtr image, DevicePtr device);
 
 } // namespace raum::rhi

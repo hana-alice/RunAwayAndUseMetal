@@ -14,4 +14,7 @@ void load(graph::SceneGraph& sg,
 void load(graph::SceneGraph& sg,
           const std::filesystem::path& filePath,
           rhi::DevicePtr device);
+
+void loadSkybox(const std::filesystem::path& filePath,
+                rhi::DevicePtr device);
 }

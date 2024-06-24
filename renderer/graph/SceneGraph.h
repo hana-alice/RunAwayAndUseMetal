@@ -59,43 +59,36 @@ public:
     SceneGraph& operator=(const SceneGraph&) = delete;
     SceneGraph(SceneGraph&&) = delete;
 
-    SceneNode& addModel(std::string_view name, std::string_view parent);
-    SceneNode& addCamera(std::string_view name, std::string_view parent);
-    SceneNode& addLight(std::string_view name, std::string_view parent);
-    SceneNode& addEmpty(std::string_view name, std::string_view parent);
+    ModelNode& addModel(std::string_view name);
+    CameraNode& addCamera(std::string_view name);
+    LightNode& addLight(std::string_view name);
+    ModelNode& addModel(std::string_view name, std::string_view parent);
+    CameraNode& addCamera(std::string_view name, std::string_view parent);
+    LightNode& addLight(std::string_view name, std::string_view parent);
+    EmptyNode& addEmpty(std::string_view name, std::string_view parent);
     // root node
-    SceneNode& addEmpty(std::string_view name);
+    EmptyNode& addEmpty(std::string_view name);
 
     SceneNode& get(std::string_view name);
     
     void enable(std::string_view name);
     void disable(std::string_view name);
 
-    SceneNode& sceneRoot() const;
+    SceneNode& sceneRoot();
 
     void reset();
 
     const SceneGraphImpl& impl() const { return _graph; }
 
-    auto& models() {
-        return _models;
-    }
-
-    auto& cameras() {
-        return _cameras;
-    }
-
-    auto& lights() {
-        return _lights;
-    }
+    // deprecated future
+    void updateModel(rhi::CommandBufferPtr cmdBuffer);
 
 
 private:
     SceneGraphImpl _graph;
-    std::vector<std::reference_wrapper<SceneNode>> _models;
-    std::vector<std::reference_wrapper<SceneNode>> _cameras;
-    std::vector<std::reference_wrapper<SceneNode>> _lights;
-
+    uint32_t _root{0};
 };
+
+using SceneGraphPtr = std::unique_ptr<SceneGraph>;
 
 } // namespace raum::graph

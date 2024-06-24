@@ -1,5 +1,6 @@
 #include "SceneSerializer.h"
 #include <numeric>
+#include "BuiltinRes.h"
 #include "Mesh.h"
 #include "PBRMaterial.h"
 #include "RHIBlitEncoder.h"
@@ -131,6 +132,8 @@ void loadMaterial(const tinygltf::Model& rawModel,
     auto& ds = tech->depthStencilInfo();
     ds.depthTestEnable = true;
     ds.depthWriteEnable = true;
+    auto& bs = tech->blendInfo();
+    bs.attachmentBlends.emplace_back();
 
     const auto& ef = res.emissiveFactor;
     raum_check(ef.size() == 3, "Unexpected emissive factor components!");
@@ -211,7 +214,7 @@ void loadMaterial(const tinygltf::Model& rawModel,
         mrno[4] = res.emissiveFactor[0];
         mrno[5] = res.emissiveFactor[1];
         mrno[6] = res.emissiveFactor[2];
-        if(res.emissiveFactor.size() == 4) {
+        if (res.emissiveFactor.size() == 4) {
             mrno[7] = res.emissiveFactor[3];
         } else {
             mrno[7] = 1.0f;
@@ -225,6 +228,34 @@ void loadMaterial(const tinygltf::Model& rawModel,
     };
     auto mrnoBuffer = rhi::BufferPtr(device->createBuffer(bufferInfo));
     pbrMat->add(scene::Buffer{"PBRParams", mrnoBuffer});
+
+    rhi::SamplerInfo linearInfo{
+        .magFilter = rhi::Filter::LINEAR,
+        .minFilter = rhi::Filter::LINEAR,
+    };
+    pbrMat->add({"linearSampler", linearInfo});
+    pbrMat->add({"pointSampler", rhi::SamplerInfo{}});
+
+    scene::Texture diffuseIrradiance{
+        .name = "diffuseEnvMap",
+        .texture = BuiltinRes::skybox().diffuseIrradianceImage(),
+        .textureView = BuiltinRes::skybox().diffuseIrradianceView(),
+    };
+    pbrMat->add(diffuseIrradiance);
+
+    scene::Texture prefilteredSpecular{
+        .name = "specularMap",
+        .texture = BuiltinRes::skybox().prefilteredSpecularImage(),
+        .textureView = BuiltinRes::skybox().prefilteredSpecularView(),
+    };
+    pbrMat->add(prefilteredSpecular);
+
+    scene::Texture brdfLUT{
+        .name = "brdfLUT",
+        .texture = BuiltinRes::iblBrdfLUT(),
+        .textureView = BuiltinRes::iblBrdfLUTView(),
+    };
+    pbrMat->add(brdfLUT);
 }
 
 void applyNodeTransform(const tinygltf::Node& rawNode, graph::SceneNode& node) {
@@ -258,10 +289,10 @@ void loadMesh(const tinygltf::Model& rawModel,
               rhi::DevicePtr device) {
     const auto& rawNode = rawModel.nodes[nodeIndex];
     const auto& rawMesh = rawModel.meshes[rawNode.mesh];
-    auto& node = sg.addModel(rawMesh.name, parentName);
-    applyNodeTransform(rawNode, node);
+    auto& modelNode = sg.addModel(rawMesh.name, parentName);
+    auto& sceneNode = sg.get(rawMesh.name);
+    applyNodeTransform(rawNode, sceneNode);
 
-    auto& modelNode = std::get<graph::ModelNode>(node.sceneNodeData);
     modelNode.model = std::make_shared<scene::Model>();
     auto& model = *modelNode.model;
 
@@ -413,7 +444,7 @@ void loadMesh(const tinygltf::Model& rawModel,
             .size = static_cast<uint32_t>(data.size() * sizeof(float)),
             .data = data.data(),
         };
-        meshData.vertexBuffer.buffer = device->createBuffer(bufferSourceInfo);
+        meshData.vertexBuffer.buffer = rhi::BufferPtr(device->createBuffer(bufferSourceInfo));
         auto& bufferAttribute = vertexLayout.vertexBufferAttrs.emplace_back();
         bufferAttribute.binding = 0;
         bufferAttribute.rate = rhi::InputRate::PER_VERTEX;
@@ -451,7 +482,7 @@ void loadMesh(const tinygltf::Model& rawModel,
                 break;
             }
         }
-        meshData.indexBuffer.buffer = device->createBuffer(indexBufferSource);
+        meshData.indexBuffer.buffer = rhi::BufferPtr(device->createBuffer(indexBufferSource));
 
         auto localMatIndex = prim.material;
         if (!techs.contains(localMatIndex)) {
@@ -475,15 +506,16 @@ void loadMesh(const tinygltf::Model& rawModel,
         auto meshRenderer = model.meshRenderers().emplace_back(std::make_shared<scene::MeshRenderer>(mesh));
         meshRenderer->addTechnique(tech);
         meshRenderer->setVertexInfo(0, meshData.vertexCount, meshData.indexCount);
-        meshRenderer->setTransform(node.node.transform());
+        meshRenderer->setTransform(sceneNode.node.transform());
+        meshRenderer->setTransformSlot("LocalMat");
     }
 }
 
 void loadCamera(const tinygltf::Model& rawModel, const tinygltf::Node& rawNode, graph::SceneGraph& sg, std::string_view parentName) {
     const auto& rawCam = rawModel.cameras[rawNode.camera];
-    auto& node = sg.addCamera(rawCam.name, parentName);
-    auto& camNode = std::get<graph::CameraNode>(node.sceneNodeData);
-    applyNodeTransform(rawNode, node);
+    auto& camNode = sg.addCamera(rawCam.name, parentName);
+    auto& sceneNode = sg.get(rawCam.name);
+    applyNodeTransform(rawNode, sceneNode);
     if (rawCam.type == "perspective") {
         const auto& cam = rawCam.perspective;
         camNode.camera = std::make_shared<scene::Camera>(
@@ -604,6 +636,7 @@ void load(graph::SceneGraph& sg, const std::filesystem::path& filePath, rhi::Dev
     loadScene(sg, rawModel, rawModel.defaultScene, commandBuffer, device);
 
     defaultResourceTransition(commandBuffer, device);
+
     commandBuffer->commit();
     queue->submit();
 }

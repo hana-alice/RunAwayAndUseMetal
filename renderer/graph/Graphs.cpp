@@ -39,7 +39,7 @@ struct WarmUpVisitor : public boost::dfs_visitor<> {
                                     perBatchBindings.emplace(p.first, p.second.binding);
                                 } else if (p.second.rate == Rate::PER_PASS) {
                                     _perPassBindings.emplace(p.first, p.second.binding);
-                                } else if(p.second.rate == Rate::PER_INSTANCE) {
+                                } else if (p.second.rate == Rate::PER_INSTANCE) {
                                     perInstanceBindings.emplace(p.first, p.second.binding);
                                 }
                             });
@@ -48,21 +48,21 @@ struct WarmUpVisitor : public boost::dfs_visitor<> {
                                               shaderResource.descriptorLayouts[static_cast<uint32_t>(Rate::PER_INSTANCE)],
                                               _device);
 
-                        technique->bake(_renderpass,
-                                        shaderResource.pipelineLayout,
-                                        meshrenderer->mesh()->meshData().vertexLayout,
-                                        shaderResource.shaderSources,
-                                        perBatchBindings,
-                                        shaderResource.descriptorLayouts[static_cast<uint32_t>(Rate::PER_BATCH)],
-                                        _device);
-
-                        technique->material()->update();
+                        technique->bakeMaterial(perBatchBindings,
+                                                shaderResource.descriptorLayouts[static_cast<uint32_t>(Rate::PER_BATCH)],
+                                                _device);
 
                         auto perPassLayout = shaderResource.descriptorLayouts[static_cast<uint32_t>(Rate::PER_PASS)];
-                        _perPassLayoutInfo.descriptorBindings.insert(
-                            _perPassLayoutInfo.descriptorBindings.end(),
-                            perPassLayout->info().descriptorBindings.begin(),
-                            perPassLayout->info().descriptorBindings.end());
+                        for (const auto& binding : perPassLayout->info().descriptorBindings) {
+                            auto iter = std::find_if(_perPassLayoutInfo.descriptorBindings.begin(),
+                                                     _perPassLayoutInfo.descriptorBindings.end(),
+                                                     [&binding](const rhi::DescriptorBinding& bd) {
+                                                         return bd.binding == binding.binding;
+                                                     });
+                            if (iter == _perPassLayoutInfo.descriptorBindings.end()) {
+                                _perPassLayoutInfo.descriptorBindings.emplace_back(binding);
+                            }
+                        }
                     }
                 }
             }
@@ -72,23 +72,34 @@ struct WarmUpVisitor : public boost::dfs_visitor<> {
     void finish_vertex(const RenderGraph::VertexType v, const RenderGraphImpl& g) {
         if (std::holds_alternative<RenderQueueData>(g[v].data)) {
             auto& queueData = std::get<RenderQueueData>(_g.impl()[v].data);
-            auto& bindings = _perPassLayoutInfo.descriptorBindings;
-            std::sort(bindings.begin(), bindings.end(),
-                      [](const rhi::DescriptorBinding& lhs, const rhi::DescriptorBinding& rhs) {
-                          return lhs.binding < rhs.binding;
-                      });
-            bindings.erase(std::unique(bindings.begin(),
-                                       bindings.end(),
-                                       [](const rhi::DescriptorBinding& lhs, const rhi::DescriptorBinding& rhs) {
-                                           return lhs.binding == rhs.binding;
-                                       }),
-                           bindings.end());
+            // auto& bindings = _perPassLayoutInfo.descriptorBindings;
+
             auto descLayout = rhi::getOrCreateDescriptorSetLayout(_perPassLayoutInfo, _device);
             queueData.bindGroup = std::make_shared<scene::BindGroup>(
                 _perPassBindings,
                 descLayout,
                 _device);
             _perPhaseBindGroups.emplace(g[v].name, queueData.bindGroup);
+
+            const auto& phaseName = _g.impl()[v].name;
+            for (auto& renderable : _rendererables) {
+                auto meshrenderer = std::static_pointer_cast<scene::MeshRenderer>(renderable);
+                for (auto& technique : meshrenderer->techniques()) {
+                    if (phaseName == technique->phaseName()) {
+                        const auto& shaderResource = _shg.layout(technique->material()->shaderName());
+                        technique->bakePipeline(
+                            _renderpass,
+                            descLayout,
+                            shaderResource.descriptorLayouts[static_cast<uint32_t>(Rate::PER_BATCH)],
+                            shaderResource.descriptorLayouts[static_cast<uint32_t>(Rate::PER_INSTANCE)],
+                            shaderResource.descriptorLayouts[static_cast<uint32_t>(Rate::PER_DRAW)],
+                            shaderResource.constants,
+                            meshrenderer->mesh()->meshData().vertexLayout,
+                            shaderResource.shaderSources,
+                            _device);
+                    }
+                }
+            }
         }
     }
 
@@ -160,7 +171,7 @@ struct PreProcessVisitor : public boost::dfs_visitor<> {
             }
             queueData.bindGroup->update();
 
-            for(auto& renderable : _renderables) {
+            for (auto& renderable : _renderables) {
                 auto meshRenderer = std::static_pointer_cast<scene::MeshRenderer>(renderable);
                 meshRenderer->update(_commandBuffer);
             }
@@ -237,21 +248,27 @@ struct RenderGraphVisitor : public boost::dfs_visitor<> {
                                if (meshRenderer->technique(0)->phaseName() == phase) {
                                    const auto& technique = meshRenderer->technique(0);
                                    _renderEncoder->bindPipeline(technique->pipelineState().get());
-                                   _renderEncoder->bindDescriptorSet(data.bindGroup->descriptorSet().get(), 0, nullptr, 0);
-                                   _renderEncoder->bindDescriptorSet(technique->material()->bindGroup()->descriptorSet().get(),
-                                                                     1, nullptr, 0);
-                                   _renderEncoder->bindDescriptorSet(meshRenderer->bindGroup()->descriptorSet().get(), 2, nullptr, 0);
+                                   if (technique->hasPassBinding()) {
+                                       _renderEncoder->bindDescriptorSet(data.bindGroup->descriptorSet().get(), 0, nullptr, 0);
+                                   }
+                                   if (technique->hasBatchBinding()) [[likely]] {
+                                       _renderEncoder->bindDescriptorSet(technique->material()->bindGroup()->descriptorSet().get(),
+                                                                         1, nullptr, 0);
+                                   }
+                                   if (technique->hasInstanceBinding()) {
+                                       _renderEncoder->bindDescriptorSet(meshRenderer->bindGroup()->descriptorSet().get(), 2, nullptr, 0);
+                                   }
                                    const auto& drawInfo = meshRenderer->drawInfo();
                                    const auto& meshData = meshRenderer->mesh()->meshData();
                                    const auto& indexBuffer = meshData.indexBuffer;
                                    const auto& vertexBuffer = meshData.vertexBuffer;
                                    if (drawInfo.indexCount) {
-                                       _renderEncoder->bindIndexBuffer(indexBuffer.buffer, indexBuffer.offset, indexBuffer.type);
-                                       _renderEncoder->bindVertexBuffer(vertexBuffer.buffer, 0);
+                                       _renderEncoder->bindIndexBuffer(indexBuffer.buffer.get(), indexBuffer.offset, indexBuffer.type);
+                                       _renderEncoder->bindVertexBuffer(vertexBuffer.buffer.get(), 0);
                                        _renderEncoder->drawIndexed(drawInfo.indexCount, drawInfo.instanceCount, drawInfo.firstVertex, drawInfo.vertexOffset, drawInfo.firstInstance);
                                    } else {
-                                       _renderEncoder->bindVertexBuffer(vertexBuffer.buffer, 0);
-                                       _renderEncoder->draw(drawInfo.vertexCount, drawInfo.indexCount, drawInfo.firstVertex, drawInfo.firstInstance);
+                                       _renderEncoder->bindVertexBuffer(vertexBuffer.buffer.get(), 0);
+                                       _renderEncoder->draw(drawInfo.vertexCount, drawInfo.instanceCount, drawInfo.firstVertex, drawInfo.firstInstance);
                                    }
                                }
                            }

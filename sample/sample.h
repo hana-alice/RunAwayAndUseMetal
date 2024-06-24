@@ -6,6 +6,7 @@
 #include "common.h"
 #include "window.h"
 #include "WindowEvent.h"
+#include "BuiltinRes.h"
 //#include "AnimationModel.h"
 
 namespace raum {
@@ -20,11 +21,15 @@ public:
         _device = std::shared_ptr<rhi::RHIDevice>(loadRHI(rhi::API::VULKAN), rhi::unloadRHI);
         _window = std::make_shared<platform::Window>(argc, argv, s_width, s_height, _device->instance());
 
+
         auto pxSize = _window->pixelSize();
         rhi::SwapchainSurfaceInfo scInfo{pxSize.width, pxSize.height, rhi::SyncType::IMMEDIATE, _window->surface()};
         _swapchain = std::shared_ptr<rhi::RHISwapchain>(_device->createSwapchain(scInfo));
 
         _graphScheduler = std::make_shared<graph::GraphScheduler>(_device, _swapchain);
+
+        asset::BuiltinRes::initialize(_graphScheduler->shaderGraph(), _device);
+
 
         auto resizeHandler = [&](uint32_t w, uint32_t h){
             _swapchain->resize(w, h, _window->surface());

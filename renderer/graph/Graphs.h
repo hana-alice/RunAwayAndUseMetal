@@ -16,6 +16,9 @@ public:
     void needWarmUp();
     void execute();
 
+//    void setShaderGraph(ShaderGraphPtr shaderGraph);
+//    void setSceneGraph(SceneGraphPtr sceneGraph);
+
     //deprecated futrue
     RenderGraph& renderGraph() { return *_renderGraph; }
     SceneGraph& sceneGraph() { return *_sceneGraph; }

@@ -144,16 +144,24 @@ file(GLOB_RECURSE raum_asset_serialize_cpp ${CMAKE_CURRENT_LIST_DIR}/asset/seria
 source_group("raum_asset_serialize_h" FILES ${raum_asset_serialize_h})
 source_group("raum_asset_serialize_cpp" FILES ${raum_asset_serialize_cpp})
 
+file(GLOB_RECURSE raum_asset_builtinres_h ${CMAKE_CURRENT_LIST_DIR}/asset/resources/builtin/*.h)
+file(GLOB_RECURSE raum_asset_builtinres_cpp ${CMAKE_CURRENT_LIST_DIR}/asset/resources/builtin/*.cpp)
+source_group("raum_asset_builtinres_h" FILES ${raum_asset_builtinres_h})
+source_group("raum_asset_builtinres_cpp" FILES ${raum_asset_builtinres_cpp})
+
 add_library(raum_asset
     ${raum_asset_loader_h}
     ${raum_asset_loader_cpp}
     ${raum_asset_serialize_h}
     ${raum_asset_serialize_cpp}
+    ${raum_asset_builtinres_h}
+    ${raum_asset_builtinres_cpp}
 )
 target_include_directories(raum_asset PUBLIC
     ${Stb_INCLUDE_DIR}
     ${CMAKE_CURRENT_LIST_DIR}/asset/loader
     ${CMAKE_CURRENT_LIST_DIR}/asset/serialization
+    ${CMAKE_CURRENT_LIST_DIR}/asset/resources/builtin
     ${TINYGLTF_INCLUDE_DIRS}
 )
 target_link_libraries(raum_asset PUBLIC
@@ -192,6 +200,6 @@ target_link_libraries(raum_sample PRIVATE
 # set_target_properties(raum_sample PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
 
-file(COPY asset/resources DESTINATION ${CMAKE_BINARY_DIR})
+file(COPY asset/resources/files DESTINATION ${CMAKE_BINARY_DIR})
 file(COPY framework/platform/windows/builds/qt6.conf DESTINATION ${CMAKE_BINARY_DIR})
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT raum_sample)

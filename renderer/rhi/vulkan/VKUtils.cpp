@@ -48,11 +48,11 @@ const std::map<Format, FormatInfo> formatMap = {
     {Format::RG16_UINT, {VK_FORMAT_R16G16_UINT, 4, 1}},
     {Format::RG16_SINT, {VK_FORMAT_R16G16_SINT, 4, 1}},
     {Format::RG16_SFLOAT, {VK_FORMAT_R16G16_SFLOAT, 4, 1}},
-    {Format::RGB16_UNORM, {VK_FORMAT_R16G16_UNORM, 6, 1}},
-    {Format::RGB16_SNORM, {VK_FORMAT_R16G16_SNORM, 6, 1}},
-    {Format::RGB16_UINT, {VK_FORMAT_R16G16_UNORM, 6, 1}},
-    {Format::RGB16_SINT, {VK_FORMAT_R16G16_SFLOAT, 6, 1}},
-    {Format::RGB16_SFLOAT, {VK_FORMAT_R16G16_SFLOAT, 6, 1}},
+    {Format::RGB16_UNORM, {VK_FORMAT_R16G16B16_UNORM, 6, 1}},
+    {Format::RGB16_SNORM, {VK_FORMAT_R16G16B16_SNORM, 6, 1}},
+    {Format::RGB16_UINT, {VK_FORMAT_R16G16B16_UNORM, 6, 1}},
+    {Format::RGB16_SINT, {VK_FORMAT_R16G16B16_SFLOAT, 6, 1}},
+    {Format::RGB16_SFLOAT, {VK_FORMAT_R16G16B16_SFLOAT, 6, 1}},
     {Format::RGBA16_UNORM, {VK_FORMAT_R16G16B16A16_UNORM, 8, 1}},
     {Format::RGBA16_SNORM, {VK_FORMAT_R16G16B16A16_SNORM, 8, 1}},
     {Format::RGBA16_UINT, {VK_FORMAT_R16G16B16A16_UINT, 8, 1}},
@@ -708,8 +708,29 @@ VkImageCreateFlags imageFlag(ImageFlag flag) {
     if (test(flag, ImageFlag::MUTABLE_FORMAT)) {
         res |= VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT;
     }
+    if (test(flag, ImageFlag::CUBE_COMPATIBLE)) {
+        res |= VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
+    }
     if (test(flag, ImageFlag::ALIAS)) {
         res |= VK_IMAGE_CREATE_ALIAS_BIT;
+    }
+    if (test(flag, ImageFlag::SPLIT_INSTANCE_BIND_REGIONS)) {
+        res |= VK_IMAGE_CREATE_SPLIT_INSTANCE_BIND_REGIONS_BIT;
+    }
+    if (test(flag, ImageFlag::ARRAY_2D_COMPATIBLE)) {
+        res |= VK_IMAGE_CREATE_2D_ARRAY_COMPATIBLE_BIT;
+    }
+    if (test(flag, ImageFlag::BLOCK_TEXEL_VIEW_COMPATIBLE)) {
+        res |= VK_IMAGE_CREATE_BLOCK_TEXEL_VIEW_COMPATIBLE_BIT;
+    }
+    if (test(flag, ImageFlag::EXTENDED_USAGE)) {
+        res |= VK_IMAGE_CREATE_EXTENDED_USAGE_BIT;
+    }
+    if (test(flag, ImageFlag::PROTECTED)) {
+        res |= VK_IMAGE_CREATE_PROTECTED_BIT;
+    }
+    if (test(flag, ImageFlag::DISJOINT)) {
+        res |= VK_IMAGE_CREATE_DISJOINT_BIT;
     }
     return res;
 }

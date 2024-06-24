@@ -22,7 +22,18 @@ DescriptorSet::DescriptorSet(const DescriptorSetInfo& info, DescriptorPool* pool
 
     vkAllocateDescriptorSets(_device->device(), &allocInfo, &_descriptorSet);
 
-    // update(info.bindingInfos);
+    for(auto& bd : _info.bindingInfos.samplerBindings) {
+        updateSampler(bd);
+    }
+    for(auto& bd : _info.bindingInfos.imageBindings) {
+        updateImage(bd);
+    }
+    for(auto& bd : _info.bindingInfos.bufferBindings) {
+        updateBuffer(bd);
+    }
+    for(auto& bd : _info.bindingInfos.texelBufferBindings) {
+        updateTexelBuffer(bd);
+    }
 }
 
 void DescriptorSet::update(const BindingInfo& bindingInfo) {

@@ -15,7 +15,7 @@ public:
 
     void enqueue(RHICommandBuffer* commandBuffer) override;
 
-    void addCompleteHandler(const std::function<void()>& func);
+    void addCompleteHandler(std::function<void()>&& func);
 
     VkSemaphore popCommandSemaphore();
 

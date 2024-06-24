@@ -1,9 +1,11 @@
 #include "RHIUtils.h"
 #include <boost/functional/hash.hpp>
-#include "RHIDefine.h"
-#include "RHIDevice.h"
 #include <unordered_set>
 #include "RHIBufferView.h"
+#include "RHIDefine.h"
+#include "RHIDevice.h"
+#include "RHICommandBuffer.h"
+#include "RHIBlitEncoder.h"
 
 namespace raum::rhi {
 bool operator==(const SamplerInfo& lhs, const SamplerInfo& rhs) {
@@ -343,7 +345,7 @@ std::size_t hash_value(const BlendInfo& info) {
     boost::hash_combine(seed, info.logicOpEnable);
     boost::hash_combine(seed, info.logicOp);
     boost::hash_combine(seed, info.attachmentBlends);
-    for(const auto& v : info.blendConstants) {
+    for (const auto& v : info.blendConstants) {
         boost::hash_combine(seed, v);
     }
     return seed;
@@ -379,33 +381,25 @@ std::size_t hash_value(const GraphicsPipelineInfo& info) {
 }
 
 namespace {
-std::unordered_map<rhi::DescriptorSetLayoutInfo, rhi::DescriptorSetLayoutRef, rhi::RHIHash<rhi::DescriptorSetLayoutInfo>> _descriptorsetLayoutMap;
-std::unordered_map<rhi::PipelineLayoutInfo, rhi::PipelineLayoutRef, rhi::RHIHash<rhi::PipelineLayoutInfo>> _pplLayoutMap;
-}
+std::unordered_map<DescriptorSetLayoutInfo, DescriptorSetLayoutPtr, RHIHash<DescriptorSetLayoutInfo>> _descriptorsetLayoutMap;
+std::unordered_map<PipelineLayoutInfo, PipelineLayoutPtr, RHIHash<PipelineLayoutInfo>> _pplLayoutMap;
+} // namespace
 
-rhi::DescriptorSetLayoutPtr getOrCreateDescriptorSetLayout(const rhi::DescriptorSetLayoutInfo& info, rhi::DevicePtr device) {
-    rhi::DescriptorSetLayoutPtr res;
-    if(!_descriptorsetLayoutMap.contains(info) || _descriptorsetLayoutMap.at(info).expired()) {
-        res = rhi::DescriptorSetLayoutPtr(device->createDescriptorSetLayout(info));
-        _descriptorsetLayoutMap[info] = res;
-    } else {
-        res = _descriptorsetLayoutMap[info].lock();
+DescriptorSetLayoutPtr getOrCreateDescriptorSetLayout(const DescriptorSetLayoutInfo& info, DevicePtr device) {
+    if (!_descriptorsetLayoutMap.contains(info)) {
+        _descriptorsetLayoutMap[info] = DescriptorSetLayoutPtr(device->createDescriptorSetLayout(info));
     }
-    return res;
+    return _descriptorsetLayoutMap.at(info);
 }
 
-rhi::PipelineLayoutPtr getOrCreatePipelineLayout(const rhi::PipelineLayoutInfo& info, rhi::DevicePtr device) {
-    rhi::PipelineLayoutPtr res;
-    if(!_pplLayoutMap.contains(info) || _pplLayoutMap.at(info).expired()) {
-        res = rhi::PipelineLayoutPtr(device->createPipelineLayout(info));
-        _pplLayoutMap[info] = res;
-    } else {
-        res = _pplLayoutMap[info].lock();
+PipelineLayoutPtr getOrCreatePipelineLayout(const PipelineLayoutInfo& info, DevicePtr device) {
+    if (!_pplLayoutMap.contains(info)) {
+        _pplLayoutMap[info] = PipelineLayoutPtr(device->createPipelineLayout(info));
     }
-    return res;
+    return _pplLayoutMap.at(info);
 }
 
-const std::unordered_set<Format> depthFormats {
+const std::unordered_set<Format> depthFormats{
     Format::D16_UNORM,
     Format::X8_D24_UNORM_PACK32,
     Format::D32_SFLOAT,
@@ -413,7 +407,7 @@ const std::unordered_set<Format> depthFormats {
     Format::D24_UNORM_S8_UINT,
     Format::D32_SFLOAT_S8_UINT,
 };
-const std::unordered_set<Format> stencilFormats {
+const std::unordered_set<Format> stencilFormats{
     Format::X8_D24_UNORM_PACK32,
     Format::S8_UINT,
     Format::D16_UNORM_S8_UINT,
@@ -443,9 +437,9 @@ SamplerInfo sampler{
     .magFilter = Filter::LINEAR,
     .minFilter = Filter::LINEAR,
 };
-}
+} // namespace
 [[nodiscard]] ImagePtr defaultSampledImage(DevicePtr device) {
-    if(!sampledImage) {
+    if (!sampledImage) {
         ImageInfo info{
             .format = Format::RGBA8_UNORM,
             .extent = {2, 2, 1},
@@ -455,7 +449,7 @@ SamplerInfo sampler{
     return sampledImage;
 }
 [[nodiscard]] ImagePtr defaultStorageImage(DevicePtr device) {
-    if(!storageImage) {
+    if (!storageImage) {
         ImageInfo info{
             .usage = ImageUsage::STORAGE,
             .format = Format::RGBA8_UNORM,
@@ -468,7 +462,7 @@ SamplerInfo sampler{
 
 [[nodiscard]] ImageViewPtr defaultSampledImageView(DevicePtr device) {
     auto image = defaultSampledImage(device);
-    if(!sampledImageView) {
+    if (!sampledImageView) {
         ImageViewInfo info{
             .image = image.get(),
             .range = {
@@ -485,7 +479,7 @@ SamplerInfo sampler{
 
 [[nodiscard]] ImageViewPtr defaultStorageImageView(DevicePtr device) {
     auto image = defaultStorageImage(device);
-    if(!storageImageView) {
+    if (!storageImageView) {
         ImageViewInfo info{
             .image = image.get(),
             .range = {
@@ -501,16 +495,16 @@ SamplerInfo sampler{
 }
 
 [[nodiscard]] BufferPtr defaultUniformBuffer(DevicePtr device) {
-    if(!uniformBuffer) {
+    if (!uniformBuffer) {
         BufferInfo info{
-          .size = 16,
+            .size = 16,
         };
         uniformBuffer = BufferPtr(device->createBuffer(info));
     }
     return uniformBuffer;
 }
 [[nodiscard]] BufferPtr defaultStorageBuffer(DevicePtr device) {
-    if(!storageBuffer) {
+    if (!storageBuffer) {
         BufferInfo info{
             .bufferUsage = BufferUsage::STORAGE,
             .size = 16,
@@ -521,11 +515,11 @@ SamplerInfo sampler{
 }
 
 [[nodiscard]] BufferViewPtr defaultUniformBufferView(DevicePtr device) {
-    if(!uniformBufferView) {
+    if (!uniformBufferView) {
         auto uniformBuffer = defaultUniformBuffer(device);
-        BufferViewInfo info {
+        BufferViewInfo info{
             .buffer = uniformBuffer.get(),
-            .format =  Format::RGBA8_UNORM,
+            .format = Format::RGBA8_UNORM,
             .offset = 0,
             .size = uniformBuffer->info().size,
         };
@@ -535,11 +529,11 @@ SamplerInfo sampler{
 }
 
 [[nodiscard]] BufferViewPtr defaultStorageBufferView(DevicePtr device) {
-    if(!storageBufferView) {
+    if (!storageBufferView) {
         auto storageBuffer = defaultStorageBuffer(device);
-        BufferViewInfo info {
+        BufferViewInfo info{
             .buffer = storageBuffer.get(),
-            .format =  Format::RGBA8_UNORM,
+            .format = Format::RGBA8_UNORM,
             .offset = 0,
             .size = storageBuffer->info().size,
         };
@@ -550,6 +544,66 @@ SamplerInfo sampler{
 
 [[nodiscard]] SamplerInfo defaultLinearSampler(DevicePtr device) {
     return sampler;
+}
+
+[[nodiscard]]ImagePtr createImageFromBuffer(BufferPtr buffer,
+                                             uint32_t width,
+                                             uint32_t height,
+                                             Format format,
+                                             CommandBufferPtr cmdBuffer,
+                                             DevicePtr device) {
+    ImageInfo imgInfo {
+        .usage = ImageUsage::TRANSFER_DST | ImageUsage::SAMPLED,
+        .format = format,
+        .extent = {width, height, 1},
+    };
+    ImagePtr img = ImagePtr(device->createImage(imgInfo));
+    ImageBarrierInfo transferDstBarrier{
+        .image = img.get(),
+        .dstStage = PipelineStage::TRANSFER,
+        .newLayout = ImageLayout::TRANSFER_DST_OPTIMAL,
+        .dstAccessFlag = AccessFlags::TRANSFER_WRITE,
+        .range = {
+            .sliceCount = 1,
+            .mipCount = 1,
+        }};
+    cmdBuffer->appendImageBarrier(transferDstBarrier);
+    cmdBuffer->applyBarrier({});
+
+    auto blit = BlitEncoderPtr(cmdBuffer->makeBlitEncoder());
+    BufferImageCopyRegion region{
+        .bufferSize = buffer->info().size,
+        .bufferOffset = 0,
+        .bufferRowLength = 0,
+        .bufferImageHeight = 0,
+        .imageAspect = AspectMask::COLOR,
+        .imageExtent = {
+            width,
+            height,
+            1,
+        },
+    };
+    blit->copyBufferToImage(buffer.get(),
+                            img.get(),
+                            ImageLayout::TRANSFER_DST_OPTIMAL,
+                            &region,
+                            1);
+    ImageBarrierInfo imgBarrierInfo{
+        .image = img.get(),
+        .srcStage = PipelineStage::TRANSFER,
+        .dstStage = PipelineStage::FRAGMENT_SHADER,
+        .oldLayout = ImageLayout::TRANSFER_DST_OPTIMAL,
+        .newLayout = ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+        .srcAccessFlag = AccessFlags::TRANSFER_WRITE,
+        .dstAccessFlag = AccessFlags::SHADER_READ,
+        .range = {
+            .sliceCount = 1,
+            .mipCount = 1,
+        }};
+    cmdBuffer->appendImageBarrier(imgBarrierInfo);
+    cmdBuffer->applyBarrier({});
+
+    return img;
 }
 
 } // namespace raum::rhi

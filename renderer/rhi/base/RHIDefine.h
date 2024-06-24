@@ -83,13 +83,13 @@ using CommandPoolPtr = std::shared_ptr<RHICommandPool>;
 using BlitEncoderPtr = std::shared_ptr<RHIBlitEncoder>;
 using RenderEncoderPtr = std::shared_ptr<RHIRenderEncoder>;
 using ComputeEncoderPtr = std::shared_ptr<RHIComputeEncoder>;
+using DescriptorPoolPtr = std::shared_ptr<RHIDescriptorPool>;
 
 using DescriptorSetLayoutRef = std::weak_ptr<RHIDescriptorSetLayout>;
 using PipelineLayoutRef = std::weak_ptr<RHIPipelineLayout>;
 using RenderPassRef = std::weak_ptr<RHIRenderPass>;
 using FrameBufferRef = std::weak_ptr<RHIFrameBuffer>;
 
-using DescriptorPoolPtr = std::unique_ptr<RHIDescriptorPool>;
 
 static constexpr uint32_t FRAMES_IN_FLIGHT{3};
 static constexpr uint32_t BindingRateCount = 4;
@@ -308,13 +308,20 @@ enum class SharingMode : uint8_t {
     EXCLUSIVE,
 };
 
-enum class ImageFlag : uint8_t {
+enum class ImageFlag : uint32_t {
     NONE = 0,
     SPARSE_BINDING = 1 << 0,
     SPARSE_RESIDENCY = 1 << 1,
     SPARSE_ALIASED = 1 << 2,
     MUTABLE_FORMAT = 1 << 3,
-    ALIAS = 1 << 4,
+    CUBE_COMPATIBLE = 1 << 4,
+    ALIAS = 1 << 5,
+    SPLIT_INSTANCE_BIND_REGIONS = 1 << 6,
+    ARRAY_2D_COMPATIBLE = 1 << 7,
+    BLOCK_TEXEL_VIEW_COMPATIBLE = 1 << 8,
+    EXTENDED_USAGE = 1 << 9,
+    PROTECTED = 1 << 9,
+    DISJOINT = 1 << 10,
 };
 OPERABLE(ImageFlag)
 
@@ -1164,13 +1171,13 @@ enum class DataType : uint32_t {
 
 struct VertexBuffer {
     uint32_t offset{0};
-    RHIBuffer* buffer{nullptr};
+    BufferPtr buffer{nullptr};
 };
 
 struct IndexBuffer {
     uint32_t offset{0};
     IndexType type{IndexType::FULL};
-    RHIBuffer* buffer{nullptr};
+    BufferPtr buffer{nullptr};
 };
 
 }; // namespace raum::rhi

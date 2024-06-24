@@ -112,8 +112,8 @@ void CommandBuffer::applyBarrier(DependencyFlags flags) {
     _imageBarriers.clear();
 }
 
-void CommandBuffer::onComplete(const std::function<void()>& func) {
-    _queue->addCompleteHandler(func);
+void CommandBuffer::onComplete(std::function<void()>&& func) {
+    _queue->addCompleteHandler(std::forward<std::function<void()>>(func));
 }
 
 } // namespace raum::rhi

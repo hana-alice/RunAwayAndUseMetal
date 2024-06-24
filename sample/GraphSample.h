@@ -12,6 +12,7 @@
 #include "common.h"
 #include "core/utils/utils.h"
 #include "math.h"
+#include "BuiltinRes.h"
 namespace raum::sample {
 class GraphSample : public SampleBase {
 public:
@@ -19,44 +20,24 @@ public:
     : _device(device), _swapchain(swapchain), _graphScheduler(graphScheduler) {}
 
     void init() override {
-        auto& shaderGraph = _graphScheduler->shaderGraph();
-
-        // deserialize layout(json): shader description
-        const auto& resourcePath = utils::resourceDirectory();
-        graph::deserialize(resourcePath / "shader", "cook-torrance", shaderGraph);
-
-        // compile shaders
-        shaderGraph.compile("asset");
-
         // load scene from gltf
+        const auto& resourcePath = utils::resourceDirectory();
         auto& sceneGraph = _graphScheduler->sceneGraph();
         asset::serialize::load(sceneGraph, resourcePath / "models" / "DamagedHelmet" / "DamagedHelmet.gltf", _device);
 
-        // reflect shader slot for material and mesh local data
-        std::ranges::for_each(sceneGraph.models(), [](auto& node) {
-            auto& model = std::get<graph::ModelNode>(node.get().sceneNodeData);
-            std::ranges::for_each(model.model->meshRenderers(), [](auto meshRenderer) {
-                meshRenderer->setTransformSlot("LocalMat");
-            });
-        });
+        auto& skybox = asset::BuiltinRes::skybox();
+        graph::ModelNode& skyboxNode = sceneGraph.addModel("skybox");
+        skyboxNode.model = skybox.model();
 
         auto width = _swapchain->width();
         auto height = _swapchain->height();
-        if (sceneGraph.cameras().empty()) {
-            scene::Frustum frustum{45.0f, width / (float)height, 0.01f, 10.0f};
-            _cam = std::make_shared<scene::Camera>(frustum, scene::Projection::PERSPECTIVE);
-            auto& eye = _cam->eye();
-            eye.setPosition(0.0, 0.0f, 4.0);
-            eye.lookAt({0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f});
-            eye.update();
-        } else {
-            // :))))))
-            const auto& camNode = sceneGraph.cameras().front().get();
-            _cam = std::get<graph::CameraNode>(camNode.sceneNodeData).camera;
-            auto& eye = _cam->eye();
-            eye.setTransform(camNode.node.transform());
-            eye.update();
-        }
+        scene::Frustum frustum{45.0f, width / (float)height, 0.01f, 10.0f};
+        _cam = std::make_shared<scene::Camera>(frustum, scene::Projection::PERSPECTIVE);
+        auto& eye = _cam->eye();
+        eye.setPosition(0.0, 0.0f, 4.0);
+        eye.lookAt({0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f});
+        eye.update();
+
 
         auto& resourceGraph = _graphScheduler->resourceGraph();
         if (!resourceGraph.contains(_forwardRT)) {
