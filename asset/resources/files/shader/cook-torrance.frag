@@ -37,8 +37,11 @@ float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness) {
 
 // Fresnel-Schlick
 // FSchlick(h,v,F0)=F0+(1−F0)(1−(h⋅v))5
-vec3 fresnelSchlick(float cosTheta, vec3 F0, float roughness) {
-    // return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
+vec3 fresnelSchlick(float cosTheta, vec3 F0) {
+    return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
+}
+
+vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness) {
     return F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(1.0 - cosTheta, 5.0);
 }
 
@@ -156,24 +159,33 @@ void main() {
     vec3 L = normalize(lightPos.xyz - f_worldPos);
     vec3 H = normalize(V + L);
     float distance = length(lightPos.xyz - f_worldPos);
-    float attenuation = 1.0f;// 1.0 / (distance * distance);
+    float attenuation = 1.0 / (distance * distance);
     vec3 radiance = lightColor.rgb * attenuation;
 
     float NDF = D_GGX_TR(N, H, roughness);
     float G = GeometrySmith(N, V, L, roughness);
-    vec3 F = fresnelSchlick(max(dot(H, V), 0.0), F0, roughness);
+    vec3 F = fresnelSchlick(max(dot(H, V), 0.0), F0);
 
     vec3 Ks = F;
     vec3 KD = vec3(1.0) - Ks;
     KD *= 1.0 - metallic;
 
-//    vec3 nominator = NDF * G * F;
-//    float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + 0.001;
-//    vec3 specular = nominator / denominator;
-//
-//    float NdotL = max(dot(N, L), 0.0);
-//    Lo += (KD * albedo / PI + specular) * radiance * NdotL;
+    vec3 numerator = NDF * G * F;
+    float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + 0.001;
+    vec3 specular = numerator / denominator;
+
+    float NdotL = max(dot(N, L), 0.0);
+    Lo += (KD * albedo / PI + specular) * radiance * NdotL;
     // accumulate end
+
+    
+    F = fresnelSchlickRoughness(max(dot(N, V), 0.0), F0, roughness);
+    Ks = F;
+    KD = 1.0 - Ks;
+    KD *= 1.0 - metallic;
+    
+    vec3 irradiance = texture(samplerCube(diffuseEnvMap, linearSampler), N).rgb;
+    albedo *= irradiance;
 
     #ifdef OCCLUSION_MAP
     float ao = texture(sampler2D(aoMap, linearSampler), f_uv).r;
@@ -181,22 +193,14 @@ void main() {
     #else
     float ao = 1.0f;
     #endif
-    vec3 irradiance = texture(samplerCube(diffuseEnvMap, linearSampler), N).rgb;
-    irradiance = pow(irradiance, vec3(2.2));
-    albedo *= irradiance;
 
-    F = fresnelSchlick(max(dot(N, V), 0.0), F0, roughness);
-    Ks = F;
-    KD = 1.0 - Ks;
-    KD *= 1.0 - metallic;
 
     vec3 R = reflect(-V, N);
     const float MAX_REFLECTION_LOD = 4.0;
     vec3 prefilteredColor = textureLod(samplerCube(specularMap, linearSampler), R, roughness * MAX_REFLECTION_LOD).rgb;
     vec2 envBRDF = texture(sampler2D(brdfLUT, linearSampler), vec2(max(dot(N, V), 0.0), roughness)).rg;
-    vec3 specular = prefilteredColor * (F * envBRDF.x + envBRDF.y);
-
-    vec3 ambient = (KD * albedo * lightColor.rgb + specular) * ao;
+    vec3 prefilt = prefilteredColor * (F * envBRDF.x + envBRDF.y);
+    vec3 ambient = (KD * albedo + prefilt) * ao;
 
 
     #ifdef EMISSIVE_MAP
