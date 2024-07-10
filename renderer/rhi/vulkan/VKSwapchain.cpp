@@ -196,7 +196,7 @@ RHIImage* Swapchain::allocateImage(uint32_t index) {
     imageInfo.type = ImageType::IMAGE_2D;
     imageInfo.format = _preferredFormat;
     imageInfo.usage = ImageUsage::COLOR_ATTACHMENT | ImageUsage::TRANSFER_DST;
-    imageInfo.intialLayout = ImageLayout::UNDEFINED;
+    imageInfo.initialLayout = ImageLayout::UNDEFINED;
     imageInfo.sliceCount = 1;
     imageInfo.mipCount = 1;
     imageInfo.sampleCount = 1;

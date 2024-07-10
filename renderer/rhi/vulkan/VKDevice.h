@@ -26,6 +26,7 @@ public:
     RHIBufferView *createBufferView(const BufferViewInfo &) override;
     RHIImage *createImage(const ImageInfo &) override;
     RHIImageView *createImageView(const ImageViewInfo &) override;
+    RHIImageView *createImageView(const SparseImageViewInfo &) override;
     RHISampler *getSampler(const SamplerInfo &) override;
     RHIShader *createShader(const ShaderBinaryInfo &) override;
     RHIShader *createShader(const ShaderSourceInfo &) override;
@@ -36,6 +37,12 @@ public:
     RHIPipelineLayout *createPipelineLayout(const PipelineLayoutInfo &) override;
     RHICommandPool *createCoomandPool(const CommandPoolInfo &);
     RHIDescriptorPool *createDescriptorPool(const DescriptorPoolInfo &) override;
+    RHISparseImage* createSparseImage(const SparseImageInfo&) override;
+
+    void waitDeviceIdle() override;
+    void waitQueueIdle(RHIQueue*) override;
+
+    SparseBindingRequirement sparseBindingRequirement(RHIImage* image) override;
 
     void *instance() override { return _instance; }
 

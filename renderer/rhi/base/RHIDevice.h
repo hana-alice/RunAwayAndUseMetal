@@ -14,6 +14,7 @@
 #include "RHISampler.h"
 #include "RHIShader.h"
 #include "RHISwapchain.h"
+#include "RHISparseImage.h"
 namespace raum::rhi {
 
 class RHIDevice {
@@ -25,6 +26,7 @@ public:
     virtual RHIBufferView* createBufferView(const BufferViewInfo&) = 0;
     virtual RHIImage* createImage(const ImageInfo&) = 0;
     virtual RHIImageView* createImageView(const ImageViewInfo&) = 0;
+    virtual RHIImageView* createImageView(const SparseImageViewInfo&) = 0;
     virtual RHIShader* createShader(const ShaderBinaryInfo&) = 0;
     virtual RHIShader* createShader(const ShaderSourceInfo&) = 0;
     virtual RHIDescriptorPool* createDescriptorPool(const DescriptorPoolInfo&) = 0;
@@ -34,12 +36,18 @@ public:
     virtual RHIGraphicsPipeline* createGraphicsPipeline(const GraphicsPipelineInfo&) = 0;
     virtual RHIRenderPass* createRenderPass(const RenderPassInfo&) = 0;
     virtual RHIFrameBuffer* createFrameBuffer(const FrameBufferInfo&) = 0;
+    virtual RHISparseImage* createSparseImage(const SparseImageInfo&) = 0;
 
     // internal holds
     virtual RHIQueue* getQueue(const QueueInfo&) = 0;
     virtual RHISampler* getSampler(const SamplerInfo&) = 0;
 
+    virtual void waitDeviceIdle() = 0;
+    virtual void waitQueueIdle(RHIQueue*) = 0;
+
     virtual void* instance() { return nullptr; }
+
+    virtual SparseBindingRequirement sparseBindingRequirement(RHIImage* image) = 0;
 
 protected:
     virtual ~RHIDevice() = 0;

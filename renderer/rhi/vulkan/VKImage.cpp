@@ -25,7 +25,7 @@ Image::Image(const ImageInfo& info, RHIDevice* device)
         createInfo.queueFamilyIndexCount = static_cast<uint32_t>(info.queueAccess.size());
         createInfo.pQueueFamilyIndices = info.queueAccess.data();
     }
-    createInfo.initialLayout = imageLayout(info.intialLayout);
+    createInfo.initialLayout = imageLayout(info.initialLayout);
 
     VmaAllocationCreateInfo allocInfo{};
     allocInfo.usage = VMA_MEMORY_USAGE_AUTO;

@@ -4,12 +4,12 @@
 #include "RHIImage.h"
 #include "RHIImageView.h"
 
+using boost::add_edge;
 using boost::add_vertex;
 using boost::get;
 using boost::out_degree;
 using boost::vertex;
 using boost::vertices;
-using boost::add_edge;
 
 namespace raum::graph {
 RenderPass RenderGraph::addRenderPass(std::string_view name) {
@@ -67,11 +67,11 @@ RenderQueue RenderPass::addQueue(std::string_view name) {
 //     return *this;
 // }
 
-//RenderQueue& RenderQueue::addScene(scene::Scene* scene) {
-//    auto& data = std::get<RenderQueueData>(_graph[_id].data);
-//    data.scene = scene;
-//    return *this;
-//}
+// RenderQueue& RenderQueue::addScene(scene::Scene* scene) {
+//     auto& data = std::get<RenderQueueData>(_graph[_id].data);
+//     data.scene = scene;
+//     return *this;
+// }
 
 RenderQueue& RenderQueue::addCamera(scene::Camera* camera) {
     auto& data = std::get<RenderQueueData>(_graph[_id].data);
@@ -108,6 +108,11 @@ CopyPass& CopyPass::uploadBuffer(const void* const data, uint32_t size, std::str
     std::vector<uint8_t> dataIn(size);
     memcpy(dataIn.data(), data, size);
     _data.uploads.emplace_back(dataIn, size, dstOffset, name.data());
+    return *this;
+}
+
+CopyPass& CopyPass::fill(uint32_t value, uint32_t size, std::string_view name, uint32_t dstOffset) {
+    _data.fills.emplace_back(value, size, dstOffset, name.data());
     return *this;
 }
 

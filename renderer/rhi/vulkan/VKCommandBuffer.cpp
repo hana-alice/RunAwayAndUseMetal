@@ -10,6 +10,7 @@
 #include "VKUtils.h"
 #include "VKDescriptorSet.h"
 #include "VKCommandPool.h"
+#include "VKSparseImage.h"
 namespace raum::rhi {
 CommandBuffer::CommandBuffer(const CommandBufferInfo& info, CommandPool* commandPool, RHIDevice* device)
 : RHICommandBuffer(info, device),
@@ -90,7 +91,11 @@ void CommandBuffer::applyBarrier(DependencyFlags flags) {
         srcStageMask |= pipelineStageFlags(_imageBarriers[i].srcStage);
         dstStageMask |= pipelineStageFlags(_imageBarriers[i].dstStage);
         imageBarriers[i].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-        imageBarriers[i].image = static_cast<Image*>(_imageBarriers[i].image)->image();
+        if(_imageBarriers[i].image) {
+            imageBarriers[i].image = static_cast<Image*>(_imageBarriers[i].image)->image();
+        } else {
+            imageBarriers[i].image = static_cast<SparseImage*>(_imageBarriers[i].sparseImage)->image();
+        }
         imageBarriers[i].srcAccessMask = accessFlags(_imageBarriers[i].srcAccessFlag);
         imageBarriers[i].dstAccessMask = accessFlags(_imageBarriers[i].dstAccessFlag);
         imageBarriers[i].oldLayout = imageLayout(_imageBarriers[i].oldLayout);
@@ -104,10 +109,12 @@ void CommandBuffer::applyBarrier(DependencyFlags flags) {
         imageBarriers[i].subresourceRange.levelCount = _imageBarriers[i].range.mipCount;
     }
 
-    vkCmdPipelineBarrier(_commandBuffer, srcStageMask, dstStageMask, dependencyFlags(flags),
-                         0, nullptr,
-                         static_cast<uint32_t>(bufferBarriers.size()), bufferBarriers.data(),
-                         static_cast<uint32_t>(imageBarriers.size()), imageBarriers.data());
+    if (!_bufferBarriers.empty() || !_imageBarriers.empty()) {
+        vkCmdPipelineBarrier(_commandBuffer, srcStageMask, dstStageMask, dependencyFlags(flags),
+                             0, nullptr,
+                             static_cast<uint32_t>(bufferBarriers.size()), bufferBarriers.data(),
+                             static_cast<uint32_t>(imageBarriers.size()), imageBarriers.data());
+    }
     _bufferBarriers.clear();
     _imageBarriers.clear();
 }

@@ -184,6 +184,9 @@ struct PreProcessVisitor : public boost::dfs_visitor<> {
             for (const auto& upload : copy.uploads) {
                 _resg.mount(upload.name);
             }
+            for (const auto& fill : copy.fills) {
+                _resg.mount(fill.name);
+            }
         }
     }
 
@@ -280,6 +283,13 @@ struct RenderGraphVisitor : public boost::dfs_visitor<> {
                                    _blitEncoder = rhi::BlitEncoderPtr(_commandBuffer->makeBlitEncoder());
                                }
                                _blitEncoder->updateBuffer(buffer.get(), upload.offset, upload.data.data(), upload.size);
+                           }
+                           for (const auto& fill : copy.fills) {
+                               auto buffer = _resg.getBuffer(fill.name);
+                               if (!_blitEncoder) {
+                                   _blitEncoder = rhi::BlitEncoderPtr(_commandBuffer->makeBlitEncoder());
+                               }
+                               _blitEncoder->fillBuffer(buffer.get(), fill.dstOffset, fill.size, fill.value);
                            }
                        },
                        [&](auto _) {

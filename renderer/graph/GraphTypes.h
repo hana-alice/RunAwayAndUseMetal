@@ -101,9 +101,17 @@ struct UploadPair {
     std::string name;
 };
 
+struct FillValue {
+    uint32_t value{0};
+    uint32_t size{0};
+    uint32_t dstOffset{0};
+    std::string name;
+};
+
 struct CopyPassData {
     std::vector<CopyPair> copies;
     std::vector<UploadPair> uploads;
+    std::vector<FillValue> fills;
 };
 
 struct BufferData {

@@ -104,6 +104,7 @@ public:
 
     CopyPass& addPair(const CopyPair&);
     CopyPass& uploadBuffer(const void* const data, uint32_t size, std::string_view name, uint32_t dstOffset);
+    CopyPass& fill(uint32_t value, uint32_t size, std::string_view name, uint32_t dstOffset);
 
 private:
     CopyPassData& _data;

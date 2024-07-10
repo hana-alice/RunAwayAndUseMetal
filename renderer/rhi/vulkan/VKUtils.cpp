@@ -559,46 +559,46 @@ VkImageLayout imageLayout(ImageLayout layout) {
 
 VkPipelineStageFlags pipelineStageFlags(PipelineStage stage) {
     VkPipelineStageFlags res{0};
-    if(test(stage, rhi::PipelineStage::TOP_OF_PIPE)) {
+    if (test(stage, rhi::PipelineStage::TOP_OF_PIPE)) {
         res |= VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
     }
-    if(test(stage, rhi::PipelineStage::DRAW_INDIRECT)) {
+    if (test(stage, rhi::PipelineStage::DRAW_INDIRECT)) {
         res |= VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT;
     }
-    if(test(stage, rhi::PipelineStage::VERTEX_INPUT)) {
+    if (test(stage, rhi::PipelineStage::VERTEX_INPUT)) {
         res |= VK_PIPELINE_STAGE_VERTEX_INPUT_BIT;
     }
-    if(test(stage, rhi::PipelineStage::VERTEX_SHADER)) {
+    if (test(stage, rhi::PipelineStage::VERTEX_SHADER)) {
         res |= VK_PIPELINE_STAGE_VERTEX_SHADER_BIT;
     }
-    if(test(stage, rhi::PipelineStage::FRAGMENT_SHADER)) {
+    if (test(stage, rhi::PipelineStage::FRAGMENT_SHADER)) {
         res |= VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
     }
-    if(test(stage, rhi::PipelineStage::EARLY_FRAGMENT_TESTS)) {
+    if (test(stage, rhi::PipelineStage::EARLY_FRAGMENT_TESTS)) {
         res |= VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
     }
-    if(test(stage, rhi::PipelineStage::LATE_FRAGMENT_TESTS)) {
+    if (test(stage, rhi::PipelineStage::LATE_FRAGMENT_TESTS)) {
         res |= VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
     }
-    if(test(stage, rhi::PipelineStage::COLOR_ATTACHMENT_OUTPUT)) {
+    if (test(stage, rhi::PipelineStage::COLOR_ATTACHMENT_OUTPUT)) {
         res |= VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
     }
-    if(test(stage, rhi::PipelineStage::COMPUTE_SHADER)) {
+    if (test(stage, rhi::PipelineStage::COMPUTE_SHADER)) {
         res |= VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
     }
-    if(test(stage, rhi::PipelineStage::TRANSFER)) {
+    if (test(stage, rhi::PipelineStage::TRANSFER)) {
         res |= VK_PIPELINE_STAGE_TRANSFER_BIT;
     }
-    if(test(stage, rhi::PipelineStage::BOTTOM_OF_PIPE)) {
+    if (test(stage, rhi::PipelineStage::BOTTOM_OF_PIPE)) {
         res |= VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
     }
-    if(test(stage, rhi::PipelineStage::HOST)) {
+    if (test(stage, rhi::PipelineStage::HOST)) {
         res |= VK_PIPELINE_STAGE_HOST_BIT;
     }
-    if(test(stage, rhi::PipelineStage::TASK_SHADER)) {
+    if (test(stage, rhi::PipelineStage::TASK_SHADER)) {
         res |= VK_PIPELINE_STAGE_TASK_SHADER_BIT_NV;
     }
-    if(test(stage, rhi::PipelineStage::MESH_SHADER)) {
+    if (test(stage, rhi::PipelineStage::MESH_SHADER)) {
         res |= VK_PIPELINE_STAGE_MESH_SHADER_BIT_NV;
     }
     return res;
@@ -1040,7 +1040,6 @@ FormatType formatType(Format format) {
     return FormatType::COLOR_FLOAT;
 }
 
-
 void fillClearColors(std::vector<VkClearValue>& clearValues,
                      ClearValue* colors,
                      const std::vector<AttachmentInfo>& attachmentInfos) {
@@ -1122,8 +1121,8 @@ void fillClearRect(std::vector<VkClearRect>& clearRects,
 }
 
 void fillClearColors(std::vector<VkClearColorValue>& clearValues,
-    ClearValue* colors,
-    Format format) {
+                     ClearValue* colors,
+                     Format format) {
     switch (formatType(format)) {
         case FormatType::COLOR_UINT:
             for (size_t i = 0; i < clearValues.size(); ++i) {
@@ -1202,7 +1201,6 @@ VkPrimitiveTopology primitiveTopology(PrimitiveType primitiveType) {
     return res;
 }
 
-
 VkFilter mapFilter(Filter filter) {
     VkFilter res = VK_FILTER_NEAREST;
     switch (filter) {
@@ -1231,7 +1229,6 @@ VkSamplerMipmapMode samplerMipmapMode(MipmapMode mipmapMode) {
     }
     return res;
 }
-
 
 VkSamplerAddressMode samplerAddressMode(SamplerAddressMode addressMode) {
     VkSamplerAddressMode res = VK_SAMPLER_ADDRESS_MODE_REPEAT;
@@ -1300,6 +1297,6 @@ size_t RHIHash<SamplerInfo>::operator()(const SamplerInfo& info) const {
     hash_combine(res, info.maxLod);
     hash_combine(res, info.borderColor);
     return res;
-}  */ 
+}  */
 
 } // namespace raum::rhi

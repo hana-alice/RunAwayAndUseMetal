@@ -41,18 +41,23 @@ Material::Material(std::string_view matName,
 : _shaderName(shader), _matName(matName), _defines(defines) {
 }
 
-void Material::add(const Texture &tex) {
-    _textures.emplace_back(tex);
+void Material::set(std::string_view name, const Texture &tex) {
+    _textures[name.data()] = tex;
     _dirty = true;
 }
 
-void Material::add(const raum::scene::Buffer &buf) {
-    _buffers.emplace_back(buf);
+void Material::set(std::string_view name, const VirtualTexture &tex) {
+    _virtualTextures[name.data()] = tex;
     _dirty = true;
 }
 
-void Material::add(const Sampler &info) {
-    _samplers.emplace_back(info);
+void Material::set(std::string_view name, const raum::scene::Buffer &buf) {
+    _buffers[name.data()] = buf;
+    _dirty = true;
+}
+
+void Material::set(std::string_view name, const Sampler &info) {
+    _samplers[name.data()] = info;
     _dirty = true;
 }
 
@@ -65,14 +70,17 @@ void Material::initBindGroup(
 
 void Material::update() {
     if (_dirty) {
-        for (const auto &texture : _textures) {
-            _bindGroup->bindImage(texture.name, 0, texture.textureView, rhi::ImageLayout::SHADER_READ_ONLY_OPTIMAL);
+        for (const auto &[name, texture] : _textures) {
+            _bindGroup->bindImage(name, 0, texture.textureView, rhi::ImageLayout::SHADER_READ_ONLY_OPTIMAL);
         }
-        for (const auto &buffer : _buffers) {
-            _bindGroup->bindBuffer(buffer.name, 0, buffer.buffer);
+        for (const auto &[name, vt] : _virtualTextures) {
+            _bindGroup->bindImage(name, 0, vt.textureView, rhi::ImageLayout::SHADER_READ_ONLY_OPTIMAL);
         }
-        for (const auto &sampler : _samplers) {
-            _bindGroup->bindSampler(sampler.name, 0, sampler.info);
+        for (const auto &[name, buffer] : _buffers) {
+            _bindGroup->bindBuffer(name, 0, buffer.buffer);
+        }
+        for (const auto &[name, sampler] : _samplers) {
+            _bindGroup->bindSampler(name, 0, sampler.info);
         }
         _bindGroup->update();
         _dirty = false;

@@ -4,6 +4,8 @@
 #include "VKCommandBuffer.h"
 #include "VKDevice.h"
 #include "VKUtils.h"
+#include "VKSparseImage.h"
+#include "VKSemaphore.h"
 namespace raum::rhi {
 Queue::Queue(const QueueInfo& info, Device* device)
 : _device(static_cast<Device*>(device)),
@@ -22,10 +24,13 @@ Queue::Queue(const QueueInfo& info, Device* device)
         if (_info.type == QueueType::GRAPHICS && queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
             index = static_cast<uint32_t>(i);
             break;
-        } else if (queueFamily.queueFlags & VK_QUEUE_COMPUTE_BIT) {
+        } else if (_info.type == QueueType::COMPUTE && queueFamily.queueFlags & VK_QUEUE_COMPUTE_BIT) {
             index = static_cast<uint32_t>(i);
             break;
-        } else if (queueFamily.queueFlags & VK_QUEUE_TRANSFER_BIT) {
+        } else if (_info.type == QueueType::TRANSFER && queueFamily.queueFlags & VK_QUEUE_TRANSFER_BIT) {
+            index = static_cast<uint32_t>(i);
+            break;
+        } else if (_info.type == QueueType::SPARSE && queueFamily.queueFlags & VK_QUEUE_SPARSE_BINDING_BIT) {
             index = static_cast<uint32_t>(i);
             break;
         }
@@ -69,6 +74,8 @@ void Queue::initCommandQueue() {
         info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
         vkCreateFence(_device->device(), &info, nullptr, &fence);
     }
+
+    _sparseSemaphores.resize(FRAMES_IN_FLIGHT, Semaphores{_device->device()});
 }
 
 void Queue::enqueue(RHICommandBuffer* cmdBuffer) {
@@ -128,6 +135,49 @@ VkSemaphore Queue::popCommandSemaphore() {
     VkSemaphore res = _currCommandSemaphore;
     _currCommandSemaphore = VK_NULL_HANDLE;
     return res;
+}
+
+void Queue::bindSparse(const SparseBindingInfo& info) {
+    auto sparseImage = static_cast<SparseImage*>(info.image);
+    const auto& mipTail = sparseImage->opaqueBind();
+
+    VkBindSparseInfo bindInfo{.sType = VK_STRUCTURE_TYPE_BIND_SPARSE_INFO};
+    bindInfo.bufferBindCount = 0;
+    bindInfo.pBufferBinds = nullptr;
+    bindInfo.imageOpaqueBindCount = 1;
+
+    VkSparseImageOpaqueMemoryBindInfo opaqueBind{};
+    opaqueBind.image = sparseImage->image();
+    opaqueBind.bindCount = 1;
+    opaqueBind.pBinds = &mipTail;
+
+    bindInfo.pImageOpaqueBinds = &opaqueBind;
+
+    const auto& imageBinds = sparseImage->sparseImageMemoryBinds();
+    VkSparseImageMemoryBindInfo imageMemoryBindInfo{};
+    imageMemoryBindInfo.bindCount = imageBinds.size();
+    imageMemoryBindInfo.image = sparseImage->image();
+    imageMemoryBindInfo.pBinds = imageBinds.data();
+
+    auto sem = _sparseSemaphores[_currFrameIndex].allocate();
+    bindInfo.imageBindCount = 1;
+    bindInfo.pImageBinds = &imageMemoryBindInfo;
+    auto preCmdSem = popCommandSemaphore();
+    if (preCmdSem) {
+        bindInfo.waitSemaphoreCount = 1;
+        bindInfo.pWaitSemaphores = &preCmdSem;
+    } else {
+        bindInfo.waitSemaphoreCount = 0;
+    }
+    bindInfo.signalSemaphoreCount = 1;
+    bindInfo.pSignalSemaphores = &sem;
+
+    vkQueueBindSparse(_vkQueue, 1, &bindInfo, VK_NULL_HANDLE);
+}
+
+void Queue::addDependency(RHISemaphore* s) {
+    auto* sem = static_cast<Semaphore*>(s);
+    _dependencies.emplace_back(sem);
 }
 
 void Queue::addCompleteHandler(std::function<void()>&& func) {

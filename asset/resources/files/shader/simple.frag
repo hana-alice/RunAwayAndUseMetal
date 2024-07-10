@@ -1,4 +1,3 @@
-#version 450 core
 
 layout(location = 0) in vec2 f_uv;
 layout(location = 0) out vec4 FragColor;

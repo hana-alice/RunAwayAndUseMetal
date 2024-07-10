@@ -16,7 +16,7 @@
 
 namespace raum::asset::serialize {
 
-void loadTextures(std::vector<scene::Texture>& textures,
+void loadTextures(std::vector<std::pair<std::string, scene::Texture>>& textures,
                   const tinygltf::Model& rawModel,
                   rhi::CommandBufferPtr cmdBuffer,
                   rhi::DevicePtr device) {
@@ -90,7 +90,7 @@ void loadTextures(std::vector<scene::Texture>& textures,
             .mipCount = 1};
 
         auto imgView = rhi::ImageViewPtr(device->createImageView(viewInfo));
-        textures.emplace_back(scene::Texture{res.name, img, imgView});
+        textures.emplace_back(res.name, scene::Texture{img, imgView});
 
         cmdBuffer->onComplete([stagingBuffer, img, imgView]() mutable {
             stagingBuffer.reset();
@@ -102,7 +102,7 @@ void loadTextures(std::vector<scene::Texture>& textures,
 
 void loadMaterial(const tinygltf::Model& rawModel,
                   int32_t index,
-                  std::vector<scene::Texture>& textures,
+                  std::vector<std::pair<std::string, scene::Texture>>& textures,
                   scene::MaterialTemplatePtr matTemplate,
                   std::map<int32_t, scene::TechniquePtr>& techs,
                   rhi::DevicePtr device) {
@@ -158,10 +158,9 @@ void loadMaterial(const tinygltf::Model& rawModel,
     const auto& bc = pmr.baseColorTexture;
     if (bc.index != -1) {
         auto imageIndex = rawTextures[bc.index].source;
-        auto& baseColor = textures[imageIndex];
+        auto& baseColor = textures[imageIndex].second;
         baseColor.uvIndex = pmr.baseColorTexture.texCoord;
-        baseColor.name = "albedoMap";
-        pbrMat->add(baseColor);
+        pbrMat->set("albedoMap", baseColor);
         pbrMat->setBaseColorFactor(bcf[0], bcf[1], bcf[2], bcf[3]);
         mrno[0] = bcf[0];
         mrno[1] = bcf[1];
@@ -172,10 +171,9 @@ void loadMaterial(const tinygltf::Model& rawModel,
     const auto& mr = pmr.metallicRoughnessTexture;
     if (mr.index != -1) {
         auto imageIndex = rawTextures[mr.index].source;
-        auto& metallicRoughness = textures[imageIndex];
+        auto& metallicRoughness = textures[imageIndex].second;
         metallicRoughness.uvIndex = pmr.metallicRoughnessTexture.texCoord;
-        metallicRoughness.name = "metallicRoughnessMap";
-        pbrMat->add(metallicRoughness);
+        pbrMat->set("metallicRoughnessMap", metallicRoughness);
         pbrMat->setMetallicFactor(pmr.metallicFactor);
         pbrMat->setRoughnessFactor(pmr.roughnessFactor);
         mrno[8] = pmr.metallicFactor;
@@ -185,10 +183,9 @@ void loadMaterial(const tinygltf::Model& rawModel,
     const auto& nt = res.normalTexture;
     if (nt.index != -1) {
         auto imageIndex = rawTextures[nt.index].source;
-        auto& normal = textures[imageIndex];
+        auto& normal = textures[imageIndex].second;
         normal.uvIndex = nt.texCoord;
-        normal.name = "normalMap";
-        pbrMat->add(normal);
+        pbrMat->set("normalMap", normal);
         pbrMat->setNormalScale(nt.scale);
         mrno[10] = nt.scale;
     }
@@ -196,10 +193,9 @@ void loadMaterial(const tinygltf::Model& rawModel,
     const auto& ot = res.occlusionTexture;
     if (ot.index != -1) {
         auto imageIndex = rawTextures[ot.index].source;
-        auto& occlusion = textures[imageIndex];
+        auto& occlusion = textures[imageIndex].second;
         occlusion.uvIndex = ot.texCoord;
-        occlusion.name = "aoMap";
-        pbrMat->add(occlusion);
+        pbrMat->set("aoMap", occlusion);
         pbrMat->setOcclusionStrength(ot.strength);
         mrno[11] = ot.strength;
     }
@@ -207,10 +203,9 @@ void loadMaterial(const tinygltf::Model& rawModel,
     const auto& et = res.emissiveTexture;
     if (et.index != -1) {
         auto imageIndex = rawTextures[et.index].source;
-        auto& emissive = textures[imageIndex];
+        auto& emissive = textures[imageIndex].second;
         emissive.uvIndex = et.texCoord;
-        emissive.name = "emissiveMap";
-        pbrMat->add(emissive);
+        pbrMat->set("emissiveMap", emissive);
         mrno[4] = res.emissiveFactor[0];
         mrno[5] = res.emissiveFactor[1];
         mrno[6] = res.emissiveFactor[2];
@@ -227,35 +222,32 @@ void loadMaterial(const tinygltf::Model& rawModel,
         .data = mrno.data(),
     };
     auto mrnoBuffer = rhi::BufferPtr(device->createBuffer(bufferInfo));
-    pbrMat->add(scene::Buffer{"PBRParams", mrnoBuffer});
+    pbrMat->set("PBRParams", scene::Buffer{mrnoBuffer});
 
     rhi::SamplerInfo linearInfo{
         .magFilter = rhi::Filter::LINEAR,
         .minFilter = rhi::Filter::LINEAR,
     };
-    pbrMat->add({"linearSampler", linearInfo});
-    pbrMat->add({"pointSampler", rhi::SamplerInfo{}});
+    pbrMat->set("linearSampler", {linearInfo});
+    pbrMat->set("pointSampler", {rhi::SamplerInfo{}});
 
     scene::Texture diffuseIrradiance{
-        .name = "diffuseEnvMap",
         .texture = BuiltinRes::skybox().diffuseIrradianceImage(),
         .textureView = BuiltinRes::skybox().diffuseIrradianceView(),
     };
-    pbrMat->add(diffuseIrradiance);
+    pbrMat->set("diffuseEnvMap", diffuseIrradiance);
 
     scene::Texture prefilteredSpecular{
-        .name = "specularMap",
         .texture = BuiltinRes::skybox().prefilteredSpecularImage(),
         .textureView = BuiltinRes::skybox().prefilteredSpecularView(),
     };
-    pbrMat->add(prefilteredSpecular);
+    pbrMat->set("specularMap", prefilteredSpecular);
 
     scene::Texture brdfLUT{
-        .name = "brdfLUT",
         .texture = BuiltinRes::iblBrdfLUT(),
         .textureView = BuiltinRes::iblBrdfLUTView(),
     };
-    pbrMat->add(brdfLUT);
+    pbrMat->set("brdfLUT", brdfLUT);
 }
 
 void applyNodeTransform(const tinygltf::Node& rawNode, graph::SceneNode& node) {
@@ -284,7 +276,7 @@ void loadMesh(const tinygltf::Model& rawModel,
               graph::SceneGraph& sg,
               std::string_view parentName,
               std::map<int, scene::TechniquePtr>& techs,
-              std::vector<scene::Texture>& textures,
+              std::vector<std::pair<std::string, scene::Texture>>& textures,
               rhi::CommandBufferPtr cmdBuffer,
               rhi::DevicePtr device) {
     const auto& rawNode = rawModel.nodes[nodeIndex];
@@ -556,7 +548,7 @@ void loadScene(graph::SceneGraph& sg,
     const auto& scene = rawModel.scenes[index];
     auto& root = sg.addEmpty(scene.name);
 
-    std::vector<scene::Texture> textures;
+    std::vector<std::pair<std::string, scene::Texture>> textures;
     loadTextures(textures, rawModel, cmdBuffer, device);
     std::map<int32_t, scene::TechniquePtr> techniques;
 
@@ -590,29 +582,6 @@ void loadScene(graph::SceneGraph& sg,
     }
 }
 
-void defaultResourceTransition(rhi::CommandBufferPtr commandBuffer, rhi::DevicePtr device) {
-    auto sampledImage = rhi::defaultSampledImage(device);
-    rhi::ImageBarrierInfo transition{
-        .image = sampledImage.get(),
-        .dstStage = rhi::PipelineStage::VERTEX_SHADER,
-        .newLayout = rhi::ImageLayout::SHADER_READ_ONLY_OPTIMAL,
-        .dstAccessFlag = rhi::AccessFlags::SHADER_READ,
-        .range = {
-            .aspect = rhi::AspectMask::COLOR,
-            .sliceCount = 1,
-            .mipCount = 1,
-        }};
-    commandBuffer->appendImageBarrier(transition);
-
-    auto storageImage = rhi::defaultStorageImage(device);
-    transition.image = storageImage.get();
-    transition.newLayout = rhi::ImageLayout::GENERAL;
-    transition.dstAccessFlag = rhi::AccessFlags::SHADER_WRITE;
-    transition.dstStage = rhi::PipelineStage::VERTEX_SHADER | rhi::PipelineStage::COMPUTE_SHADER;
-    commandBuffer->appendImageBarrier(transition);
-    commandBuffer->applyBarrier({});
-}
-
 void load(graph::SceneGraph& sg, const std::filesystem::path& filePath, rhi::DevicePtr device) {
     std::string err;
     std::string warn;
@@ -634,8 +603,6 @@ void load(graph::SceneGraph& sg, const std::filesystem::path& filePath, rhi::Dev
     commandBuffer->begin({});
 
     loadScene(sg, rawModel, rawModel.defaultScene, commandBuffer, device);
-
-    defaultResourceTransition(commandBuffer, device);
 
     commandBuffer->commit();
     queue->submit();
@@ -667,8 +634,6 @@ void load(graph::SceneGraph& sg, const std::filesystem::path& filePath, std::str
             break;
         }
     }
-
-    defaultResourceTransition(commandBuffer, device);
 
     commandBuffer->commit();
     queue->submit();

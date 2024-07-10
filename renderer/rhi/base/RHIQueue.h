@@ -9,6 +9,7 @@ public:
     virtual void submit() = 0;
     virtual void enqueue(RHICommandBuffer*) = 0;
     virtual uint32_t index() const = 0;
+    virtual void addDependency(RHISemaphore* sem) = 0;
 
 protected:
     virtual ~RHIQueue() = 0;

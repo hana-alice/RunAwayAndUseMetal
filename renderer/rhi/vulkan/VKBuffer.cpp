@@ -18,6 +18,7 @@ VmaAllocationCreateInfo mapCreateInfo(MemoryUsage usage) {
     switch (usage) {
         case MemoryUsage::HOST_VISIBLE:
             info.usage = VMA_MEMORY_USAGE_AUTO;
+            info.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT;
             break;
         case MemoryUsage::DEVICE_ONLY:
             info.usage = VMA_MEMORY_USAGE_AUTO;
@@ -79,7 +80,7 @@ Buffer::Buffer(const BufferInfo& info, RHIDevice* device) : RHIBuffer(info, devi
 
     VmaAllocator& allocator = _device->allocator();
 
-    VkResult res = vmaCreateBuffer(allocator, &bufferInfo, &allocaInfo, &_buffer, &_allocation, nullptr);
+    VkResult res = vmaCreateBuffer(allocator, &bufferInfo, &allocaInfo, &_buffer, &_allocation, &_allocInfo);
     RAUM_ERROR_IF(res != VK_SUCCESS, "Failed to create buffer!");
 }
 
@@ -102,11 +103,10 @@ Buffer::Buffer(const BufferSourceInfo& info, RHIDevice* device) : RHIBuffer(info
 
     VmaAllocator& allocator = _device->allocator();
 
-    VmaAllocationInfo allocationInfo{};
-    VkResult res = vmaCreateBuffer(allocator, &bufferInfo, &allocaInfo, &_buffer, &_allocation, &allocationInfo);
+    VkResult res = vmaCreateBuffer(allocator, &bufferInfo, &allocaInfo, &_buffer, &_allocation, &_allocInfo);
     RAUM_ERROR_IF(res != VK_SUCCESS, "Failed to create buffer!");
 
-    memcpy(allocationInfo.pMappedData, info.data, info.size);
+    memcpy(_allocInfo.pMappedData, info.data, info.size);
 }
 
 Buffer::~Buffer() {

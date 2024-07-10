@@ -246,7 +246,23 @@ void Window::removePollEvent(TickFunction* tickFunc) {
     }
 }
 
+void Window::registerSimulate(TickFunction* tickFunc) {
+    _simlates.emplace_back(tickFunc);
+}
+
+void Window::removeSimulate(TickFunction* tickFunc) {
+    for (auto iter = _simlates.begin(); iter != _simlates.end(); ++iter) {
+        if ((*iter) == tickFunc) {
+            _simlates.erase(iter);
+            return;
+        }
+    }
+}
+
 void Window::update(std::chrono::milliseconds miliSec) {
+    for (auto* callback : _simlates) {
+        (*callback)(miliSec);
+    }
     for (auto* callback : _tickFuncs) {
         (*callback)(miliSec);
     }

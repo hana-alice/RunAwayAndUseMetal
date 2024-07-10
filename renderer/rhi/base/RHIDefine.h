@@ -16,7 +16,7 @@ namespace raum::rhi {
     inline T operator&(T lhs, T rhs) {                                                                                                  \
         return static_cast<T>(static_cast<std::underlying_type<T>::type>(lhs) & static_cast<std::underlying_type<T>::type>(rhs));       \
     }                                                                                                                                   \
-    inline T& operator|=(T& lhs, const T& rhs) {                                                                                                 \
+    inline T& operator|=(T& lhs, const T& rhs) {                                                                                        \
         return lhs = static_cast<T>(static_cast<std::underlying_type<T>::type>(lhs) | static_cast<std::underlying_type<T>::type>(rhs)); \
     }                                                                                                                                   \
     inline bool test(T lhs, T rhs) {                                                                                                    \
@@ -38,7 +38,7 @@ struct RHIHash {
     struct RHIHash<T> {                                                     \
         size_t operator()(const T& info) const { return hash_value(info); } \
     };                                                                      \
-    bool operator==(const T& lhs, const T& rhs); \
+    bool operator==(const T& lhs, const T& rhs);                            \
     inline bool operator!=(const T& lhs, const T& rhs) { return !(lhs == rhs); }
 
 class RHIShader;
@@ -63,6 +63,8 @@ class RHIRenderEncoder;
 class RHIComputeEncoder;
 class RHIDescriptorPool;
 class RHICommandPool;
+class RHISparseImage;
+class RHISemaphore;
 
 using DevicePtr = std::shared_ptr<RHIDevice>;
 using SwapchainPtr = std::shared_ptr<RHISwapchain>;
@@ -84,12 +86,13 @@ using BlitEncoderPtr = std::shared_ptr<RHIBlitEncoder>;
 using RenderEncoderPtr = std::shared_ptr<RHIRenderEncoder>;
 using ComputeEncoderPtr = std::shared_ptr<RHIComputeEncoder>;
 using DescriptorPoolPtr = std::shared_ptr<RHIDescriptorPool>;
+using SparseImagePtr = std::shared_ptr<RHISparseImage>;
+using SemaphorePtr = std::shared_ptr<RHISemaphore>;
 
 using DescriptorSetLayoutRef = std::weak_ptr<RHIDescriptorSetLayout>;
 using PipelineLayoutRef = std::weak_ptr<RHIPipelineLayout>;
 using RenderPassRef = std::weak_ptr<RHIRenderPass>;
 using FrameBufferRef = std::weak_ptr<RHIFrameBuffer>;
-
 
 static constexpr uint32_t FRAMES_IN_FLIGHT{3};
 static constexpr uint32_t BindingRateCount = 4;
@@ -228,6 +231,7 @@ enum class QueueType : uint8_t {
     GRAPHICS,
     COMPUTE,
     TRANSFER,
+    SPARSE,
 };
 struct QueueInfo {
     QueueType type;
@@ -352,7 +356,7 @@ struct ImageInfo {
     ImageUsage usage{ImageUsage::SAMPLED};
     SharingMode shareingMode{SharingMode::EXCLUSIVE};
     ImageFlag imageFlag{ImageFlag::NONE};
-    ImageLayout intialLayout{ImageLayout::UNDEFINED};
+    ImageLayout initialLayout{ImageLayout::UNDEFINED};
     Format format{Format::UNKNOWN};
     uint32_t sliceCount{1};
     uint32_t mipCount{1};
@@ -420,6 +424,14 @@ struct ComponentMapping {
 struct ImageViewInfo {
     ImageViewType type{ImageViewType::IMAGE_VIEW_2D};
     RHIImage* image{nullptr};
+    ImageSubresourceRange range{};
+    ComponentMapping componentMapping{};
+    Format format{Format::UNKNOWN};
+};
+
+struct SparseImageViewInfo {
+    ImageViewType type{ImageViewType::IMAGE_VIEW_2D};
+    RHISparseImage* image{nullptr};
     ImageSubresourceRange range{};
     ComponentMapping componentMapping{};
     Format format{Format::UNKNOWN};
@@ -1035,6 +1047,7 @@ struct RenderPassBeginInfo {
 
 struct ImageBarrierInfo {
     RHIImage* image{nullptr};
+    RHISparseImage* sparseImage{nullptr};
     PipelineStage srcStage{PipelineStage::TOP_OF_PIPE};
     PipelineStage dstStage{PipelineStage::BOTTOM_OF_PIPE};
     ImageLayout oldLayout{ImageLayout::UNDEFINED};
@@ -1065,7 +1078,7 @@ enum class CommandBuferUsageFlag : uint8_t {
 };
 
 struct CommandBufferBeginInfo {
-    CommandBuferUsageFlag flags{CommandBuferUsageFlag ::ONE_TIME_SUBMIT};
+    CommandBuferUsageFlag flags{CommandBuferUsageFlag::ONE_TIME_SUBMIT};
 };
 OPERABLE(CommandBuferUsageFlag)
 
@@ -1136,6 +1149,38 @@ struct DescriptorPoolSize {
 struct DescriptorPoolInfo {
     uint32_t maxSets{0};
     std::vector<DescriptorPoolSize> pools;
+};
+
+enum class SparseImageFormatFlag : uint8_t {
+    SINGLE_MIPTAIL = 1, // imageing when slice > 1 with many tail mips
+    ALIGNED_MIP_SIZE = 1 << 1,
+    NONSTANDARD_BLOCK_SIZE = 1 << 2,
+};
+OPERABLE(SparseImageFormatFlag)
+
+struct SparseImageInfo {
+    uint8_t* data;
+    uint32_t width;
+    uint32_t height;
+    Format format;
+};
+
+struct SparseBindingRequirement {
+    rhi::AspectMask aspect;
+    Vec3u granularity;
+    SparseImageFormatFlag flag;
+    uint32_t mipTailFirstLod;
+    uint32_t mipTailSize;
+    uint32_t mipTailOffset;
+    uint32_t mipTailStride;
+};
+
+struct SparseBindingInfo {
+    RHISparseImage* image;
+};
+
+struct DeviceFeatures {
+    SparseBindingRequirement sparseBinding;
 };
 
 enum class DataType : uint32_t {

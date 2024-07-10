@@ -2,30 +2,30 @@
 
 namespace raum::scene {
 
-void PBRMaterial::setBaseColorSlot(std::string_view slot) {
-    setSlot(TextureType::BASE_COLOR, slot);
-}
-
-void PBRMaterial::setNormalSlot(std::string_view slot) {
-    setSlot(TextureType::NORMAL, slot);
-}
-
-void PBRMaterial::setEmissiveSlot(std::string_view slot) {
-    setSlot(TextureType::EMISSIVE, slot);
-}
-
-void PBRMaterial::setMetallicRoughnessSlot(std::string_view slot) {
-    setSlot(TextureType::METALLIC_ROUGHNESS, slot);
-}
-
-void PBRMaterial::setAmbientOcclusionSlot(std::string_view slot) {
-    setSlot(TextureType::AO, slot);
-}
-
-void PBRMaterial::setSlot(TextureType type, std::string_view slot) {
-    _pbrTextures[static_cast<uint32_t>(type)] = slot;
-    _textures[static_cast<uint32_t>(type)].name = slot;
-}
+//void PBRMaterial::setBaseColorSlot(std::string_view slot) {
+//    setSlot(TextureType::BASE_COLOR, slot);
+//}
+//
+//void PBRMaterial::setNormalSlot(std::string_view slot) {
+//    setSlot(TextureType::NORMAL, slot);
+//}
+//
+//void PBRMaterial::setEmissiveSlot(std::string_view slot) {
+//    setSlot(TextureType::EMISSIVE, slot);
+//}
+//
+//void PBRMaterial::setMetallicRoughnessSlot(std::string_view slot) {
+//    setSlot(TextureType::METALLIC_ROUGHNESS, slot);
+//}
+//
+//void PBRMaterial::setAmbientOcclusionSlot(std::string_view slot) {
+//    setSlot(TextureType::AO, slot);
+//}
+//
+//void PBRMaterial::setSlot(TextureType type, std::string_view slot) {
+//    _pbrTextures[static_cast<uint32_t>(type)] = slot;
+//    _textures[static_cast<uint32_t>(type)].name = slot;
+//}
 
 void PBRMaterial::setAlphaMode(AlphaMode mode) {
     _alphaMode = mode;

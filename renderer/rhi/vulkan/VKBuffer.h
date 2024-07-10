@@ -14,11 +14,13 @@ public:
     ~Buffer() override;
 
     VkBuffer buffer() const { return _buffer; }
+    const VmaAllocationInfo& allocationInfo() { return _allocInfo; }
 
 private:
     Device* _device{nullptr};
     VkBuffer _buffer;
     VmaAllocation _allocation;
+    VmaAllocationInfo _allocInfo;
 };
 
 struct StagingInfo {

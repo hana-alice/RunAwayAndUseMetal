@@ -51,6 +51,9 @@ public:
     void* surface() const { return _surface; }
     void* nativeWindow() const { return _window; }
 
+    void registerSimulate(TickFunction* tickFunc);
+    void removeSimulate(TickFunction* tickFunc);
+
     void registerPollEvents(TickFunction* tickFunc);
     void removePollEvent(TickFunction* tickFunc);
 
@@ -73,6 +76,7 @@ private:
 
     QTimer* _timer{nullptr};
     std::vector<TickFunction*> _tickFuncs;
+    std::vector<TickFunction*> _simlates;
 
     void* _surface{nullptr};
 };

@@ -7,7 +7,7 @@
 #include "window.h"
 #include "WindowEvent.h"
 #include "BuiltinRes.h"
-//#include "AnimationModel.h"
+#include "VirtualTexture.h"
 
 namespace raum {
 using platform::Window;
@@ -43,8 +43,8 @@ public:
         _closeListener.add(closeHandler);
 
         _samples = {
-            std::make_shared<sample::GraphSample>(_device, _swapchain, _graphScheduler),
-//            std::make_shared<sample::AnimationModel>(_device, _swapchain, _graphScheduler),
+//            std::make_shared<sample::GraphSample>(_device, _swapchain, _graphScheduler),
+            std::make_shared<sample::VirtualTexture>(_device, _swapchain, _graphScheduler, _window),
         };
         _inited.resize(_samples.size(), 0);
 

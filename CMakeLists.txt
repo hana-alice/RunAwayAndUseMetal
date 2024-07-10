@@ -102,6 +102,11 @@ file(GLOB_RECURSE raum_scene_cpp ${CMAKE_CURRENT_LIST_DIR}/renderer/scene/*.cpp)
 source_group("raum_scene_h" FILES ${raum_scene_h})
 source_group("raum_scene_cpp" FILES ${raum_scene_cpp})
 
+file(GLOB_RECURSE raum_feature_h ${CMAKE_CURRENT_LIST_DIR}/renderer/feature/*.h)
+file(GLOB_RECURSE raum_feature_cpp ${CMAKE_CURRENT_LIST_DIR}/renderer/feature/*.cpp)
+source_group("raum_feature_h" FILES ${raum_feature_h})
+source_group("raum_feature_cpp" FILES ${raum_feature_cpp})
+
 
 # renderer-rhi
 add_subdirectory(renderer/rhi/vulkan)
@@ -111,10 +116,13 @@ add_library(raum_renderer
     ${raum_graph_cpp}
     ${raum_scene_h}
     ${raum_scene_cpp}
+    ${raum_feature_h}
+    ${raum_feature_cpp}
 )
 target_include_directories(raum_renderer PUBLIC
     ${CMAKE_CURRENT_LIST_DIR}/renderer/graph
     ${CMAKE_CURRENT_LIST_DIR}/renderer/scene
+    ${CMAKE_CURRENT_LIST_DIR}/renderer/feature
 )
 target_link_libraries(raum_renderer PUBLIC 
     raum_rhi

@@ -55,6 +55,7 @@ template <typename... Args>
 requires(raum_debug) void raum_check(bool exp, fmt::format_string<Args...> s, Args&&... args) noexcept {
     if (!exp) {
         raum_error(s, std::forward<Args>(args)...);
+        assert(false);
     }
 }
 
