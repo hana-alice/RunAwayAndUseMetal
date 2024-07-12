@@ -82,7 +82,7 @@ void BuiltinRes::initialize(graph::ShaderGraph& shaderGraph, rhi::DevicePtr devi
     }
 
     cmdBuffer->commit();
-    queue->submit();
+    queue->submit(false);
 }
 
 const Skybox& BuiltinRes::skybox() {

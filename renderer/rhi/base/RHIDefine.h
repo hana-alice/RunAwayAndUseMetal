@@ -1176,7 +1176,7 @@ struct SparseBindingRequirement {
 };
 
 struct SparseBindingInfo {
-    RHISparseImage* image;
+    std::vector<RHISparseImage*> images;
 };
 
 struct DeviceFeatures {

@@ -17,6 +17,7 @@ public:
     void setMiptail(uint8_t* data, uint8_t mip) override;
 
     void analyze(RHIBuffer* buffer, RHICommandBuffer* cb) override;
+    void bind() override;
 
     const Vec3u& granularity() override { return _granularity; }
 

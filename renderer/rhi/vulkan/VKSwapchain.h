@@ -7,6 +7,7 @@ class Device;
 class ImageView;
 class Image;
 class Queue;
+class Semaphore;
 class Swapchain : public RHISwapchain {
 public:
     bool acquire() override;
@@ -23,6 +24,8 @@ public:
 
     bool imageValid(uint32_t index) override;
     bool holds(RHIImage* img) override;
+    void addWaitBeforePresent(RHISemaphore* sem) override;
+    RHISemaphore* getAvailableByAcquire() override;
 
 private:
     Swapchain(const SwapchainSurfaceInfo& info, Device* device);
@@ -43,8 +46,9 @@ private:
 
     uint32_t _imageIndex{0};
     std::vector<VkImage> _vkImages;
-    std::vector<VkSemaphore> _presentSemaphores;
     std::vector<uint32_t> _valid;
+    std::vector<Semaphore*> _acquireSemaphores;
+    std::vector<Semaphore*> _waits;
 
     friend class Device;
 };

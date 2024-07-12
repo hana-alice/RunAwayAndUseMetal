@@ -282,7 +282,7 @@ void Device::initDevice() {
 
     for (auto [_, q] : _queues) {
         vkGetDeviceQueue(_device, q->_index, 0, &q->_vkQueue);
-        q->initCommandQueue();
+        q->initQueue();
     }
 }
 

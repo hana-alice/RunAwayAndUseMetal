@@ -67,7 +67,7 @@ RenderQueue RenderPass::addQueue(std::string_view name) {
 //     return *this;
 // }
 
-// RenderQueue& RenderQueue::addScene(scene::Scene* scene) {
+// RenderQueue& RenderQueue::addScene(scene::DIrector* scene) {
 //     auto& data = std::get<RenderQueueData>(_graph[_id].data);
 //     data.scene = scene;
 //     return *this;

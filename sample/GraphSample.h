@@ -1,6 +1,7 @@
 #pragma once
+#include "BuiltinRes.h"
 #include "Camera.h"
-#include "Graphs.h"
+#include "GraphScheduler.h"
 #include "KeyboardEvent.h"
 #include "Mesh.h"
 #include "MouseEvent.h"
@@ -12,7 +13,6 @@
 #include "common.h"
 #include "core/utils/utils.h"
 #include "math.h"
-#include "BuiltinRes.h"
 namespace raum::sample {
 class GraphSample : public SampleBase {
 public:

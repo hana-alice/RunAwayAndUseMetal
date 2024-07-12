@@ -1,4 +1,4 @@
-#include "Graphs.h"
+#include "GraphScheduler.h"
 #include <boost/graph/depth_first_search.hpp>
 #include "GraphUtils.h"
 #include "Mesh.h"
@@ -327,14 +327,23 @@ struct RenderGraphVisitor : public boost::dfs_visitor<> {
     rhi::ComputeEncoderPtr _computeEncoder;
 };
 
-GraphScheduler::GraphScheduler(rhi::DevicePtr device, rhi::SwapchainPtr swapchain) : _device(device), _swapchain(swapchain) {
-    _renderGraph = new RenderGraph();
-    _resourceGraph = new ResourceGraph(_device.get());
-    _shaderGraph = new ShaderGraph(_device);
-    _accessGraph = new AccessGraph(*_renderGraph, *_resourceGraph, *_shaderGraph);
-    _sceneGraph = new SceneGraph();
-    _taskGraph = new TaskGraph();
-    _commandPool = rhi::CommandPoolPtr(device->createCoomandPool({device->getQueue({rhi::QueueType::GRAPHICS})->index()}));
+GraphScheduler::GraphScheduler(
+    rhi::DevicePtr device,
+    rhi::SwapchainPtr swapchain,
+    RenderGraph* renderGraph,
+    ResourceGraph* resourceGraph,
+    AccessGraph* accessGraph,
+    TaskGraph* taskGraph,
+    SceneGraph* sceneGraph,
+    ShaderGraph* shaderGraph)
+: _device(device),
+  _swapchain(swapchain),
+  _renderGraph(renderGraph),
+  _resourceGraph(resourceGraph),
+  _accessGraph(accessGraph),
+  _taskGraph(taskGraph),
+  _sceneGraph(sceneGraph),
+  _shaderGraph(shaderGraph) {
 }
 
 template <typename T>
@@ -357,22 +366,7 @@ void GraphScheduler::needWarmUp() {
     _warmed = false;
 }
 
-void GraphScheduler::execute() {
-    _swapchain->acquire();
-    auto* queue = _device->getQueue({rhi::QueueType::GRAPHICS});
-
-    rhi::CommandBufferPtr cmdBuffer;
-    if (_commandBuffers.empty()) {
-        _commandBuffers.resize(_swapchain->imageCount());
-    }
-    if (!_commandBuffers[_swapchain->imageIndex()]) {
-        _commandBuffers[_swapchain->imageIndex()] = rhi::CommandBufferPtr(_commandPool->makeCommandBuffer({}));
-    }
-    cmdBuffer = _commandBuffers[_swapchain->imageIndex()];
-    cmdBuffer->reset();
-    cmdBuffer->enqueue(queue);
-    cmdBuffer->begin({});
-
+void GraphScheduler::execute(rhi::CommandBufferPtr cmd) {
     std::vector<scene::RenderablePtr> renderables;
     collectRenderables(renderables, *_sceneGraph, _warmed);
 
@@ -401,26 +395,22 @@ void GraphScheduler::execute() {
         *_accessGraph,
         *_shaderGraph,
         *_sceneGraph,
-        cmdBuffer,
+        cmd,
         _device,
         _swapchain,
         renderables,
         _perPhaseBindGroups};
     visitRenderGraph(preProcessVisitor, *_renderGraph);
 
-    RenderGraphVisitor encodeVisitor{{}, *_accessGraph, *_resourceGraph, renderables, cmdBuffer};
+    RenderGraphVisitor encodeVisitor{{}, *_accessGraph, *_resourceGraph, renderables, cmd};
     visitRenderGraph(encodeVisitor, *_renderGraph);
 
     auto* presentBarrier = _accessGraph->presentBarrier();
     if (presentBarrier) {
         presentBarrier->info.image = _resourceGraph->getImage(presentBarrier->name).get();
-        cmdBuffer->appendImageBarrier(presentBarrier->info);
-        cmdBuffer->applyBarrier(rhi::DependencyFlags::BY_REGION);
+        cmd->appendImageBarrier(presentBarrier->info);
+        cmd->applyBarrier(rhi::DependencyFlags::BY_REGION);
     }
-
-    cmdBuffer->commit();
-    queue->submit();
-    _swapchain->present();
 
     _renderGraph->clear();
     _accessGraph->clear();

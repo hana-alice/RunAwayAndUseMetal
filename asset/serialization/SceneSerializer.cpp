@@ -605,7 +605,7 @@ void load(graph::SceneGraph& sg, const std::filesystem::path& filePath, rhi::Dev
     loadScene(sg, rawModel, rawModel.defaultScene, commandBuffer, device);
 
     commandBuffer->commit();
-    queue->submit();
+    queue->submit(false);
 }
 
 void load(graph::SceneGraph& sg, const std::filesystem::path& filePath, std::string_view sceneName, rhi::DevicePtr device) {
@@ -636,7 +636,7 @@ void load(graph::SceneGraph& sg, const std::filesystem::path& filePath, std::str
     }
 
     commandBuffer->commit();
-    queue->submit();
+    queue->submit(false);
 }
 
 } // namespace raum::asset::serialize

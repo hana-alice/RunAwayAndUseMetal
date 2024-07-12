@@ -160,6 +160,12 @@ SparseImage::SparseImage(const SparseImageInfo& info, Device* dev)
     vkCreateSemaphore(_device->device(), &semInfo, nullptr, &submit_semaphore);
 }
 
+void SparseImage::bind() {
+     auto* q = _device->getQueue({QueueType::SPARSE});
+     auto* queue = static_cast<Queue*>(q);
+     queue->bindSparse({{this}});
+}
+
 void SparseImage::prepare(RHICommandBuffer* cb) {
     auto* cmdBuffer = static_cast<CommandBuffer*>(cb);
 
@@ -187,10 +193,6 @@ void SparseImage::prepare(RHICommandBuffer* cb) {
                          0, nullptr,
                          0, nullptr,
                          1, &barrier);
-
-    auto* q = _device->getQueue({QueueType::SPARSE});
-    auto* queue = static_cast<Queue*>(q);
-    queue->bindSparse({this});
 
     for (auto [mip, data] : _miptails) {
         uint32_t width = _width >> mip;
@@ -312,25 +314,10 @@ void SparseImage::analyze(RHIBuffer* buf, RHICommandBuffer* cb) {
                 int a = 0;
             }
             _vt.pageTable[pageIndex].resident = true;
-            
         }
     }
     vkUnmapMemory(_device->device(), buffer->allocationInfo().deviceMemory);
-    updateAndGenerate(cb);
-}
 
-void SparseImage::update(RHICommandBuffer* cb) {
-    auto* cmdBuffer = static_cast<CommandBuffer*>(cb);
-    // updateAndGenerate(cb);
-
-    vkCmdFillBuffer(cmdBuffer->commandBuffer(), _accessBuffer->buffer(), 0, _accessBuffer->info().size, 256);
-}
-
-void SparseImage::setMiptail(uint8_t* data, uint8_t mip) {
-    _miptails.emplace_back(mip, data);
-}
-
-void SparseImage::bindSparseImage() {
     for (auto pageIndex : _vt.update_set) {
         auto& page = _vt.pageTable[pageIndex];
         if (page.valid && _vt.sparseImageMemoryBinds[pageIndex].memory) {
@@ -343,16 +330,29 @@ void SparseImage::bindSparseImage() {
         _vt.sparseImageMemoryBinds[pageIndex].memoryOffset = page.pageInfo.memory_sector.offset;
     }
 
-    auto* q = _device->getQueue({QueueType::SPARSE});
-    auto* queue = static_cast<Queue*>(q);
-    queue->bindSparse({this});
-    vkQueueWaitIdle(queue->queue());
+    //updateAndGenerate(cb);
+}
+
+void SparseImage::update(RHICommandBuffer* cb) {
+    auto* cmdBuffer = static_cast<CommandBuffer*>(cb);
+     updateAndGenerate(cb);
+}
+
+void SparseImage::setMiptail(uint8_t* data, uint8_t mip) {
+    _miptails.emplace_back(mip, data);
+}
+
+void SparseImage::bindSparseImage() {
+    // auto* q = _device->getQueue({QueueType::SPARSE});
+    // auto* queue = static_cast<Queue*>(q);
+    // queue->bindSparse({this});
+    // vkQueueWaitIdle(queue->queue());
 }
 
 void SparseImage::updateAndGenerate(RHICommandBuffer* cmd) {
     auto* cmdBuffer = static_cast<CommandBuffer*>(cmd);
 
-    bindSparseImage();
+    //bindSparseImage();
     auto* q = _device->getQueue({QueueType::SPARSE});
     auto* queue = static_cast<Queue*>(q);
 
@@ -507,14 +507,14 @@ void SparseImage::updateAndGenerate(RHICommandBuffer* cmd) {
         auto& pt = _vt.pageTable[i];
         if (!pt.resident && !pt.valid) continue;
         if (!pt.resident && pt.valid) {
-             pt.pageInfo.memory_sector.reset();
+            pt.pageInfo.memory_sector.reset();
         }
         pt.valid = pt.resident;
         if (!pt.valid) {
             _vt.sparseImageMemoryBinds[i].memory = nullptr;
             _vt.sparseImageMemoryBinds[i].memoryOffset = 0;
         }
-         assert(!(!!_vt.sparseImageMemoryBinds[i].memory ^ pt.valid));
+        assert(!(!!_vt.sparseImageMemoryBinds[i].memory ^ pt.valid));
         pt.resident = false;
     }
 

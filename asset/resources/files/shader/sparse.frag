@@ -30,11 +30,6 @@ void main () {
     int maxLod = 9;
     int lod = minLod;
     vec4 color = vec4(0.0);
-    int residencyCode = sparseTextureLodARB(sampler2D(mainTexture, mainSampler), f_uv, minLod, color);
-
-    for(++lod; lod <= maxLod && !sparseTexelsResidentARB(residencyCode); ++lod) {
-        residencyCode = sparseTextureLodARB(sampler2D(mainTexture, mainSampler), f_uv, lod, color);
-    }
 
     uint y = int(f_uv.y * blockHeight);
     uint x = int(f_uv.x * blockWidth);
@@ -46,6 +41,20 @@ void main () {
     float dMaxSqr = max(dot(dx, dx), dot(dy, dy));
     float mip = 0.5 * log2(dMaxSqr);
     uint floorMip = int(mip);
+    
+    int residencyCode = sparseTextureARB(sampler2D(mainTexture, mainSampler), f_uv, color, 0.0f);
+
+    // int residencyCode = sparseTextureLodARB(sampler2D(mainTexture, mainSampler), f_uv, minLod, color);
+
+    // for(++lod; lod <= maxLod && !sparseTexelsResidentARB(residencyCode); ++lod) {
+    //     residencyCode = sparseTextureLodARB(sampler2D(mainTexture, mainSampler), f_uv, lod, color);
+    // }
+    
+	bool texelResident = sparseTexelsResidentARB(residencyCode);
+    if (!texelResident)
+	{
+		color = vec4(0.0, 0.0, 0.0, 0.0);
+	}
 
     atomicMin(mips[pageIndex], floorMip);
 

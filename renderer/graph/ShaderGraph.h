@@ -55,5 +55,5 @@ private:
     ShaderGraphImpl _impl;
 };
 
-using ShaderGraphPtr = std::unique_ptr<ShaderGraph>;
+using ShaderGraphPtr = std::shared_ptr<ShaderGraph>;
 }

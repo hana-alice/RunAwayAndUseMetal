@@ -11,20 +11,18 @@ namespace raum::graph {
 class GraphScheduler {
 public:
     GraphScheduler() = delete;
-    explicit GraphScheduler(rhi::DevicePtr device, rhi::SwapchainPtr swapchain);
+    explicit GraphScheduler(
+        rhi::DevicePtr device,
+        rhi::SwapchainPtr swapchain,
+        RenderGraph* _renderGraph,
+        ResourceGraph* _resourceGraph,
+        AccessGraph* _accessGraph,
+        TaskGraph* _taskGraph,
+        SceneGraph* _sceneGraph,
+        ShaderGraph* _shaderGraph);
 
     void needWarmUp();
-    void execute();
-
-//    void setShaderGraph(ShaderGraphPtr shaderGraph);
-//    void setSceneGraph(SceneGraphPtr sceneGraph);
-
-    //deprecated futrue
-    RenderGraph& renderGraph() { return *_renderGraph; }
-    SceneGraph& sceneGraph() { return *_sceneGraph; }
-    ShaderGraph& shaderGraph() { return *_shaderGraph; }
-    ResourceGraph& resourceGraph() { return *_resourceGraph; }
-    rhi::CommandPoolPtr commandPool() { return _commandPool; }
+    void execute(rhi::CommandBufferPtr cmd);
 
 private:
     RenderGraph* _renderGraph;
@@ -34,8 +32,6 @@ private:
     ShaderGraph* _shaderGraph;
     ResourceGraph* _resourceGraph;
 
-    std::vector<rhi::CommandBufferPtr> _commandBuffers;
-    rhi::CommandPoolPtr _commandPool;
     rhi::SwapchainPtr _swapchain;
     rhi::DevicePtr _device;
 
