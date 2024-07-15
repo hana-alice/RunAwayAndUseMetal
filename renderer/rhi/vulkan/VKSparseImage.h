@@ -23,9 +23,7 @@ public:
 
     VkImage image() { return _sparseImage; }
 
-    const std::vector<VkSparseImageMemoryBind>& sparseImageMemoryBinds() {
-        return _vt.sparseImageMemoryBinds;
-    };
+    const std::vector<VkSparseImageMemoryBind>& sparseImageMemoryBinds();
 
     const VkSparseMemoryBind& opaqueBind() {
         return _vt.miptailBind;
@@ -205,6 +203,8 @@ private:
     VkSparseImageMemoryRequirements _req{};
     std::vector<std::pair<uint8_t, uint8_t*>> _miptails;
     Buffer* _accessBuffer{nullptr};
+
+    uint32_t _frameStepCount{0};
 };
 
 } // namespace raum::rhi

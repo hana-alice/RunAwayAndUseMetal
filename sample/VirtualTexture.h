@@ -72,8 +72,8 @@ public:
         auto pageExtBuffer = rhi::BufferPtr(device->createBuffer(pageExtentInfo));
 
         rhi::BufferInfo accessBufferInfo{
-            .memUsage = rhi::MemoryUsage::HOST_VISIBLE,
-            .bufferUsage = rhi::BufferUsage::STORAGE | rhi::BufferUsage::TRANSFER_DST,
+            //.memUsage = rhi::MemoryUsage::HOST_VISIBLE,
+            .bufferUsage = rhi::BufferUsage::STORAGE | rhi::BufferUsage::TRANSFER_DST | rhi::BufferUsage::TRANSFER_SRC,
             .size = static_cast<uint32_t>(pageExt[0] * pageExt[1] * sizeof(uint32_t)),
         };
         _accessBuffer = rhi::BufferPtr(device->createBuffer(accessBufferInfo));

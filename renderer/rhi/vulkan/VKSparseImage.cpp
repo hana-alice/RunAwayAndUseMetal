@@ -161,9 +161,10 @@ SparseImage::SparseImage(const SparseImageInfo& info, Device* dev)
 }
 
 void SparseImage::bind() {
-     auto* q = _device->getQueue({QueueType::SPARSE});
-     auto* queue = static_cast<Queue*>(q);
-     queue->bindSparse({{this}});
+    // if (_vt.update_set.empty()) return;
+    auto* q = _device->getQueue({QueueType::SPARSE});
+    auto* queue = static_cast<Queue*>(q);
+    queue->bindSparse({{this}});
 }
 
 void SparseImage::prepare(RHICommandBuffer* cb) {
@@ -288,11 +289,46 @@ void SparseImage::getRelatedBlocks(uint32_t row, uint32_t col, uint8_t mipIn, st
     }
 }
 
+VkBuffer localBuf{VK_NULL_HANDLE};
+VmaAllocation allocation;
+VmaAllocationInfo allocInfo;
+uint32_t curIndex{0};
+
 void SparseImage::analyze(RHIBuffer* buf, RHICommandBuffer* cb) {
+    auto* cmdBuffer = static_cast<CommandBuffer*>(cb);
+    if (!localBuf) {
+        const auto& info = buf->info();
+        VkBufferCreateInfo bufferInfo{};
+        bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+        bufferInfo.size = info.size;
+        bufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+        bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        if (!info.queueAccess.empty()) {
+            bufferInfo.queueFamilyIndexCount = static_cast<uint32_t>(info.queueAccess.size());
+            bufferInfo.pQueueFamilyIndices = info.queueAccess.data();
+        }
+
+        VmaAllocationCreateInfo allocaInfo = {
+            .flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_ALLOW_TRANSFER_INSTEAD_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT,
+            .usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
+        };
+
+        VmaAllocator& allocator = _device->allocator();
+
+        VkResult res = vmaCreateBuffer(allocator, &bufferInfo, &allocaInfo, &localBuf, &allocation, &allocInfo);
+        RAUM_ERROR_IF(res != VK_SUCCESS, "Failed to create buffer!");
+    }
+
     auto* buffer = static_cast<Buffer*>(buf);
     auto vkBuffer = buffer->buffer();
-    void* dataBuf;
-    vkMapMemory(_device->device(), buffer->allocationInfo().deviceMemory, 0, buffer->info().size, 0, &dataBuf);
+    VkBufferCopy region;
+    region.srcOffset = 0;
+    region.dstOffset = 0;
+    region.size = buffer->info().size;
+    vkCmdCopyBuffer(cmdBuffer->commandBuffer(), vkBuffer, localBuf, 1, &region);
+
+    void* dataBuf = allocInfo.pMappedData;
+    //auto res = vkMapMemory(_device->device(), allocInfo.deviceMemory, 0, buffer->info().size, 0, &dataBuf);
 
     std::queue<PageTable*> purgeQ;
     auto* data = static_cast<uint32_t*>(dataBuf);
@@ -316,7 +352,7 @@ void SparseImage::analyze(RHIBuffer* buf, RHICommandBuffer* cb) {
             _vt.pageTable[pageIndex].resident = true;
         }
     }
-    vkUnmapMemory(_device->device(), buffer->allocationInfo().deviceMemory);
+    //vkUnmapMemory(_device->device (), allocInfo.deviceMemory);
 
     for (auto pageIndex : _vt.update_set) {
         auto& page = _vt.pageTable[pageIndex];
@@ -329,13 +365,11 @@ void SparseImage::analyze(RHIBuffer* buf, RHICommandBuffer* cb) {
         _vt.sparseImageMemoryBinds[pageIndex].memory = page.pageInfo.memory_sector.memory;
         _vt.sparseImageMemoryBinds[pageIndex].memoryOffset = page.pageInfo.memory_sector.offset;
     }
-
-    //updateAndGenerate(cb);
 }
 
 void SparseImage::update(RHICommandBuffer* cb) {
     auto* cmdBuffer = static_cast<CommandBuffer*>(cb);
-     updateAndGenerate(cb);
+    updateAndGenerate(cb);
 }
 
 void SparseImage::setMiptail(uint8_t* data, uint8_t mip) {
@@ -352,7 +386,6 @@ void SparseImage::bindSparseImage() {
 void SparseImage::updateAndGenerate(RHICommandBuffer* cmd) {
     auto* cmdBuffer = static_cast<CommandBuffer*>(cmd);
 
-    //bindSparseImage();
     auto* q = _device->getQueue({QueueType::SPARSE});
     auto* queue = static_cast<Queue*>(q);
 
@@ -567,6 +600,24 @@ uint8_t SparseImage::getMipLevel(uint32_t pageIndex) {
         }
     }
     return res;
+}
+
+const std::vector<VkSparseImageMemoryBind>& SparseImage::sparseImageMemoryBinds() {
+    if (_vt.update_set.empty()) {
+        constexpr uint32_t dur = 5;
+        static std::vector<VkSparseImageMemoryBind> v;
+        v.clear();
+        uint32_t ct = (_vt.sparseImageMemoryBinds.size() + 4) / 5;
+        auto begin = _vt.sparseImageMemoryBinds.begin() + _frameStepCount * ct;
+        if (_frameStepCount == (dur - 1)) ct = _vt.sparseImageMemoryBinds.size() - ct * (dur - 1);
+        auto end = begin + ct;
+        v.insert(v.begin(), begin, end);
+        _frameStepCount = (_frameStepCount + 1) % dur;
+        return v;
+    } else {
+        return _vt.sparseImageMemoryBinds;
+    }
+
 }
 
 SparseImage::PageInfo SparseImage::allocate(uint32_t pageIndex) {
