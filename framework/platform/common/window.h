@@ -7,9 +7,9 @@
 #include "core/data.h"
 #include <QTimer>
 #include <QLabel>
-
+#include "core/utils/utils.h"
 namespace raum::platform {
-
+using TickFunction = utils::TickFunction<std::chrono::milliseconds>;
 class Window;
 class NativeWindow : public QWindow {
     Q_OBJECT
@@ -26,20 +26,6 @@ public:
     void closeEvent(QCloseEvent* evt) override;
 
     class Window* window;
-};
-
-class TickFunction {
-public:
-    TickFunction() = default;
-    TickFunction(std::function<void(std::chrono::milliseconds)>&& tickFunc) {
-        _tickFunc = tickFunc;
-    }
-
-    void operator()(std::chrono::milliseconds miliSec) {
-        _tickFunc(miliSec);
-    }
-private:
-    std::function<void(std::chrono::milliseconds)> _tickFunc;
 };
 
 class Window {

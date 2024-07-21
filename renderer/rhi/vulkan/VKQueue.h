@@ -63,9 +63,9 @@ public:
 
     void enqueue(RHICommandBuffer* commandBuffer) override;
 
-    void addCompleteHandler(std::function<void()>&& func);
+    void bindSparse(const SparseBindingInfo& info, SparseType type) override;
 
-    void bindSparse(const SparseBindingInfo& info);
+    void addCompleteHandler(std::function<void()>&& func);
 
     VkQueue queue() const { return _vkQueue; }
 

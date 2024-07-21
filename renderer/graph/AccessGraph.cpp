@@ -339,7 +339,6 @@ void populateBarrier(const AccessGraph::ResourceAccessMap& accessMap,
                     name,
                     rhi::ImageBarrierInfo{
                         nullptr,
-                        nullptr,
                         lastStage,
                         stage,
                         getImageLayout(lastAccess),
@@ -360,7 +359,6 @@ void populateBarrier(const AccessGraph::ResourceAccessMap& accessMap,
             presentBarrier = {
                 name,
                 rhi::ImageBarrierInfo{
-                    nullptr,
                     nullptr,
                     lastStage,
                     rhi::PipelineStage::BOTTOM_OF_PIPE,

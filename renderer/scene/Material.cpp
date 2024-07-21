@@ -46,11 +46,6 @@ void Material::set(std::string_view name, const Texture &tex) {
     _dirty = true;
 }
 
-void Material::set(std::string_view name, const VirtualTexture &tex) {
-    _virtualTextures[name.data()] = tex;
-    _dirty = true;
-}
-
 void Material::set(std::string_view name, const raum::scene::Buffer &buf) {
     _buffers[name.data()] = buf;
     _dirty = true;
@@ -62,7 +57,7 @@ void Material::set(std::string_view name, const Sampler &info) {
 }
 
 void Material::initBindGroup(
-    const boost::container::flat_map<std::string_view, uint32_t> &bindings,
+    const SlotMap &bindings,
     rhi::DescriptorSetLayoutPtr layout,
     rhi::DevicePtr device) {
     _bindGroup = std::make_shared<BindGroup>(bindings, layout, device);
@@ -72,9 +67,6 @@ void Material::update() {
     if (_dirty) {
         for (const auto &[name, texture] : _textures) {
             _bindGroup->bindImage(name, 0, texture.textureView, rhi::ImageLayout::SHADER_READ_ONLY_OPTIMAL);
-        }
-        for (const auto &[name, vt] : _virtualTextures) {
-            _bindGroup->bindImage(name, 0, vt.textureView, rhi::ImageLayout::SHADER_READ_ONLY_OPTIMAL);
         }
         for (const auto &[name, buffer] : _buffers) {
             _bindGroup->bindBuffer(name, 0, buffer.buffer);

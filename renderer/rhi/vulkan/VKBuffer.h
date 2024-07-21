@@ -13,6 +13,10 @@ public:
     explicit Buffer(const BufferSourceInfo& info, RHIDevice* device);
     ~Buffer() override;
 
+    void map(uint32_t offset, uint32_t size) override;
+    void unmap() override;
+    void* mappedData() const override;
+
     VkBuffer buffer() const { return _buffer; }
     const VmaAllocationInfo& allocationInfo() { return _allocInfo; }
 

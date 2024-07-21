@@ -3,16 +3,16 @@
 layout(location = 0) in vec2 f_uv;
 layout(location = 0) out vec4 FragColor;
 
-layout(set = 1, binding = 1) uniform texture2D mainTexture;
-layout(set = 1, binding = 2) uniform sampler mainSampler;
-layout(set = 1, binding = 3) uniform PageExtent {
+layout(set = 1, binding = 0) uniform texture2D mainTexture;
+layout(set = 1, binding = 1) uniform sampler mainSampler;
+layout(set = 1, binding = 2) uniform PageExtent {
     int blockWidth;
     int blockHeight;
     int width;
     int height;
 };
 
-layout(set = 1, binding = 4) buffer accessCounter {
+layout(set = 1, binding = 3) buffer accessCounter {
     uint mips[];
 };
 

@@ -46,6 +46,48 @@ void Director::disableScene(std::string_view name) {
     _sceneGraph->disable(name);
 }
 
+void Director::addPreRenderTask(RenderTask* tick) {
+    _preRenderTasks.emplace_back(tick);
+}
+
+void Director::addPostRenderTask(RenderTask* tick) {
+    _postRenderTasks.emplace_back(tick);
+}
+
+void Director::removePreRenderTask(RenderTask* tick) {
+    for(auto it=  _preRenderTasks.begin(); it != _preRenderTasks.end();) {
+        if(*it == tick) {
+            it = _preRenderTasks.erase(it);
+            break;
+        } else {
+            ++it;
+        }
+    }
+}
+
+void Director::removePostRenderTask(RenderTask* tick) {
+    for(auto it=  _postRenderTasks.begin(); it != _postRenderTasks.end();) {
+        if(*it == tick) {
+            it = _postRenderTasks.erase(it);
+            break;
+        } else {
+            ++it;
+        }
+    }
+}
+
+void Director::preRender(std::chrono::milliseconds miliSec, rhi::CommandBufferPtr cmd) {
+    for(auto* task : _preRenderTasks) {
+        (*task)(miliSec, cmd, _device);
+    }
+}
+
+void Director::postRender(std::chrono::milliseconds miliSec, rhi::CommandBufferPtr cmd) {
+    for(auto* task : _postRenderTasks) {
+        (*task)(miliSec, cmd, _device);
+    }
+}
+
 void Director::update(std::chrono::milliseconds milisec) {
     auto* queue = _device->getQueue({rhi::QueueType::GRAPHICS});
 
@@ -61,7 +103,9 @@ void Director::update(std::chrono::milliseconds milisec) {
     cmd->enqueue(queue);
     cmd->begin({});
 
+    preRender(milisec, cmd);
     _pipeline->run(cmd);
+    postRender(milisec, cmd);
 
     cmd->commit();
     queue->addWait(acquireSem);
@@ -71,7 +115,7 @@ void Director::update(std::chrono::milliseconds milisec) {
 }
 
 void Director::run() {
-    _tick = platform::TickFunction{[&](std::chrono::milliseconds miliSec){
+    _tick = TickFunction{[&](std::chrono::milliseconds miliSec){
         this->update(miliSec);
     }};
     _window->registerPollEvents(&_tick);

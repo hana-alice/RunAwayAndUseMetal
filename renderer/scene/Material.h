@@ -21,12 +21,6 @@ struct Texture {
     uint32_t uvIndex{0}; // indicates which set of uv is in use.
 };
 
-struct VirtualTexture {
-    rhi::SparseImagePtr sparseImage;
-    rhi::ImageViewPtr textureView;
-    uint32_t uvIndex{0}; // indicates which set of uv is in use.
-};
-
 struct Buffer {
     rhi::BufferPtr buffer;
 };
@@ -47,7 +41,6 @@ public:
     Material(std::string_view matName,
              const std::string& shader,
              const std::set<std::string>& defines);
-    void set(std::string_view name, const VirtualTexture& tex);
     void set(std::string_view name, const Texture& tex);
     void set(std::string_view name, const Buffer& buf);
     void set(std::string_view name, const Sampler& info);
@@ -55,7 +48,7 @@ public:
     const std::set<std::string>& defines() const { return _defines; }
 
     void initBindGroup(
-        const boost::container::flat_map<std::string_view, uint32_t>& bindings,
+        const SlotMap& bindings,
         rhi::DescriptorSetLayoutPtr layout,
         rhi::DevicePtr device);
 
@@ -66,7 +59,6 @@ protected:
     bool _dirty{false};
     MaterialType _type{MaterialType::PBR};
     std::map<std::string, Texture> _textures;
-    std::map<std::string, VirtualTexture> _virtualTextures;
     std::map<std::string, Buffer> _buffers;
     std::map<std::string, Sampler> _samplers;
     const std::string _shaderName;

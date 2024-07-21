@@ -11,7 +11,6 @@ class Image;
 class ImageView : public RHIImageView {
 public:
     explicit ImageView(const ImageViewInfo& info, RHIDevice* device);
-    explicit ImageView(const SparseImageViewInfo& info, RHIDevice* device);
     ImageView(ImageView&& iv) = delete;
     ImageView() = delete;
     ImageView(const ImageView&) = delete;
@@ -28,8 +27,7 @@ private:
 
     VkImageView _imageView;
     Device* _device{nullptr};
-    SparseImage* _sparseImage{nullptr};
-    Image* _image{nullptr};
+    RHIImage* _image{nullptr};
 
     friend class Swapchain;
 };

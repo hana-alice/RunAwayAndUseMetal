@@ -66,7 +66,7 @@ void MeshRenderer::setTransformSlot(std::string_view name) {
 }
 
 void MeshRenderer::prepare(
-    const boost::container::flat_map<std::string_view, uint32_t>& bindings,
+    const SlotMap& bindings,
     rhi::DescriptorSetLayoutPtr layout,
     rhi::DevicePtr device) {
     if(!_bindGroup) {

@@ -27,6 +27,7 @@ public:
     void reset() override;
     void appendImageBarrier(const ImageBarrierInfo& info) override;
     void appendBufferBarrier(const BufferBarrierInfo& info) override;
+    void appendExecutionBarrier(const ExecutionBarrier& info) override;
     void applyBarrier(DependencyFlags flags) override;
     void onComplete(std::function<void()>&&) override;
 
@@ -45,6 +46,7 @@ private:
     CommandBufferInfo _info;
     std::vector<ImageBarrierInfo> _imageBarriers;
     std::vector<BufferBarrierInfo> _bufferBarriers;
+    std::vector<ExecutionBarrier> _executionBarriers;
 
     VkCommandBuffer _commandBuffer;
 };

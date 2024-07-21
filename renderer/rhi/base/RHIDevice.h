@@ -26,7 +26,6 @@ public:
     virtual RHIBufferView* createBufferView(const BufferViewInfo&) = 0;
     virtual RHIImage* createImage(const ImageInfo&) = 0;
     virtual RHIImageView* createImageView(const ImageViewInfo&) = 0;
-    virtual RHIImageView* createImageView(const SparseImageViewInfo&) = 0;
     virtual RHIShader* createShader(const ShaderBinaryInfo&) = 0;
     virtual RHIShader* createShader(const ShaderSourceInfo&) = 0;
     virtual RHIDescriptorPool* createDescriptorPool(const DescriptorPoolInfo&) = 0;

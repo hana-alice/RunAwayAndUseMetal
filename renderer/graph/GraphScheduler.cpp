@@ -24,12 +24,12 @@ struct WarmUpVisitor : public boost::dfs_visitor<> {
         } else if (std::holds_alternative<RenderQueueData>(g[v].data)) {
             const auto& phaseName = _g.impl()[v].name;
             auto& queueData = std::get<RenderQueueData>(_g.impl()[v].data);
-            boost::container::flat_map<std::string_view, uint32_t> perBatchBindings;
+            scene::SlotMap perBatchBindings;
             for (auto& renderable : _rendererables) {
                 auto meshrenderer = std::static_pointer_cast<scene::MeshRenderer>(renderable);
                 for (auto& technique : meshrenderer->techniques()) {
                     if (phaseName == technique->phaseName()) {
-                        boost::container::flat_map<std::string_view, uint32_t> perInstanceBindings;
+                        scene::SlotMap perInstanceBindings;
                         const auto& shaderResource = _shg.layout(technique->material()->shaderName());
                         std::for_each(
                             shaderResource.bindings.begin(),
@@ -113,7 +113,7 @@ struct WarmUpVisitor : public boost::dfs_visitor<> {
     std::unordered_map<std::string, scene::BindGroupPtr>& _perPhaseBindGroups;
     rhi::RenderPassPtr _renderpass;
     rhi::DescriptorSetLayoutInfo _perPassLayoutInfo;
-    boost::container::flat_map<std::string_view, uint32_t> _perPassBindings;
+    scene::SlotMap _perPassBindings;
 };
 
 struct PreProcessVisitor : public boost::dfs_visitor<> {

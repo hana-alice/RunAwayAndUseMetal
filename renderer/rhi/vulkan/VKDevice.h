@@ -26,7 +26,6 @@ public:
     RHIBufferView *createBufferView(const BufferViewInfo &) override;
     RHIImage *createImage(const ImageInfo &) override;
     RHIImageView *createImageView(const ImageViewInfo &) override;
-    RHIImageView *createImageView(const SparseImageViewInfo &) override;
     RHISampler *getSampler(const SamplerInfo &) override;
     RHIShader *createShader(const ShaderBinaryInfo &) override;
     RHIShader *createShader(const ShaderSourceInfo &) override;

@@ -3,6 +3,8 @@
 #include "VKCommandBuffer.h"
 #include "VKImage.h"
 #include "VKUtils.h"
+#include "VKSparseImage.h"
+#include "RHIUtils.h"
 namespace raum::rhi {
 
 BlitEncoder::BlitEncoder(CommandBuffer* commandBuffer) : _commandBuffer(commandBuffer) {
@@ -26,8 +28,8 @@ void BlitEncoder::copyBufferToBuffer(RHIBuffer* srcBuffer, RHIBuffer* dstBuffer,
 }
 
 void BlitEncoder::copyImageToImage(RHIImage* srcImage, ImageLayout srcLayout, RHIImage* dstImage, ImageLayout dstLayout, ImageCopyRegion* regions, uint32_t regionCount) {
-    auto src = static_cast<Image*>(srcImage)->image();
-    auto dst = static_cast<Image*>(dstImage)->image();
+    VkImage src = isSparse(srcImage) ? static_cast<SparseImage*>(srcImage)->image() : static_cast<Image*>(srcImage)->image();
+    VkImage dst = isSparse(dstImage) ? static_cast<SparseImage*>(dstImage)->image() : static_cast<Image*>(dstImage)->image();
     VkImageLayout srcL = imageLayout(srcLayout);
     VkImageLayout dstL = imageLayout(dstLayout);
 
@@ -66,8 +68,8 @@ void BlitEncoder::copyImageToImage(RHIImage* srcImage, ImageLayout srcLayout, RH
 }
 
 void BlitEncoder::blitImage(RHIImage* srcImage, ImageLayout srcLayout, RHIImage* dstImage, ImageLayout dstLayout, ImageBlit* regions, uint32_t regionCount, Filter filter) {
-    auto src = static_cast<Image*>(srcImage)->image();
-    auto dst = static_cast<Image*>(dstImage)->image();
+    VkImage src = isSparse(srcImage) ? static_cast<SparseImage*>(srcImage)->image() : static_cast<Image*>(srcImage)->image();
+    VkImage dst = isSparse(dstImage) ? static_cast<SparseImage*>(dstImage)->image() : static_cast<Image*>(dstImage)->image();
 
     VkImageLayout srcL = imageLayout(srcLayout);
     VkImageLayout dstL = imageLayout(dstLayout);
@@ -83,9 +85,9 @@ void BlitEncoder::blitImage(RHIImage* srcImage, ImageLayout srcLayout, RHIImage*
         };
         const auto& srcExtent = regions[i].srcExtent;
         blit.srcOffsets[1] = {
-            static_cast<int32_t>(srcExtent.x),
-            static_cast<int32_t>(srcExtent.y),
-            static_cast<int32_t>(srcExtent.z),
+            static_cast<int32_t>(srcExtent.x + srcOffset.x),
+            static_cast<int32_t>(srcExtent.y + srcOffset.y),
+            static_cast<int32_t>(srcExtent.z + srcOffset.z),
         };
         const auto& dstOffset = regions[i].dstOffset;
         blit.dstOffsets[0] = {
@@ -95,9 +97,9 @@ void BlitEncoder::blitImage(RHIImage* srcImage, ImageLayout srcLayout, RHIImage*
         };
         const auto& dstExtent = regions[i].dstExtent;
         blit.dstOffsets[1] = {
-            static_cast<int32_t>(dstExtent.x),
-            static_cast<int32_t>(dstExtent.y),
-            static_cast<int32_t>(dstExtent.z),
+            static_cast<int32_t>(dstExtent.x + dstOffset.x),
+            static_cast<int32_t>(dstExtent.y + dstOffset.y),
+            static_cast<int32_t>(dstExtent.z + dstOffset.z),
         };
         blit.srcSubresource.aspectMask = aspectMask(regions[i].srcImageAspect);
         blit.srcSubresource.baseArrayLayer = regions[i].srcFirstSlice;
@@ -117,7 +119,7 @@ void BlitEncoder::blitImage(RHIImage* srcImage, ImageLayout srcLayout, RHIImage*
 
 void BlitEncoder::copyBufferToImage(RHIBuffer* buffer, RHIImage* image, ImageLayout layout, BufferImageCopyRegion* regions, uint32_t regionCount) {
     auto src = static_cast<Buffer*>(buffer)->buffer();
-    auto dst = static_cast<Image*>(image)->image();
+    VkImage dst = isSparse(image) ? static_cast<SparseImage*>(image)->image() : static_cast<Image*>(image)->image();
     VkImageLayout imgLayout = imageLayout(layout);
 
     std::vector<VkBufferImageCopy> copies(regionCount);
@@ -126,7 +128,7 @@ void BlitEncoder::copyBufferToImage(RHIBuffer* buffer, RHIImage* image, ImageLay
         copy.bufferImageHeight = regions[i].bufferImageHeight;
         copy.bufferRowLength = regions[i].bufferRowLength;
         copy.bufferOffset = regions[i].bufferOffset;
-        const auto& imageOffset = copy.imageOffset;
+        const auto& imageOffset = regions[i].imageOffset;
         copy.imageOffset = {
             static_cast<int32_t>(imageOffset.x),
             static_cast<int32_t>(imageOffset.y),
@@ -151,7 +153,7 @@ void BlitEncoder::copyBufferToImage(RHIBuffer* buffer, RHIImage* image, ImageLay
 }
 
 void BlitEncoder::copyImageToBuffer(RHIImage* image, ImageLayout layout, RHIBuffer* dstBuffer, BufferImageCopyRegion* regions, uint32_t regionCount) {
-    auto src = static_cast<Image*>(image)->image();
+    VkImage src = isSparse(image) ? static_cast<SparseImage*>(image)->image() : static_cast<Image*>(image)->image();
     auto dst = static_cast<Buffer*>(dstBuffer)->buffer();
     VkImageLayout imgLayout = imageLayout(layout);
 

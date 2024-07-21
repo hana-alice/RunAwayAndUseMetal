@@ -4,11 +4,11 @@
 #include "RHIDevice.h"
 
 namespace raum::scene {
-
+using SlotMap = boost::container::flat_map<std::string_view, uint32_t>;
 class BindGroup {
 public:
     BindGroup() = delete;
-    BindGroup(const boost::container::flat_map<std::string_view, uint32_t>& bindings,
+    BindGroup(const SlotMap& bindings,
               rhi::DescriptorSetLayoutPtr layout,
               rhi::DevicePtr device);
 
@@ -39,7 +39,7 @@ public:
     void update();
 
 private:
-    boost::container::flat_map<std::string, uint32_t> _bindingMap;
+    SlotMap _bindingMap;
     rhi::DescriptorPoolPtr _descriptorSetPool;
     rhi::DescriptorSetPtr _descriptorSet;
     rhi::DescriptorSetLayoutPtr _descriptorSetLayout;

@@ -1,4 +1,5 @@
 #include "VKImageView.h"
+#include "RHIUtils.h"
 #include "VKDevice.h"
 #include "VKImage.h"
 #include "VKSparseImage.h"
@@ -6,14 +7,17 @@
 namespace raum::rhi {
 ImageView::ImageView(const ImageViewInfo& info, RHIDevice* device)
 : RHIImageView(info, device), _device(static_cast<Device*>(device)) {
-    _image = static_cast<Image*>(info.image);
-    init(info.type, _image->image(), info.range, info.componentMapping, info.format);
-}
-
-ImageView::ImageView(const SparseImageViewInfo& info, RHIDevice* device)
-: RHIImageView(info, device), _device(static_cast<Device*>(device)) {
-    _sparseImage = static_cast<SparseImage*>(info.image);
-    init(info.type, _sparseImage->image(), info.range, info.componentMapping, info.format);
+    VkImage gfxImg{VK_NULL_HANDLE};
+    if (isSparse(info.image)) {
+        auto* sparseImage = static_cast<SparseImage*>(info.image);
+        _image = sparseImage;
+        gfxImg = sparseImage->image();
+    } else {
+        auto* img = static_cast<Image*>(info.image);
+        _image = img;
+        gfxImg = img->image();
+    }
+    init(info.type, gfxImg, info.range, info.componentMapping, info.format);
 }
 
 void ImageView::init(ImageViewType type, VkImage image, const ImageSubresourceRange& range, ComponentMapping cm, Format format) {

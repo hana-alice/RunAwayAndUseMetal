@@ -1,6 +1,8 @@
 #pragma once
+#include <ranges>
 #include "BuiltinRes.h"
 #include "Camera.h"
+#include "Director.h"
 #include "GraphScheduler.h"
 #include "ImageLoader.h"
 #include "KeyboardEvent.h"
@@ -19,11 +21,12 @@
 #include "common.h"
 #include "core/utils/utils.h"
 #include "math.h"
+#include "renderer/feature/VirtualTexture.h"
 #include "stb_image.h"
 namespace raum::sample {
-class VirtualTexture : public SampleBase {
+class VirtualTextureSample : public SampleBase {
 public:
-    explicit VirtualTexture(graph::PipelinePtr ppl) : _ppl(ppl) {}
+    explicit VirtualTextureSample(framework::Director* director) : _ppl(director->pipeline()), _director(director) {}
 
     void init() override {
         // load scene from gltf
@@ -32,8 +35,10 @@ public:
         auto device = _ppl->device();
         auto swapchain = _ppl->swapchain();
 
-        auto textureFile = resourcePath / "images" / "8k_earth_daymap.jpg";
+        auto& shaderGraph = _ppl->shaderGraph();
+        //shaderGraph.compile("sparse");
 
+        auto textureFile = resourcePath / "images" / "8k_earth_daymap.jpg";
         auto textureMip6 = resourcePath / "images" / "8k_earth_daymap_view_mip6_128x64.bmp";
         auto textureMip7 = resourcePath / "images" / "8k_earth_daymap_view_mip7_64x32.bmp";
         auto textureMip8 = resourcePath / "images" / "8k_earth_daymap_view_mip8_32x16.bmp";
@@ -41,58 +46,41 @@ public:
 
         asset::ImageLoader loader;
         const auto& imageAsset = loader.load(textureFile.string());
-
         const auto& imageAssetMip6 = loader.load(textureMip6.string());
         const auto& imageAssetMip7 = loader.load(textureMip7.string());
         const auto& imageAssetMip8 = loader.load(textureMip8.string());
         const auto& imageAssetMip9 = loader.load(textureMip9.string());
 
-        rhi::SparseImageInfo info{
-            .data = imageAsset.data,
-            .width = static_cast<uint32_t>(imageAsset.width),
-            .height = static_cast<uint32_t>(imageAsset.height),
-            .format = rhi::Format::RGBA8_UNORM,
-        };
-        _sparseImage = rhi::SparseImagePtr(device->createSparseImage(info));
+        _vt = std::make_shared<render::VirtualTexture>(imageAsset.data, imageAsset.width, imageAsset.height, device);
+        _vt->setMiptail(imageAssetMip6.data, 6);
+        _vt->setMiptail(imageAssetMip7.data, 7);
+        _vt->setMiptail(imageAssetMip8.data, 8);
+        _vt->setMiptail(imageAssetMip9.data, 9);
+
+        auto shaderRes = shaderGraph.layout("asset/layout/sparse");
+        scene::SlotMap binds;
+        for (const auto& [name, desc] : shaderRes.bindings) {
+            if (desc.rate == graph::Rate::PER_BATCH) {
+                binds.emplace(name, desc.binding);
+            }
+        }
+        //        _vt->setSparseImageSlot("mainTexture");
+        //        _vt->setSparseSamplerSlot("mainSampler");
+        //        _vt->setAccessCounterSlot("accessCounter");
+        //        _vt->setMetaInfoSlot("PageExtent");
+        //        _vt->initLocalBind(binds,
+        //                           shaderRes.descriptorLayouts.at(static_cast<uint32_t>(graph::Rate::PER_INSTANCE)));
+
+
 
         _cmdPool = rhi::CommandPoolPtr(device->createCoomandPool({}));
-
-        const auto& granularity = _sparseImage->granularity();
-
-        std::array<uint32_t, 4> pageExt = {
-            (imageAsset.width + granularity.x - 1) / granularity.x,
-            (imageAsset.height + granularity.y - 1) / granularity.y,
-            static_cast<uint32_t>(imageAsset.width),
-            static_cast<uint32_t>(imageAsset.height),
-        };
-        rhi::BufferSourceInfo pageExtentInfo{
-            .size = 4 * sizeof(uint32_t),
-            .data = pageExt.data(),
-        };
-        auto pageExtBuffer = rhi::BufferPtr(device->createBuffer(pageExtentInfo));
-
-        rhi::BufferInfo accessBufferInfo{
-            //.memUsage = rhi::MemoryUsage::HOST_VISIBLE,
-            .bufferUsage = rhi::BufferUsage::STORAGE | rhi::BufferUsage::TRANSFER_DST | rhi::BufferUsage::TRANSFER_SRC,
-            .size = static_cast<uint32_t>(pageExt[0] * pageExt[1] * sizeof(uint32_t)),
-        };
-        _accessBuffer = rhi::BufferPtr(device->createBuffer(accessBufferInfo));
-
         auto* q = device->getQueue({rhi::QueueType::GRAPHICS});
         auto cmd = rhi::CommandBufferPtr(_cmdPool->makeCommandBuffer({}));
         cmd->enqueue(q);
         cmd->begin({});
-        _sparseImage->setMiptail(imageAssetMip6.data, 6);
-        _sparseImage->setMiptail(imageAssetMip7.data, 7);
-        _sparseImage->setMiptail(imageAssetMip8.data, 8);
-        _sparseImage->setMiptail(imageAssetMip9.data, 9);
-
-        auto blit = rhi::BlitEncoderPtr(cmd->makeBlitEncoder());
-        blit->fillBuffer(_accessBuffer.get(), 0, accessBufferInfo.size, 256);
         auto* sparseQ = device->getQueue({rhi::QueueType::SPARSE});
         auto* sparseSem = sparseQ->getSignal();
-        _sparseImage->bind();
-        _sparseImage->prepare(cmd.get());
+        _vt->prepare(cmd);
         cmd->commit();
 
         q->addWait(sparseSem);
@@ -100,36 +88,55 @@ public:
 
         cmd->onComplete([cmd]() mutable { cmd.reset(); });
 
-        rhi::SparseImageViewInfo viewInfo{
-            .image = _sparseImage.get(),
-            .range = {
-                .sliceCount = 1,
-                .mipCount = 10,
-            },
-            .format = rhi::Format::RGBA8_UNORM,
-        };
-        auto sparseView = rhi::ImageViewPtr(device->createImageView(viewInfo));
-
         auto& quad = asset::BuiltinRes::quad();
         graph::ModelNode& quadNode = sceneGraph.addModel("quad");
         quadNode.model = quad.model();
 
         scene::MaterialTemplatePtr matTemplate = std::make_shared<scene::MaterialTemplate>("asset/layout/sparse");
         auto sparseMat = matTemplate->instantiate("asset/layout/sparse", scene::MaterialType::CUSTOM);
-        sparseMat->set("mainTexture", {_sparseImage, sparseView});
-
-        scene::Sampler sampler{
-            rhi::SamplerInfo{
-                .magFilter = rhi::Filter::LINEAR,
-                .minFilter = rhi::Filter::LINEAR,
-                .minLod = 0,
-                .maxLod = 9,
-
-            },
+        sparseMat->initBindGroup(binds, shaderRes.descriptorLayouts.at(static_cast<uint32_t>(graph::Rate::PER_BATCH)), device);
+        sparseMat->set("mainTexture", scene::Texture{
+                                          _vt->sparseImage(),
+                                          _vt->sparseView()});
+        rhi::SamplerInfo samplerInfo {
+            .magFilter = rhi::Filter::LINEAR,
+            .minFilter = rhi::Filter::LINEAR,
+            .minLod = 0,
+            .maxLod = 9,
         };
-        sparseMat->set("mainSampler", sampler);
-        sparseMat->set("PageExtent", {pageExtBuffer});
-        sparseMat->set("accessCounter", {_accessBuffer});
+        sparseMat->set("mainSampler", scene::Sampler{samplerInfo});
+        sparseMat->set("PageExtent", scene::Buffer{_vt->metaInfoBuffer()});
+        sparseMat->set("accessCounter", scene::Buffer{_vt->accessCounterBuffer()});
+        sparseMat->update();
+
+        _preRenderTask = framework::RenderTask{
+            [this](std::chrono::milliseconds sec, rhi::CommandBufferPtr cmd, rhi::DevicePtr device){
+                auto* sparseQ = device->getQueue({{rhi::QueueType::SPARSE}});
+                auto* grfxQ = device->getQueue({{rhi::QueueType::GRAPHICS}});
+                if(_lastGraphicsSem) {
+                    //sparseQ->addWait(_lastGraphicsSem);
+                }
+                if (_lastSparseSem) {
+
+                }
+                _lastGraphicsSem = grfxQ->getSignal();
+                _lastSparseSem = sparseQ->getSignal();
+                _vt->resetAccessCounter(cmd);
+                _vt->update(cmd);
+                auto newUpdate = _vt->hasRemainedTask();
+                if (newUpdate) {
+                    grfxQ->addWait(_lastSparseSem);
+                }
+            }
+        };
+        _director->addPreRenderTask(&_preRenderTask);
+
+        _postRenderTask = framework::RenderTask{
+            [this](std::chrono::milliseconds sec, rhi::CommandBufferPtr cmd, rhi::DevicePtr device){
+                _vt->invalidateFeedback(cmd);
+            }
+        };
+        _director->addPostRenderTask(&_postRenderTask);
 
         scene::TechniquePtr sparseTech = std::make_shared<scene::Technique>(sparseMat, "default");
         sparseTech->setPrimitiveType(rhi::PrimitiveType::TRIANGLE_LIST);
@@ -143,15 +150,6 @@ public:
         auto& meshRenderer = quadNode.model->meshRenderers().front();
         meshRenderer->removeTechnique(0);
         meshRenderer->addTechnique(sparseTech);
-
-        _cmdBuffers.resize(rhi::FRAMES_IN_FLIGHT);
-        _sparseCmds.resize(rhi::FRAMES_IN_FLIGHT);
-        for (auto& cmd : _cmdBuffers) {
-            cmd = rhi::CommandBufferPtr(_cmdPool->makeCommandBuffer({}));
-        }
-        // for (auto& cmd : _sparseCmds) {
-        //     cmd = rhi::CommandBufferPtr(_sparseCmdPool->makeCommandBuffer({}));
-        // }
 
         auto width = swapchain->width();
         auto height = swapchain->height();
@@ -236,7 +234,7 @@ public:
         //_mouseListener.add(mouseHandler);
     }
 
-    ~VirtualTexture() {
+    ~VirtualTextureSample() {
         _keyListener.remove();
         _mouseListener.remove();
     }
@@ -244,25 +242,6 @@ public:
     void show() override {
         auto device = _ppl->device();
         auto swapchain = _ppl->swapchain();
-        auto* grfxQ = device->getQueue({rhi::QueueType::GRAPHICS});
-        auto* sparseQ = device->getQueue({rhi::QueueType::SPARSE});
-
-        static bool firstFrame{true};
-        if (!firstFrame) {
-            auto* sparseSem = sparseQ->getSignal();
-            auto cmd = _cmdBuffers[swapchain->imageIndex()];
-            cmd->reset();
-            cmd->enqueue(grfxQ);
-            cmd->begin({});
-            _sparseImage->analyze(_accessBuffer.get(), cmd.get());
-            _sparseImage->bind();
-            _sparseImage->update(cmd.get());
-            auto blit = rhi::BlitEncoderPtr(cmd->makeBlitEncoder());
-            blit->fillBuffer(_accessBuffer.get(), 0, _accessBuffer->info().size, 256);
-            cmd->commit();
-            grfxQ->addWait(sparseSem);
-        }
-        firstFrame = false;
 
         auto& renderGraph = _ppl->renderGraph();
         auto uploadPass = renderGraph.addCopyPass("cambufferUpdate");
@@ -299,6 +278,9 @@ public:
 
 private:
     graph::PipelinePtr _ppl;
+    framework::Director* _director;
+
+    render::VirtualTexturePtr _vt;
 
     std::shared_ptr<scene::Camera> _cam;
     std::shared_ptr<scene::Scene> _scene;
@@ -309,17 +291,17 @@ private:
 
     const std::string _name = "VirtualTexture";
 
-    rhi::SparseImagePtr _sparseImage;
-
     framework::EventListener<framework::KeyboardEventTag> _keyListener;
     framework::EventListener<framework::MouseEventTag> _mouseListener;
     //    framework::EventListener<framework::ResizeEventTag> _resizeListener;
 
-    std::vector<rhi::CommandBufferPtr> _cmdBuffers;
-    std::vector<rhi::CommandBufferPtr> _sparseCmds;
+    framework::RenderTask _preRenderTask;
+    framework::RenderTask _postRenderTask;
+
+    rhi::RHISemaphore* _lastGraphicsSem{nullptr};
+    rhi::RHISemaphore* _lastSparseSem{nullptr};
+
     rhi::CommandPoolPtr _cmdPool;
-    rhi::CommandPoolPtr _sparseCmdPool;
-    rhi::BufferPtr _accessBuffer;
 };
 
 } // namespace raum::sample

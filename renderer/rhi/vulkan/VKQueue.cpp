@@ -122,7 +122,7 @@ void Queue::submit(bool signal) {
     _commandBuffers.clear();
 }
 
-void Queue::bindSparse(const SparseBindingInfo& info) {
+void Queue::bindSparse(const SparseBindingInfo& info, SparseType type) {
     VkBindSparseInfo bindInfo{.sType = VK_STRUCTURE_TYPE_BIND_SPARSE_INFO};
     bindInfo.bufferBindCount = 0;
     bindInfo.pBufferBinds = nullptr;
@@ -140,12 +140,14 @@ void Queue::bindSparse(const SparseBindingInfo& info) {
         opaqueBind.pBinds = &mipTail;
         opaqueBindInfos.emplace_back(opaqueBind);
 
-        const auto& imageBinds = sparseImage->sparseImageMemoryBinds();
-        VkSparseImageMemoryBindInfo imageMemoryBindInfo{};
-        imageMemoryBindInfo.bindCount = imageBinds.size();
-        imageMemoryBindInfo.image = sparseImage->image();
-        imageMemoryBindInfo.pBinds = imageBinds.data();
-        imageMemBindInfos.emplace_back(imageMemoryBindInfo);
+        if (test(type, SparseType::IMAGE)) {
+            const auto& imageBinds = sparseImage->sparseImageMemoryBinds();
+            VkSparseImageMemoryBindInfo imageMemoryBindInfo{};
+            imageMemoryBindInfo.bindCount = imageBinds.size();
+            imageMemoryBindInfo.image = sparseImage->image();
+            imageMemoryBindInfo.pBinds = imageBinds.data();
+            imageMemBindInfos.emplace_back(imageMemoryBindInfo);
+        }
     }
     bindInfo.imageOpaqueBindCount = opaqueBindInfos.size();
     bindInfo.pImageOpaqueBinds = opaqueBindInfos.data();

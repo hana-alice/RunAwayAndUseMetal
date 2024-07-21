@@ -1,67 +1,43 @@
 #include <set>
 #include "RHIDefine.h"
 #include "RHISparseImage.h"
+#include "VKBuffer.h"
 #include "VKCommandBuffer.h"
+#include "VKDevice.h"
 #include "VKImage.h"
 #include "VKImageView.h"
-#include "VKBuffer.h"
-#include "VKDevice.h"
 namespace raum::rhi {
 class SparseImage : public RHISparseImage {
 public:
     SparseImage(const SparseImageInfo& info, Device* device);
 
-    void prepare(RHICommandBuffer* cmdBuffer) override;
+    void prepare(RHICommandBuffer* cmdBuffer,
+                 uint32_t numCols,
+                 uint32_t numRows,
+                 uint32_t pageCount,
+                 uint32_t pageSize) override;
     void update(RHICommandBuffer* cmdBuffer) override;
-
     void setMiptail(uint8_t* data, uint8_t mip) override;
-
     void analyze(RHIBuffer* buffer, RHICommandBuffer* cb) override;
-    void bind() override;
-
+    void bind(SparseType type) override;
+    void shrink() override;
     const Vec3u& granularity() override { return _granularity; }
+    uint8_t firstMipTail() override;
+    void allocatePage(uint32_t pageIndex) override;
+    void reset(uint32_t pageIndex) override;
+    void setPageMemoryBindInfo(uint32_t pageIndex, const Vec3u& offset, const Vec3u& extent, uint8_t mip, uint32_t slice) override;
+
+    void initPageInfo(uint32_t pageCount, uint32_t pageSize) override;
 
     VkImage image() { return _sparseImage; }
 
     const std::vector<VkSparseImageMemoryBind>& sparseImageMemoryBinds();
 
     const VkSparseMemoryBind& opaqueBind() {
-        return _vt.miptailBind;
+        return _miptailBind;
     }
 
 private:
-    struct MipProps {
-        uint32_t rowCount{0};
-        uint32_t columnCount{0};
-        uint32_t pageCount{0};
-        uint32_t pageStartIndex{0};
-        uint32_t width{0};
-        uint32_t height{0};
-    };
-
-    struct MipBlock {
-        uint8_t mipLevel{0};
-        bool onScreen{false};
-    };
-
-    struct TextureBlock {
-        bool operator<(TextureBlock const& other) const {
-            return std::tie(new_mip_level, column, row) < std::tie(other.new_mip_level, other.column, other.row);
-        };
-
-        size_t row;
-        size_t column;
-        uint8_t old_mip_level;
-        uint8_t new_mip_level;
-        bool on_screen{false};
-    };
-
-    struct MemPageDescription {
-        size_t x;
-        size_t y;
-        uint8_t mip_level;
-    };
-
     struct MemAllocInfo {
         uint64_t pageSize{0};
         uint32_t pagesPerAlloc{0};
@@ -81,9 +57,9 @@ private:
     };
 
     struct MemAllocator {
-        MemAllocator(Device* dev, const VkMemoryRequirements& req) : device(dev) {
+        MemAllocator(Device* dev, const VkMemoryRequirements& req, uint32_t pageSize) : device(dev) {
             VkMemoryRequirements memReq = req;
-            memReq.size = PageSize;
+            memReq.size = pageSize;
             VmaAllocationCreateInfo aci{};
             aci.usage = VMA_MEMORY_USAGE_GPU_ONLY;
             aci.memoryTypeBits = req.memoryTypeBits;
@@ -121,10 +97,7 @@ private:
 
         std::vector<VmaAllocationInfo> allocInfos;
         std::vector<VmaAllocation> allocations;
-
-        static uint32_t MemoryTypeIndex;
-        static uint32_t PageSize;
-        static uint32_t PagesPerAlloc;
+        uint32_t pagesPerAlloc{50};
     };
 
     struct PageInfo {
@@ -132,66 +105,35 @@ private:
         uint32_t offset = 0U;
     };
 
-    struct PageTable {
-        bool valid{false};
-        bool resident{false};
-        bool needGenMipMap{false};
-        bool tail{false};
-        std::set<std::tuple<uint8_t, size_t, size_t>> render_required_set;
-        PageInfo pageInfo;
-    };
+    std::vector<VkSparseImageMemoryBind> _imageMemoryBinds;
+    VkSparseMemoryBind _miptailBind;
+    std::vector<PageInfo> _pages;
+    uint32_t _pageSize{0};
 
-    struct VirtualTexture {
-        uint32_t pageSize{0};
-
-        std::vector<MipProps> mips;
-        std::vector<PageTable> pageTable;
-        std::vector<VkSparseImageMemoryBind> sparseImageMemoryBinds;
-        VkSparseMemoryBind miptailBind;
-        std::vector<std::vector<MipBlock>> currMipTable;
-        std::vector<std::vector<MipBlock>> newMipTable;
-        std::set<TextureBlock> texture_block_update_set;
-        std::set<size_t> update_set;
-        std::vector<PageInfo> mipTails;
-    };
+    static constexpr uint32_t PagesPerAlloc{50};
 
     MemAllocInfo memAllocInfo;
     std::list<std::shared_ptr<MemAllocator>> sectors;
 
     PageInfo allocate(uint32_t pageIndex);
 
-    void resetMipTable();
     uint8_t getMipLevel(uint32_t pageIndex);
-    void fillTail();
-    void compareMipTable();
-    void processTextureBlock(const TextureBlock& block);
-    void loadLeastDetail();
-    void processTextureBlock();
+
     void updateAndGenerate(RHICommandBuffer* cmdBuffer);
-    void bindSparseImage();
 
     void getRelatedBlocks(uint32_t row, uint32_t col, uint8_t mip, std::set<size_t>& indices);
 
-    std::vector<size_t> getDependentPages(size_t col, size_t row, uint8_t mipLevel);
-    MemPageDescription getMemPageDescription(size_t pageIndex);
     uint32_t getPageIndex(uint32_t row, uint32_t col, uint8_t mip);
 
-    bool update_required{false};
+    void prepareMiptail(RHICommandBuffer* cmdBuffer);
 
     uint32_t _blockPerCycle{25};
-
-    uint8_t _minLod{0};
-    uint8_t _maxLod{0};
     uint32_t _width{0};
     uint32_t _height{0};
     rhi::Format _format{rhi::Format::UNKNOWN};
     Vec3u _granularity;
 
-    VkSemaphore bound_semaphore;
-    VkSemaphore submit_semaphore;
-
     uint8_t frame_counter_per_transfer{0};
-    VirtualTexture _vt;
     VkImage _sparseImage;
     uint8_t* _data;
     Device* _device;
@@ -205,6 +147,8 @@ private:
     Buffer* _accessBuffer{nullptr};
 
     uint32_t _frameStepCount{0};
+
+    uint32_t _memTypeIndex{0};
 };
 
 } // namespace raum::rhi

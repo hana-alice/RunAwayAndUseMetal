@@ -429,14 +429,6 @@ struct ImageViewInfo {
     Format format{Format::UNKNOWN};
 };
 
-struct SparseImageViewInfo {
-    ImageViewType type{ImageViewType::IMAGE_VIEW_2D};
-    RHISparseImage* image{nullptr};
-    ImageSubresourceRange range{};
-    ComponentMapping componentMapping{};
-    Format format{Format::UNKNOWN};
-};
-
 enum class InputRate : uint8_t {
     PER_VERTEX,
     PER_INSTANCE,
@@ -909,6 +901,7 @@ struct BufferInfo {
 };
 
 struct BufferSourceInfo {
+    MemoryUsage memUsage{MemoryUsage::HOST_VISIBLE};
     SharingMode sharingMode{SharingMode::EXCLUSIVE};
     BufferFlag flag{BufferFlag::NONE};
     BufferUsage bufferUsage{BufferUsage::UNIFORM};
@@ -1045,9 +1038,15 @@ struct RenderPassBeginInfo {
     ClearValue* clearColors;
 };
 
+struct ExecutionBarrier {
+    PipelineStage srcStage{PipelineStage::TOP_OF_PIPE};    // not in use for now
+    PipelineStage dstStage{PipelineStage::BOTTOM_OF_PIPE}; // not in use for now
+    AccessFlags srcAccessFlag{AccessFlags::NONE};
+    AccessFlags dstAccessFlag{AccessFlags::NONE};
+};
+
 struct ImageBarrierInfo {
     RHIImage* image{nullptr};
-    RHISparseImage* sparseImage{nullptr};
     PipelineStage srcStage{PipelineStage::TOP_OF_PIPE};
     PipelineStage dstStage{PipelineStage::BOTTOM_OF_PIPE};
     ImageLayout oldLayout{ImageLayout::UNDEFINED};
@@ -1158,11 +1157,19 @@ enum class SparseImageFormatFlag : uint8_t {
 };
 OPERABLE(SparseImageFormatFlag)
 
+enum class SparseType : uint8_t {
+    OPAQUE = 1,
+    IMAGE = 1 << 1,
+    BUFFER = 1 << 2,
+};
+OPERABLE(SparseType)
+
 struct SparseImageInfo {
-    uint8_t* data;
-    uint32_t width;
-    uint32_t height;
-    Format format;
+    uint8_t* data{0};
+    uint32_t width{0};
+    uint32_t height{0};
+    uint8_t maxMip{0};
+    Format format{Format::UNKNOWN};
 };
 
 struct SparseBindingRequirement {

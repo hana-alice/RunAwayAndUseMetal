@@ -318,10 +318,6 @@ RHIImageView* Device::createImageView(const ImageViewInfo& info) {
     return new ImageView(info, this);
 }
 
-RHIImageView* Device::createImageView(const SparseImageViewInfo& info) {
-    return new ImageView(info, this);
-}
-
 RHICommandPool* Device::createCoomandPool(const CommandPoolInfo& info) {
     return new CommandPool(info, this);
 }

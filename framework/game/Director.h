@@ -10,6 +10,10 @@
 #include "Pipeline.h"
 #include "window.h"
 namespace raum::framework {
+using TickFunction = utils::TickFunction<std::chrono::milliseconds>;
+using RenderTask = utils::TickFunction<std::chrono::milliseconds,
+                                       rhi::CommandBufferPtr,
+                                       rhi::DevicePtr>;
 
 class Director {
 public:
@@ -24,6 +28,11 @@ public:
     void enableScene(std::string_view name);
     void disableScene(std::string_view name);
 
+    void addPreRenderTask(RenderTask* tick);
+    void addPostRenderTask(RenderTask* tick);
+    void removePreRenderTask(RenderTask* tick);
+    void removePostRenderTask(RenderTask* tick);
+
     graph::SceneGraph& sceneGraph() { return *_sceneGraph; }
 
     void run();
@@ -32,6 +41,8 @@ public:
     rhi::DevicePtr device() { return _device; }
     rhi::SwapchainPtr swapchain() { return _swapchain; }
 private:
+    void preRender(std::chrono::milliseconds miliSec, rhi::CommandBufferPtr cmd);
+    void postRender(std::chrono::milliseconds miliSec, rhi::CommandBufferPtr cmd);
     void update(std::chrono::milliseconds miliSec);
     graph::SceneGraphPtr _sceneGraph;
     graph::ShaderGraphPtr _shaderGraph;
@@ -44,7 +55,10 @@ private:
     graph::PipelinePtr _pipeline;
     platform::WindowPtr _window;
 
-    platform::TickFunction _tick;
+    std::vector<RenderTask*> _preRenderTasks;
+    std::vector<RenderTask*> _postRenderTasks;
+
+    TickFunction _tick;
 };
 
 } // namespace raum::framework

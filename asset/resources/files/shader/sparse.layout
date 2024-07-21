@@ -28,7 +28,7 @@
     "source": "sparse",
     "bindings": [
       {
-        "slot": 1,
+        "slot": 0,
         "rate": "per_batch",
         "resource": "image",
         "type": "2d",
@@ -36,14 +36,14 @@
         "count": 1
       },
       {
-        "slot": 2,
+        "slot": 1,
         "rate": "per_batch",
         "resource": "sampler",
         "count": 1,
         "immutable": true
       },
       {
-        "slot": 3,
+        "slot": 2,
         "rate": "per_batch",
         "resource": "buffer",
         "count": 1,
@@ -68,7 +68,7 @@
         ]
       },
       {
-        "slot": 4,
+        "slot": 3,
         "rate": "per_batch",
         "resource": "buffer",
         "count": 1,

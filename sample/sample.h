@@ -45,7 +45,7 @@ public:
 
         _samples = {
             //            std::make_shared<sample::GraphSample>(_device, _swapchain, _graphScheduler),
-            std::make_shared<sample::VirtualTexture>(_world->director().pipeline()),
+            std::make_shared<sample::VirtualTextureSample>(&_world->director()),
         };
         _inited.resize(_samples.size(), 0);
 

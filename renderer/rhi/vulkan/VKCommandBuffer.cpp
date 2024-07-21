@@ -11,6 +11,7 @@
 #include "VKDescriptorSet.h"
 #include "VKCommandPool.h"
 #include "VKSparseImage.h"
+#include "RHIUtils.h"
 namespace raum::rhi {
 CommandBuffer::CommandBuffer(const CommandBufferInfo& info, CommandPool* commandPool, RHIDevice* device)
 : RHICommandBuffer(info, device),
@@ -69,9 +70,14 @@ void CommandBuffer::appendBufferBarrier(const BufferBarrierInfo& info) {
     _bufferBarriers.emplace_back(info);
 }
 
+void CommandBuffer::appendExecutionBarrier(const ExecutionBarrier& info) {
+    _executionBarriers.emplace_back(info);
+}
+
 void CommandBuffer::applyBarrier(DependencyFlags flags) {
     std::vector<VkBufferMemoryBarrier> bufferBarriers(_bufferBarriers.size());
     std::vector<VkImageMemoryBarrier> imageBarriers(_imageBarriers.size());
+    std::vector<VkMemoryBarrier> executionBarriers(_executionBarriers.size());
     VkPipelineStageFlags srcStageMask{VK_PIPELINE_STAGE_NONE};
     VkPipelineStageFlags dstStageMask{VK_PIPELINE_STAGE_NONE};
     for (size_t i = 0; i < _bufferBarriers.size(); ++i) {
@@ -91,10 +97,10 @@ void CommandBuffer::applyBarrier(DependencyFlags flags) {
         srcStageMask |= pipelineStageFlags(_imageBarriers[i].srcStage);
         dstStageMask |= pipelineStageFlags(_imageBarriers[i].dstStage);
         imageBarriers[i].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-        if(_imageBarriers[i].image) {
-            imageBarriers[i].image = static_cast<Image*>(_imageBarriers[i].image)->image();
+        if(isSparse(_imageBarriers[i].image)) {
+            imageBarriers[i].image = static_cast<SparseImage*>(_imageBarriers[i].image)->image();
         } else {
-            imageBarriers[i].image = static_cast<SparseImage*>(_imageBarriers[i].sparseImage)->image();
+            imageBarriers[i].image = static_cast<Image*>(_imageBarriers[i].image)->image();
         }
         imageBarriers[i].srcAccessMask = accessFlags(_imageBarriers[i].srcAccessFlag);
         imageBarriers[i].dstAccessMask = accessFlags(_imageBarriers[i].dstAccessFlag);
@@ -109,9 +115,17 @@ void CommandBuffer::applyBarrier(DependencyFlags flags) {
         imageBarriers[i].subresourceRange.levelCount = _imageBarriers[i].range.mipCount;
     }
 
+    for(size_t i = 0; i < _executionBarriers.size(); ++i) {
+        srcStageMask |= pipelineStageFlags(_executionBarriers[i].srcStage);
+        dstStageMask |= pipelineStageFlags(_executionBarriers[i].dstStage);
+        executionBarriers[i].srcAccessMask = accessFlags(_executionBarriers[i].srcAccessFlag);
+        executionBarriers[i].dstAccessMask = accessFlags(_executionBarriers[i].dstAccessFlag);
+        executionBarriers[i].sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+    }
+
     if (!_bufferBarriers.empty() || !_imageBarriers.empty()) {
         vkCmdPipelineBarrier(_commandBuffer, srcStageMask, dstStageMask, dependencyFlags(flags),
-                             0, nullptr,
+                             executionBarriers.size(), executionBarriers.data(),
                              static_cast<uint32_t>(bufferBarriers.size()), bufferBarriers.data(),
                              static_cast<uint32_t>(imageBarriers.size()), imageBarriers.data());
     }

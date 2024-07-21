@@ -7,7 +7,6 @@ class RHIImage;
 class RHIImageView : public RHIResource {
 public:
     explicit RHIImageView(const ImageViewInfo& info, RHIDevice*){}
-    explicit RHIImageView(const SparseImageViewInfo& info, RHIDevice*) {}
     virtual RHIImage* image() const = 0;
 
     virtual ~RHIImageView() = 0;
