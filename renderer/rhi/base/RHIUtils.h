@@ -380,4 +380,7 @@ ImagePtr createImageFromBuffer(BufferPtr buffer,
                                DevicePtr device);
 ImageViewPtr createDefaultView(ImagePtr image, DevicePtr device);
 
+bool isSparse(RHIImage* img);
+
+
 } // namespace raum::rhi

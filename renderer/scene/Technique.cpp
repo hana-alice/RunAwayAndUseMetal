@@ -47,7 +47,7 @@ void Technique::setPrimitiveType(rhi::PrimitiveType type) {
     _primitiveType = type;
 }
 
-void Technique::bakeMaterial(const boost::container::flat_map<std::string_view, uint32_t>& perBatchBinding,
+void Technique::bakeMaterial(const SlotMap& perBatchBinding,
                              rhi::DescriptorSetLayoutPtr batchLayout,
                              rhi::DevicePtr device) {
     if (_material->bindGroup()) {

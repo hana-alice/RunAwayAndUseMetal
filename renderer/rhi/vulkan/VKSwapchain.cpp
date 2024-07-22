@@ -9,6 +9,7 @@
 #include "VKImage.h"
 #include "VKImageView.h"
 #include "VKQueue.h"
+#include "VKSemaphore.h"
 #include "VKUtils.h"
 
 namespace raum::rhi {
@@ -21,7 +22,7 @@ void Swapchain::initialize(uintptr_t hwnd, SyncType type, uint32_t width, uint32
     _presentQueue = static_cast<Queue*>(grfxQ);
     auto qIndex = _presentQueue->index();
 
-    if(!_surface) {
+    if (!_surface) {
         VkWin32SurfaceCreateInfoKHR surfaceInfo{};
         surfaceInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
         surfaceInfo.hwnd = (HWND)hwnd;
@@ -93,8 +94,6 @@ void Swapchain::initialize(uintptr_t hwnd, SyncType type, uint32_t width, uint32
         imageCount = preferredSwapchainCount;
     }
 
-    _presentQueue->initPresentQueue(imageCount);
-
     VkSwapchainCreateInfoKHR createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
     createInfo.surface = _surface;
@@ -127,11 +126,9 @@ void Swapchain::initialize(uintptr_t hwnd, SyncType type, uint32_t width, uint32
     #pragma error Run Away
 #endif
 
-    _presentSemaphores.resize(imageCount);
-    for (auto& sem : _presentSemaphores) {
-        VkSemaphoreCreateInfo info{};
-        info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-        vkCreateSemaphore(_device->device(), &info, nullptr, &sem);
+    _acquireSemaphores.resize(imageCount);
+    for (auto& sem : _acquireSemaphores) {
+        sem = new Semaphore(_device);
     }
 }
 
@@ -147,25 +144,42 @@ Swapchain::Swapchain(const raum::rhi::SwapchainSurfaceInfo& info, raum::rhi::Dev
     initialize(0, info.type, info.width, info.height);
 }
 
+void Swapchain::addWaitBeforePresent(RHISemaphore* s) {
+    auto* sem = static_cast<Semaphore*>(s);
+    _waits.emplace_back(sem);
+}
+
+RHISemaphore* Swapchain::getAvailableByAcquire() {
+    return _acquireSemaphores[_imageIndex];
+}
+
 bool Swapchain::acquire() {
-    VkSemaphore imageAvailableSem = _presentSemaphores[_imageIndex];
-    _presentQueue->setPresentSemaphore(imageAvailableSem);
-    return vkAcquireNextImageKHR(_device->device(), _swapchain, UINT64_MAX, imageAvailableSem, VK_NULL_HANDLE, &_imageIndex) == VK_SUCCESS;
+    auto imageAvailableSem = _acquireSemaphores[_imageIndex];
+    return vkAcquireNextImageKHR(_device->device(), _swapchain, UINT64_MAX, imageAvailableSem->semaphore(), VK_NULL_HANDLE, &_imageIndex) == VK_SUCCESS;
 }
 
 void Swapchain::present() {
-    VkSemaphore renderSemaphore = _presentQueue->popCommandSemaphore();
-
     VkPresentInfoKHR presentInfo{};
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-    presentInfo.waitSemaphoreCount = 1;
-    presentInfo.pWaitSemaphores = &renderSemaphore;
+
+    std::vector<VkSemaphore> sems{};
+    if (!_waits.empty()) [[likely]] {
+        for (auto sem : _waits) {
+            sems.emplace_back(sem->semaphore());
+        }
+        presentInfo.pWaitSemaphores = sems.data();
+        presentInfo.waitSemaphoreCount = sems.size();
+        _waits.clear();
+    } else {
+        presentInfo.waitSemaphoreCount = 0;
+        presentInfo.pWaitSemaphores = nullptr;
+    }
+
     presentInfo.swapchainCount = 1;
     presentInfo.pSwapchains = &_swapchain;
     presentInfo.pImageIndices = &_imageIndex;
     presentInfo.pResults = nullptr;
     vkQueuePresentKHR(_presentQueue->_vkQueue, &presentInfo);
-//    _imageIndex = (_imageIndex + 1) % static_cast<uint32_t>(_vkImages.size());
 }
 
 void Swapchain::destroy() {
@@ -196,7 +210,7 @@ RHIImage* Swapchain::allocateImage(uint32_t index) {
     imageInfo.type = ImageType::IMAGE_2D;
     imageInfo.format = _preferredFormat;
     imageInfo.usage = ImageUsage::COLOR_ATTACHMENT | ImageUsage::TRANSFER_DST;
-    imageInfo.intialLayout = ImageLayout::UNDEFINED;
+    imageInfo.initialLayout = ImageLayout::UNDEFINED;
     imageInfo.sliceCount = 1;
     imageInfo.mipCount = 1;
     imageInfo.sampleCount = 1;
@@ -220,7 +234,7 @@ void Swapchain::resize(uint32_t w, uint32_t h) {
 }
 
 void Swapchain::resize(uint32_t w, uint32_t h, void* surface) {
-    if(surface != surface) {
+    if (surface != surface) {
         destroy();
     } else {
         vkQueueWaitIdle(_presentQueue->_vkQueue);

@@ -36,6 +36,12 @@ public:
     RHIPipelineLayout *createPipelineLayout(const PipelineLayoutInfo &) override;
     RHICommandPool *createCoomandPool(const CommandPoolInfo &);
     RHIDescriptorPool *createDescriptorPool(const DescriptorPoolInfo &) override;
+    RHISparseImage* createSparseImage(const SparseImageInfo&) override;
+
+    void waitDeviceIdle() override;
+    void waitQueueIdle(RHIQueue*) override;
+
+    SparseBindingRequirement sparseBindingRequirement(RHIImage* image) override;
 
     void *instance() override { return _instance; }
 

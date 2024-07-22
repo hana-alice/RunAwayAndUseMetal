@@ -31,6 +31,8 @@ public:
 
     virtual void appendBufferBarrier(const BufferBarrierInfo&) = 0;
 
+    virtual void appendExecutionBarrier(const ExecutionBarrier&) = 0;
+
     virtual void applyBarrier(DependencyFlags flags) = 0;
 
     virtual void onComplete(std::function<void()>&&) = 0;

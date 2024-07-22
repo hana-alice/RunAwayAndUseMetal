@@ -1,6 +1,7 @@
 #pragma once
 #include "ShaderGraph.h"
 #include "Skybox.h"
+#include "Quad.h"
 namespace raum::asset {
 
 class BuiltinRes {
@@ -11,6 +12,7 @@ public:
     static rhi::ImageViewPtr iblBrdfLUTView();
 
     static const Skybox& skybox();
+    static const Quad& quad();
 
 };
 

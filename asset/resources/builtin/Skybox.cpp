@@ -501,7 +501,7 @@ scene::MeshRendererPtr initModel(scene::Model& model, rhi::DevicePtr device) {
     meshData.vertexLayout.vertexAttrs.emplace_back(1, 0, rhi::Format::RG32_SFLOAT, static_cast<uint32_t>(3 * sizeof(float)));
     meshData.vertexCount = 36;
 
-    scene::Cube::vertexBuffer = meshData.vertexBuffer;
+    scene::Cube::vertexBuffer.buffer = meshData.vertexBuffer.buffer;
 
     auto meshRenderer = model.meshRenderers().emplace_back(std::make_shared<scene::MeshRenderer>(mesh));
     return meshRenderer;
@@ -636,7 +636,7 @@ Skybox::Skybox(rhi::BufferPtr data,
         .type = rhi::ImageType::IMAGE_2D,
         .usage = rhi::ImageUsage::COLOR_ATTACHMENT | rhi::ImageUsage::SAMPLED,
         .imageFlag = rhi::ImageFlag::CUBE_COMPATIBLE,
-        .intialLayout = rhi::ImageLayout::UNDEFINED,
+        .initialLayout = rhi::ImageLayout::UNDEFINED,
         .format = rhi::Format::RGBA16_SFLOAT,
         .sliceCount = 6,
         .mipCount = 1,
@@ -666,21 +666,19 @@ void Skybox::init(scene::MeshRendererPtr meshRenderer, rhi::CommandBufferPtr cmd
     _cubeView = rhi::ImageViewPtr(device->createImageView(cubeViewInfo));
 
     scene::Texture cube{
-        .name = "environmentMap",
         .texture = _cubeImage,
         .textureView = _cubeView,
     };
     scene::MaterialTemplatePtr matTemplate = std::make_shared<scene::MaterialTemplate>("asset/layout/skybox");
     auto skyboxMat = matTemplate->instantiate("asset/layout/skybox", scene::MaterialType::CUSTOM);
-    skyboxMat->add(cube);
+    skyboxMat->set("environmentMap", cube);
     scene::Sampler sampler{
-        "linearSampler",
         rhi::SamplerInfo{
             .magFilter = rhi::Filter::LINEAR,
             .minFilter = rhi::Filter::LINEAR,
         },
     };
-    skyboxMat->add(sampler);
+    skyboxMat->set("linearSampler", sampler);
 
     scene::TechniquePtr skyboxTech = std::make_shared<scene::Technique>(skyboxMat, "default");
     skyboxTech->setPrimitiveType(rhi::PrimitiveType::TRIANGLE_LIST);

@@ -32,7 +32,7 @@ public:
                       const boost::container::flat_map<rhi::ShaderStage, std::string>& shaderIn,
                       rhi::DevicePtr device);
 
-    void bakeMaterial(const boost::container::flat_map<std::string_view, uint32_t>& perBatchBinding,
+    void bakeMaterial(const SlotMap& perBatchBinding,
                       rhi::DescriptorSetLayoutPtr batchLayout,
                       rhi::DevicePtr device);
 
@@ -52,6 +52,7 @@ private:
     rhi::MultisamplingInfo _multisamplingInfo;
     std::vector<rhi::ShaderPtr> _shaders;
     std::array<int32_t, 4> _bindingBound;
+    std::array<BindGroupPtr, 4> _bindGroups;
 };
 using TechniquePtr = std::shared_ptr<Technique>;
 

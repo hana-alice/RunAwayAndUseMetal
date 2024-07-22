@@ -3,7 +3,7 @@
 #include <algorithm>
 namespace raum::scene {
 
-BindGroup::BindGroup(const boost::container::flat_map<std::string_view, uint32_t> &bindings, rhi::DescriptorSetLayoutPtr layout, rhi::DevicePtr device)
+BindGroup::BindGroup(const SlotMap &bindings, rhi::DescriptorSetLayoutPtr layout, rhi::DevicePtr device)
 :_device(device) {
     std::for_each(bindings.begin(), bindings.end(), [&](const auto& p) {
         _bindingMap.emplace(p.first, p.second);

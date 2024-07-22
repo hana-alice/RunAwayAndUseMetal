@@ -15,6 +15,7 @@
 #include "VKSampler.h"
 #include "VKShader.h"
 #include "VKSwapchain.h"
+#include "VKSparseImage.h"
 #include "VKUtils.h"
 #include "VkBufferView.h"
 #include "core/utils/log.h"
@@ -53,12 +54,12 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityF
                                                     VkDebugUtilsMessageTypeFlagsEXT messageType,
                                                     const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
                                                     void* pUserData) {
-     if (messageSeverity == VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT) {
-     } else if (messageSeverity == VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT) {
-     } else if (messageSeverity == VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT) {
-     } else if (messageSeverity == VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) {
-         raum_error("{}", pCallbackData->pMessage);
-     }
+    if (messageSeverity == VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT) {
+    } else if (messageSeverity == VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT) {
+    } else if (messageSeverity == VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT) {
+    } else if (messageSeverity == VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) {
+        raum_error("{}", pCallbackData->pMessage);
+    }
 
     return VK_FALSE;
 }
@@ -207,8 +208,8 @@ void Device::initInstance() {
             dbgMsgInfo.pfnUserCallback = debugCallback;
             dbgMsgInfo.pUserData = nullptr;
 
-             result = createDebugMessengerExt(_instance, &dbgMsgInfo, nullptr, &_debugMessenger);
-             RAUM_ERROR_IF(result == VK_ERROR_EXTENSION_NOT_PRESENT, "validation ext not found.");
+            result = createDebugMessengerExt(_instance, &dbgMsgInfo, nullptr, &_debugMessenger);
+            RAUM_ERROR_IF(result == VK_ERROR_EXTENSION_NOT_PRESENT, "validation ext not found.");
 
             instInfo.pNext = (VkDebugUtilsMessengerCreateInfoEXT*)&dbgMsgInfo;
         }
@@ -230,6 +231,8 @@ void Device::initDevice() {
     _queues.emplace(QueueType::COMPUTE, queue);
     queue = new Queue(QueueInfo{QueueType::TRANSFER}, this);
     _queues.emplace(QueueType::TRANSFER, queue);
+    queue = new Queue(QueueInfo{QueueType::SPARSE}, this);
+    _queues.emplace(QueueType::SPARSE, queue);
     queue = new Queue(QueueInfo{QueueType::GRAPHICS}, this);
     _queues.emplace(QueueType::GRAPHICS, queue);
 
@@ -242,6 +245,9 @@ void Device::initDevice() {
     queueInfo.pQueuePriorities = &priority;
 
     VkPhysicalDeviceFeatures deviceFeatures{};
+    deviceFeatures.sparseBinding = 1;
+    deviceFeatures.sparseResidencyImage2D = 1;
+    deviceFeatures.shaderResourceResidency = 1;
 
     std::vector<const char*> exts{};
     exts.emplace_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
@@ -265,7 +271,7 @@ void Device::initDevice() {
     VkResult res = vkCreateDevice(_physicalDevice, &deviceInfo, nullptr, &_device);
     RAUM_CRITICAL_IF(res != VK_SUCCESS, "failed to create logic device.");
 
-    vkGetDeviceQueue(_device, queue->_index, 0, &queue->_vkQueue);
+    //vkGetDeviceQueue(_device, queue->_index, 0, &queue->_vkQueue);
 
     VmaAllocatorCreateInfo allocInfo{};
     allocInfo.device = _device;
@@ -274,7 +280,10 @@ void Device::initDevice() {
     allocInfo.vulkanApiVersion = VK_API_VERSION_1_3;
     vmaCreateAllocator(&allocInfo, &_allocator);
 
-    queue->initCommandQueue();
+    for (auto [_, q] : _queues) {
+        vkGetDeviceQueue(_device, q->_index, 0, &q->_vkQueue);
+        q->initQueue();
+    }
 }
 
 RHIQueue* Device::getQueue(const QueueInfo& info) {
@@ -350,6 +359,75 @@ RHIFrameBuffer* Device::createFrameBuffer(const FrameBufferInfo& info) {
 
 RHIPipelineLayout* Device::createPipelineLayout(const PipelineLayoutInfo& info) {
     return new PipelineLayout(info, this);
+}
+
+RHISparseImage* Device::createSparseImage(const raum::rhi::SparseImageInfo& info) {
+    return new SparseImage(info, this);
+}
+
+SparseBindingRequirement Device::sparseBindingRequirement(RHIImage* image) {
+    auto* img = static_cast<Image*>(image);
+    raum_check(test(image->info().imageFlag, rhi::ImageFlag::SPARSE_BINDING), "not a sparse image!");
+    std::vector<VkSparseImageMemoryRequirements> reqs;
+    VkMemoryRequirements memoryRequirements;
+    uint32_t count;
+    vkGetImageSparseMemoryRequirements(_device, img->image(), &count, nullptr);
+    reqs.resize(count);
+    vkGetImageSparseMemoryRequirements(_device, img->image(), &count, reqs.data());
+    vkGetImageMemoryRequirements(_device, img->image(), &memoryRequirements);
+
+    SparseBindingRequirement req;
+    switch (reqs[0].formatProperties.aspectMask) {
+        case VK_IMAGE_ASPECT_COLOR_BIT:
+            req.aspect = AspectMask::COLOR;
+            break;
+        case VK_IMAGE_ASPECT_DEPTH_BIT:
+            req.aspect = AspectMask::DEPTH;
+            break;
+        case VK_IMAGE_ASPECT_STENCIL_BIT:
+            req.aspect = AspectMask::STENCIL;
+            break;
+        case VK_IMAGE_ASPECT_METADATA_BIT:
+            req.aspect = AspectMask::METADATA;
+            break;
+        case VK_IMAGE_ASPECT_PLANE_0_BIT:
+            req.aspect = AspectMask::PLANE_0;
+            break;
+        case VK_IMAGE_ASPECT_PLANE_1_BIT:
+            req.aspect = AspectMask::PLANE_1;
+            break;
+        case VK_IMAGE_ASPECT_PLANE_2_BIT:
+            req.aspect = AspectMask::PLANE_2;
+            break;
+    }
+    req.granularity = {
+        reqs[0].formatProperties.imageGranularity.width,
+        reqs[0].formatProperties.imageGranularity.height,
+        reqs[0].formatProperties.imageGranularity.depth,
+    };
+    if (reqs[0].formatProperties.flags & VK_SPARSE_IMAGE_FORMAT_SINGLE_MIPTAIL_BIT) {
+        req.flag |= SparseImageFormatFlag::SINGLE_MIPTAIL;
+    }
+    if (reqs[0].formatProperties.flags & VK_SPARSE_IMAGE_FORMAT_ALIGNED_MIP_SIZE_BIT) {
+        req.flag |= SparseImageFormatFlag::ALIGNED_MIP_SIZE;
+    }
+    if (reqs[0].formatProperties.flags & VK_SPARSE_IMAGE_FORMAT_NONSTANDARD_BLOCK_SIZE_BIT) {
+        req.flag |= SparseImageFormatFlag::NONSTANDARD_BLOCK_SIZE;
+    }
+    req.mipTailFirstLod = reqs[0].imageMipTailFirstLod;
+    req.mipTailSize = reqs[0].imageMipTailSize;
+    req.mipTailOffset = reqs[0].imageMipTailSize;
+    req.mipTailStride = reqs[0].imageMipTailStride;
+    return req;
+}
+
+void Device::waitDeviceIdle() {
+    vkDeviceWaitIdle(_device);
+}
+
+void Device::waitQueueIdle(raum::rhi::RHIQueue* q) {
+    auto* queue = static_cast<Queue*>(q);
+    vkQueueWaitIdle(queue->_vkQueue);
 }
 
 Device* loadVK() {

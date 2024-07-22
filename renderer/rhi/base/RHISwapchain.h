@@ -23,6 +23,8 @@ public:
     virtual RHIImage* allocateImage(uint32_t index) = 0;
     virtual bool imageValid(uint32_t index) = 0;
     virtual bool holds(RHIImage* img) = 0;
+    virtual void addWaitBeforePresent(RHISemaphore* sem) = 0;
+    virtual RHISemaphore* getAvailableByAcquire() = 0;
     virtual ~RHISwapchain() = 0;
 };
 

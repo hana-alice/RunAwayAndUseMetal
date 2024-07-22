@@ -6,14 +6,12 @@ class RHIDevice;
 class RHIImage;
 class RHIImageView : public RHIResource {
 public:
-    explicit RHIImageView(const ImageViewInfo& info, RHIDevice*) : _info(info) {}
+    explicit RHIImageView(const ImageViewInfo& info, RHIDevice*){}
     virtual RHIImage* image() const = 0;
-    ImageViewInfo viewInfo() const { return _info; }
 
     virtual ~RHIImageView() = 0;
 
 protected:
-    const ImageViewInfo _info;
 };
 
 inline RHIImageView::~RHIImageView() {}

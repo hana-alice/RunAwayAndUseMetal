@@ -11,7 +11,7 @@ public:
     virtual ~RHIImage() = 0;
 
 protected:
-    const ImageInfo _info;
+    ImageInfo _info;
 };
 
 inline RHIImage::~RHIImage() {}

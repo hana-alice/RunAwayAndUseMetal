@@ -1,0 +1,84 @@
+{
+  "path": "asset/layout/sparse",
+
+  "vertex": {
+    "source": "sparse",
+    "bindings": [
+      {
+        "slot": 0,
+        "resource": "buffer",
+        "usage": "uniform",
+        "rate": "per_pass",
+        "elements": [
+          {
+            "type": "mat4",
+            "count": 1
+          },
+          {
+            "type": "mat4",
+            "count": 1
+          }
+        ],
+        "count": 1
+      }
+    ]
+  },
+
+  "fragment": {
+    "source": "sparse",
+    "bindings": [
+      {
+        "slot": 0,
+        "rate": "per_batch",
+        "resource": "image",
+        "type": "2d",
+        "usage": "sampled",
+        "count": 1
+      },
+      {
+        "slot": 1,
+        "rate": "per_batch",
+        "resource": "sampler",
+        "count": 1,
+        "immutable": true
+      },
+      {
+        "slot": 2,
+        "rate": "per_batch",
+        "resource": "buffer",
+        "count": 1,
+        "usage": "uniform",
+        "elements": [
+          {
+            "type": "uint",
+            "count": 1
+          },
+          {
+            "type": "uint",
+            "count": 1
+          },
+          {
+            "type": "uint",
+            "count": 1
+          },
+          {
+            "type": "uint",
+            "count": 1
+          }
+        ]
+      },
+      {
+        "slot": 3,
+        "rate": "per_batch",
+        "resource": "buffer",
+        "count": 1,
+        "usage": "storage",
+        "elements": [
+          {
+            "type": "uint"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -49,10 +49,13 @@ BufferBinding tag_invoke(value_to_tag<BufferBinding>, value const& jv) {
     for (const auto& ele : eleData) {
         const auto& typeStr = ele.at("type").as_string();
         rhi::DataType type{rhi::DataType::UNKNOWN};
+        uint32_t count = 1;
         if (!typeStr.empty()) {
             type = rhi::str2type.at(typeStr);
+            if (buffer.type != rhi::DescriptorType::STORAGE_BUFFER) {
+                count = ele.at("count").to_number<uint32_t>();
+            }
         }
-        uint32_t count = ele.at("count").to_number<uint32_t>();
         elements.emplace_back(type, count);
     }
     return buffer;

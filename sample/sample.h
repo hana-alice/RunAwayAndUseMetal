@@ -1,13 +1,11 @@
-#pragma  once
+#pragma once
 #include <cstdlib>
 #include <iostream>
-#include "GraphSample.h"
-#include "RHIManager.h"
-#include "common.h"
-#include "window.h"
+//#include "GraphSample.h"
+#include "VirtualTexture.h"
 #include "WindowEvent.h"
-#include "BuiltinRes.h"
-//#include "AnimationModel.h"
+#include "World.h"
+#include "common.h"
 
 namespace raum {
 using platform::Window;
@@ -18,21 +16,24 @@ constexpr uint32_t s_height = 720u;
 class Sample {
 public:
     Sample(int argc, char** argv) {
-        _device = std::shared_ptr<rhi::RHIDevice>(loadRHI(rhi::API::VULKAN), rhi::unloadRHI);
-        _window = std::make_shared<platform::Window>(argc, argv, s_width, s_height, _device->instance());
+        _world = new framework::World();
+        auto& director = _world->director();
+        auto device = director.device();
 
+        _window = std::make_shared<platform::Window>(argc, argv, s_width, s_height, device->instance());
+        _tick = platform::TickFunction{[&](std::chrono::milliseconds miliSec) {
+            this->show();
+        }};
+        _window->registerPollEvents(&_tick);
 
-        auto pxSize = _window->pixelSize();
-        rhi::SwapchainSurfaceInfo scInfo{pxSize.width, pxSize.height, rhi::SyncType::IMMEDIATE, _window->surface()};
-        _swapchain = std::shared_ptr<rhi::RHISwapchain>(_device->createSwapchain(scInfo));
+        _world->attachWindow(_window);
 
-        _graphScheduler = std::make_shared<graph::GraphScheduler>(_device, _swapchain);
+        _world->run();
 
-        asset::BuiltinRes::initialize(_graphScheduler->shaderGraph(), _device);
+        auto swapchain = director.swapchain();
 
-
-        auto resizeHandler = [&](uint32_t w, uint32_t h){
-            _swapchain->resize(w, h, _window->surface());
+        auto resizeHandler = [&, swapchain](uint32_t w, uint32_t h) {
+            swapchain->resize(w, h, _window->surface());
         };
         _resizeListener.add(resizeHandler);
 
@@ -43,8 +44,8 @@ public:
         _closeListener.add(closeHandler);
 
         _samples = {
-            std::make_shared<sample::GraphSample>(_device, _swapchain, _graphScheduler),
-//            std::make_shared<sample::AnimationModel>(_device, _swapchain, _graphScheduler),
+            //            std::make_shared<sample::GraphSample>(_device, _swapchain, _graphScheduler),
+            std::make_shared<sample::VirtualTextureSample>(&_world->director()),
         };
         _inited.resize(_samples.size(), 0);
 
@@ -56,7 +57,7 @@ public:
     }
 
     void show() {
-        if(_currIndex < _samples.size()) {
+        if (_currIndex < _samples.size()) {
             _samples[_currIndex]->show();
         }
     }
@@ -66,14 +67,15 @@ public:
     }
 
     void changeSample(uint32_t index) {
-        if(index == _currIndex) return;
+        if (index == _currIndex) return;
         _samples[_currIndex]->hide();
-        if(!_inited[index]) {
+        if (!_inited[index]) {
             _samples[index]->init();
             _inited[index] = 1;
         }
         _currIndex = index;
-        _graphScheduler->needWarmUp();
+        auto ppl = _world->director().pipeline();
+        ppl->graphScheduler().needWarmUp();
     }
 
     const std::vector<std::shared_ptr<sample::SampleBase>>& samples() const {
@@ -85,11 +87,10 @@ private:
     std::vector<std::shared_ptr<sample::SampleBase>> _samples;
     std::vector<uint32_t> _inited;
     platform::WindowPtr _window;
-    rhi::DevicePtr _device;
-    rhi::SwapchainPtr _swapchain;
-    graph::GraphSchedulerPtr  _graphScheduler;
+    framework::World* _world{nullptr};
     framework::EventListener<framework::ResizeEventTag> _resizeListener;
     framework::EventListener<framework::CloseEventTag> _closeListener;
+    platform::TickFunction _tick;
 };
 
 } // namespace raum

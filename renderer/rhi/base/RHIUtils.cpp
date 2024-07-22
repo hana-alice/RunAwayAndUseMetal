@@ -606,4 +606,8 @@ SamplerInfo sampler{
     return img;
 }
 
+bool isSparse(RHIImage* img) {
+    return test(img->info().imageFlag, ImageFlag::SPARSE_BINDING) || test(img->info().imageFlag, ImageFlag::SPARSE_RESIDENCY);
+}
+
 } // namespace raum::rhi

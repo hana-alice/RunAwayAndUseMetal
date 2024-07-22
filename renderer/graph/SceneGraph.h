@@ -89,6 +89,6 @@ private:
     uint32_t _root{0};
 };
 
-using SceneGraphPtr = std::unique_ptr<SceneGraph>;
+using SceneGraphPtr = std::shared_ptr<SceneGraph>;
 
 } // namespace raum::graph

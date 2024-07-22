@@ -6,6 +6,8 @@
 namespace raum::rhi {
 class Device;
 class Swapchain;
+class SparseImage;
+class Image;
 class ImageView : public RHIImageView {
 public:
     explicit ImageView(const ImageViewInfo& info, RHIDevice* device);
@@ -14,15 +16,18 @@ public:
     ImageView(const ImageView&) = delete;
     ImageView& operator=(const ImageView&) = delete;
 
-    RHIImage* image() const override { return _info.image; }
+    RHIImage* image() const override;
 
     ~ImageView();
 
     VkImageView imageView() const { return _imageView; }
 
 private:
+    void init(ImageViewType type, VkImage image, const ImageSubresourceRange& range, ComponentMapping cm, Format format);
+
     VkImageView _imageView;
     Device* _device{nullptr};
+    RHIImage* _image{nullptr};
 
     friend class Swapchain;
 };

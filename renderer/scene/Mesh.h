@@ -86,7 +86,7 @@ public:
     std::vector<TechniquePtr>& techniques();
     BindGroupPtr bindGroup();
 
-    void prepare(const boost::container::flat_map<std::string_view, uint32_t>& bindings,
+    void prepare(const SlotMap& bindings,
                  rhi::DescriptorSetLayoutPtr layout,
                  rhi::DevicePtr device);
 

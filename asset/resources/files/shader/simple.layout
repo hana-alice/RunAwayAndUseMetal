@@ -2,6 +2,7 @@
   "path": "asset/layout/simple",
 
   "vertex": {
+    "source": "simple",
     "bindings": [
       {
         "slot": 0,
@@ -24,6 +25,7 @@
   },
 
   "fragment": {
+    "source": "simple",
     "bindings": [
       {
         "slot": 1,

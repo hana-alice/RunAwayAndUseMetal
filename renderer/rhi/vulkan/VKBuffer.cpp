@@ -13,11 +13,15 @@ std::underlying_type<MemoryUsage>::type operator&(MemoryUsage lhs, MemoryUsage r
     return static_cast<std::underlying_type<MemoryUsage>::type>(lhs) & static_cast<std::underlying_type<MemoryUsage>::type>(rhs);
 }
 // https://gpuopen-librariesandsdks.github.io/VulkanMemoryAllocator/html/usage_patterns.html
-VmaAllocationCreateInfo mapCreateInfo(MemoryUsage usage) {
+VmaAllocationCreateInfo mapCreateInfo(MemoryUsage usage, BufferUsage bufferUsage) {
     VmaAllocationCreateInfo info{};
     switch (usage) {
         case MemoryUsage::HOST_VISIBLE:
             info.usage = VMA_MEMORY_USAGE_AUTO;
+            info.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT;
+            if(test(bufferUsage, rhi::BufferUsage::TRANSFER_DST)) {
+                info.flags |= VMA_ALLOCATION_CREATE_HOST_ACCESS_ALLOW_TRANSFER_INSTEAD_BIT;
+            }
             break;
         case MemoryUsage::DEVICE_ONLY:
             info.usage = VMA_MEMORY_USAGE_AUTO;
@@ -75,11 +79,11 @@ Buffer::Buffer(const BufferInfo& info, RHIDevice* device) : RHIBuffer(info, devi
         bufferInfo.pQueueFamilyIndices = info.queueAccess.data();
     }
 
-    VmaAllocationCreateInfo allocaInfo = mapCreateInfo(info.memUsage);
+    VmaAllocationCreateInfo allocaInfo = mapCreateInfo(info.memUsage, info.bufferUsage);
 
     VmaAllocator& allocator = _device->allocator();
 
-    VkResult res = vmaCreateBuffer(allocator, &bufferInfo, &allocaInfo, &_buffer, &_allocation, nullptr);
+    VkResult res = vmaCreateBuffer(allocator, &bufferInfo, &allocaInfo, &_buffer, &_allocation, &_allocInfo);
     RAUM_ERROR_IF(res != VK_SUCCESS, "Failed to create buffer!");
 }
 
@@ -97,16 +101,15 @@ Buffer::Buffer(const BufferSourceInfo& info, RHIDevice* device) : RHIBuffer(info
         bufferInfo.pQueueFamilyIndices = info.queueAccess.data();
     }
 
-    VmaAllocationCreateInfo allocaInfo = mapCreateInfo(MemoryUsage::HOST_VISIBLE);
+    VmaAllocationCreateInfo allocaInfo = mapCreateInfo(MemoryUsage::HOST_VISIBLE, info.bufferUsage);
     allocaInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT;
 
     VmaAllocator& allocator = _device->allocator();
 
-    VmaAllocationInfo allocationInfo{};
-    VkResult res = vmaCreateBuffer(allocator, &bufferInfo, &allocaInfo, &_buffer, &_allocation, &allocationInfo);
+    VkResult res = vmaCreateBuffer(allocator, &bufferInfo, &allocaInfo, &_buffer, &_allocation, &_allocInfo);
     RAUM_ERROR_IF(res != VK_SUCCESS, "Failed to create buffer!");
 
-    memcpy(allocationInfo.pMappedData, info.data, info.size);
+    memcpy(_allocInfo.pMappedData, info.data, info.size);
 }
 
 Buffer::~Buffer() {
@@ -152,6 +155,18 @@ StagingInfo StagingBuffer::alloc(uint32_t size) {
     info.offset = curChunk->offset;
     curChunk->offset += size;
     return info;
+}
+
+void Buffer::map(uint32_t offset, uint32_t size) {
+    vkMapMemory(_device->device(), _allocInfo.deviceMemory, offset, size, 0, &_allocInfo.pMappedData);
+}
+
+void Buffer::unmap() {
+    vkUnmapMemory(_device->device(), _allocInfo.deviceMemory);
+}
+
+void* Buffer::mappedData() const {
+    return _allocInfo.pMappedData;
 }
 
 void StagingBuffer::reset() {

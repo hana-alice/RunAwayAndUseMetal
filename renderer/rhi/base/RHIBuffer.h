@@ -18,6 +18,10 @@ public:
 
     const BufferInfo& info() const { return _info; }
 
+    virtual void map(uint32_t offset, uint32_t size) = 0;
+    virtual void unmap() = 0;
+    virtual void* mappedData() const = 0;
+
     virtual ~RHIBuffer() = 0;
 
 protected:
