@@ -16,15 +16,6 @@ layout(set = 1, binding = 3) buffer accessCounter {
     uint mips[];
 };
 
-vec3 color_blend_table[5] = 
-{
-	{1.00, 1.00, 1.00},
-	{0.80, 0.60, 0.40},
-	{0.60, 0.80, 0.60},
-	{0.40, 0.60, 0.80},
-	{0.20, 0.20, 0.20},
-};
-
 void main () {
     int minLod = 0;
     int maxLod = 9;
@@ -49,8 +40,5 @@ void main () {
 
     atomicMin(mips[pageIndex], floorMip);
 
-    //lod -= 6;
-    //color.xyz = (color.xyz * color_blend_table[lod]);
-	
     FragColor = color;
 }

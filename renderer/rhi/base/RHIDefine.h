@@ -1165,7 +1165,6 @@ enum class SparseType : uint8_t {
 OPERABLE(SparseType)
 
 struct SparseImageInfo {
-    uint8_t* data{0};
     uint32_t width{0};
     uint32_t height{0};
     uint8_t maxMip{0};

@@ -8,7 +8,7 @@
 namespace raum::rhi {
 
 SparseImage::SparseImage(const SparseImageInfo& info, Device* dev)
-: RHISparseImage(info, dev), _device(static_cast<Device*>(dev)), _data(info.data) {
+: RHISparseImage(info, dev), _device(static_cast<Device*>(dev)){
     uint32_t width = info.width;
     uint32_t height = info.height;
 
@@ -268,6 +268,11 @@ void SparseImage::initPageInfo(uint32_t pageCount, uint32_t pageSize) {
     _pages.resize(pageCount, {});
 
     _pageSize = pageSize;
+}
+
+SparseImage::~SparseImage() {
+    vkDestroyImage(_device->device(), _sparseImage, nullptr);
+    vmaFreeMemoryPages(_device->allocator(), 1, &_miptailAlloc);
 }
 
 } // namespace raum::rhi

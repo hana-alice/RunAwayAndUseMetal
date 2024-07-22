@@ -16,7 +16,6 @@ constexpr auto MAX_MIP_NUM = 10;
 VirtualTexture::VirtualTexture(uint8_t* data, uint32_t width, uint32_t height, rhi::DevicePtr device)
 : _device(device) {
     rhi::SparseImageInfo info = {
-        .data = data,
         .width = width,
         .height = height,
         .maxMip = MAX_MIP_NUM,
@@ -224,8 +223,8 @@ void VirtualTexture::setMiptail(uint8_t* data, uint8_t mip) {
 void VirtualTexture::update(rhi::CommandBufferPtr cb) {
     analyze(cb);
 
-    if (!_updates.empty() || _remainTask) {
-        _remainTask = !_updates.empty();
+    _remainTask = !_updates.empty();
+    if (_remainTask) {
         auto* queue = _device->getQueue({{rhi::QueueType::GRAPHICS}});
         _sparseImage->bind(rhi::SparseType::OPAQUE | rhi::SparseType::IMAGE);
 

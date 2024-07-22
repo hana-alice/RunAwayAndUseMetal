@@ -7,6 +7,7 @@
 #include "core/data.h"
 #include <QTimer>
 #include <QLabel>
+#include <QElapsedTimer>
 #include "core/utils/utils.h"
 namespace raum::platform {
 using TickFunction = utils::TickFunction<std::chrono::milliseconds>;
@@ -37,9 +38,6 @@ public:
     void* surface() const { return _surface; }
     void* nativeWindow() const { return _window; }
 
-    void registerSimulate(TickFunction* tickFunc);
-    void removeSimulate(TickFunction* tickFunc);
-
     void registerPollEvents(TickFunction* tickFunc);
     void removePollEvent(TickFunction* tickFunc);
 
@@ -61,8 +59,9 @@ private:
     QApplication* _app{nullptr};
 
     QTimer* _timer{nullptr};
+    QElapsedTimer* _elapsedTimer{nullptr};
+    
     std::vector<TickFunction*> _tickFuncs;
-    std::vector<TickFunction*> _simlates;
 
     void* _surface{nullptr};
 };

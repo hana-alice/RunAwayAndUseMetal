@@ -1,11 +1,11 @@
 #include "BuiltinRes.h"
+#include "BRDFLUT.h"
 #include "RHICommandBuffer.h"
 #include "RHIDevice.h"
 #include "RHIUtils.h"
 #include "Serialization.h"
 #include "core/utils/utils.h"
 #include "stb_image.h"
-#include "BRDFLUT.h"
 namespace raum::asset {
 
 rhi::ImagePtr s_iblBrdfLUT;
@@ -72,7 +72,7 @@ void BuiltinRes::initialize(graph::ShaderGraph& shaderGraph, rhi::DevicePtr devi
             .data = data};
         auto imgBuffer = rhi::BufferPtr(device->createBuffer(bufInfo));
         stbi_image_free(data);
-        // s_skybox = new Skybox(imgBuffer, width, height, cmdBuffer, device, shaderGraph);
+        s_skybox = new Skybox(imgBuffer, width, height, cmdBuffer, device, shaderGraph);
 
         s_quad = new Quad(cmdBuffer, device, shaderGraph);
 
@@ -100,6 +100,5 @@ rhi::ImagePtr BuiltinRes::iblBrdfLUT() {
 rhi::ImageViewPtr BuiltinRes::iblBrdfLUTView() {
     return s_iblBrdfLUTView;
 }
-
 
 } // namespace raum::asset

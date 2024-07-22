@@ -220,10 +220,13 @@ Window::Window(int argc, char** argv, uint32_t w, uint32_t h, void* instance) {
     vl->addWidget(wrapper);
     _window->setLayout(vl);
 
+    _elapsedTimer = new QElapsedTimer();
+    _elapsedTimer->start();
+
     _timer = new QTimer();
     _timer->setInterval(std::chrono::milliseconds(16));
     QObject::connect(_timer, &QTimer::timeout, [&]() {
-        this->update(_timer->intervalAsDuration());
+        this->update(std::chrono::milliseconds(_elapsedTimer->restart()));
     });
     _timer->start();
     _hwnd = _engineCanvas->winId();
@@ -246,23 +249,7 @@ void Window::removePollEvent(TickFunction* tickFunc) {
     }
 }
 
-void Window::registerSimulate(TickFunction* tickFunc) {
-    _simlates.emplace_back(tickFunc);
-}
-
-void Window::removeSimulate(TickFunction* tickFunc) {
-    for (auto iter = _simlates.begin(); iter != _simlates.end(); ++iter) {
-        if ((*iter) == tickFunc) {
-            _simlates.erase(iter);
-            return;
-        }
-    }
-}
-
 void Window::update(std::chrono::milliseconds miliSec) {
-    for (auto* callback : _simlates) {
-        (*callback)(miliSec);
-    }
     for (auto* callback : _tickFuncs) {
         (*callback)(miliSec);
     }
@@ -289,6 +276,8 @@ void Window::mainLoop() {
 Window::~Window() {
     _timer->stop();
     delete _timer;
+
+    delete _elapsedTimer;
 
     delete _engineCanvas;
     delete _window;

@@ -15,7 +15,16 @@ public:
         _window = _sample->window();
 
         _tickFunction = platform::TickFunction{[&](std::chrono::milliseconds miliSec) {
-            _mainWindow->statusBar()->showMessage(QString("%1 fps / %2 ms.").arg(1000.f / miliSec.count()).arg(miliSec.count()));
+            static uint32_t count{0};
+            static uint64_t duration{0};
+            constexpr auto updateInterval = 60;
+
+            if (count == updateInterval - 1) {
+                _mainWindow->statusBar()->showMessage(QString("%1 fps / %2 ms.").arg(1000 / (duration / count)).arg(miliSec.count()));
+                duration = 0;
+            }
+            duration += miliSec.count();
+            count = (count + 1) % updateInterval;
             this->show(miliSec);
         }};
         _window->registerPollEvents(&_tickFunction);

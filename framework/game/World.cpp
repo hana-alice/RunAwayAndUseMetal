@@ -16,4 +16,8 @@ void World::run() {
     _director->run();
 }
 
+World::~World() {
+    delete _director;
+}
+
 } // namespace raum::framework

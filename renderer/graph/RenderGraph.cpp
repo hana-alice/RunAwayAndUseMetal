@@ -67,12 +67,6 @@ RenderQueue RenderPass::addQueue(std::string_view name) {
 //     return *this;
 // }
 
-// RenderQueue& RenderQueue::addScene(scene::DIrector* scene) {
-//     auto& data = std::get<RenderQueueData>(_graph[_id].data);
-//     data.scene = scene;
-//     return *this;
-// }
-
 RenderQueue& RenderQueue::addCamera(scene::Camera* camera) {
     auto& data = std::get<RenderQueueData>(_graph[_id].data);
     data.camera = camera;

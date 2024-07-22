@@ -10,6 +10,7 @@ namespace raum::rhi {
 class SparseImage : public RHISparseImage {
 public:
     SparseImage(const SparseImageInfo& info, Device* device);
+    ~SparseImage();
 
     void prepare(RHICommandBuffer* cmdBuffer,
                  uint32_t numCols,
@@ -38,11 +39,6 @@ public:
     }
 
 private:
-    struct MemAllocInfo {
-        uint64_t pageSize{0};
-        uint32_t pagesPerAlloc{0};
-    };
-
     struct MemAllocator;
     struct MemSector {
         uint32_t index{0};
@@ -112,18 +108,9 @@ private:
 
     static constexpr uint32_t PagesPerAlloc{50};
 
-    MemAllocInfo memAllocInfo;
     std::list<std::shared_ptr<MemAllocator>> sectors;
 
     PageInfo allocate(uint32_t pageIndex);
-
-    uint8_t getMipLevel(uint32_t pageIndex);
-
-    void updateAndGenerate(RHICommandBuffer* cmdBuffer);
-
-    void getRelatedBlocks(uint32_t row, uint32_t col, uint8_t mip, std::set<size_t>& indices);
-
-    uint32_t getPageIndex(uint32_t row, uint32_t col, uint8_t mip);
 
     void prepareMiptail(RHICommandBuffer* cmdBuffer);
 
@@ -135,16 +122,13 @@ private:
 
     uint8_t frame_counter_per_transfer{0};
     VkImage _sparseImage;
-    uint8_t* _data;
     Device* _device;
     VmaAllocation _miptailAlloc;
-    VmaPool _pool;
 
     VkMemoryRequirements _memReq;
 
     VkSparseImageMemoryRequirements _req{};
     std::vector<std::pair<uint8_t, uint8_t*>> _miptails;
-    Buffer* _accessBuffer{nullptr};
 
     uint32_t _frameStepCount{0};
 
