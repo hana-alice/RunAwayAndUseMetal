@@ -231,7 +231,7 @@ public:
                 }
             }
         };
-        _mouseListener.add(mouseHandler);
+        //_mouseListener.add(mouseHandler);
     }
 
     ~VirtualTextureSample() {

@@ -223,8 +223,8 @@ void VirtualTexture::setMiptail(uint8_t* data, uint8_t mip) {
 void VirtualTexture::update(rhi::CommandBufferPtr cb) {
     analyze(cb);
 
-    _remainTask = !_updates.empty();
-    if (_remainTask) {
+    if (!_updates.empty() || _remainTask) {
+        _remainTask = !_updates.empty();
         auto* queue = _device->getQueue({{rhi::QueueType::GRAPHICS}});
         _sparseImage->bind(rhi::SparseType::OPAQUE | rhi::SparseType::IMAGE);
 
