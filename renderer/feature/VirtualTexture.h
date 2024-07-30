@@ -42,6 +42,7 @@ public:
     ~VirtualTexture();
 
     void prepare(rhi::CommandBufferPtr cb);
+    void analyze(rhi::CommandBufferPtr cb);
     void update(rhi::CommandBufferPtr cb);
     void setMiptail(uint8_t* data, uint8_t mip);
 
@@ -55,7 +56,6 @@ public:
     rhi::BufferPtr accessCounterBuffer() const { return _accessCounter; };
     rhi::BufferPtr metaInfoBuffer() const { return _metaInfoBuffer; }
 private:
-    void analyze(rhi::CommandBufferPtr cb);
     uint8_t getMipLevel(uint32_t pageIndex);
     void getRelatedBlocks(uint32_t row, uint32_t col, uint8_t mip, std::set<size_t>& indices);
     uint32_t getPageIndex(uint32_t row, uint32_t col, uint8_t mip);

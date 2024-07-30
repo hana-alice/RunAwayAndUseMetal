@@ -221,8 +221,6 @@ void VirtualTexture::setMiptail(uint8_t* data, uint8_t mip) {
 }
 
 void VirtualTexture::update(rhi::CommandBufferPtr cb) {
-    analyze(cb);
-
     if (!_updates.empty() || _remainTask) {
         _remainTask = !_updates.empty();
         auto* queue = _device->getQueue({{rhi::QueueType::GRAPHICS}});

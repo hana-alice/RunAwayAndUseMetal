@@ -36,7 +36,7 @@ public:
         auto swapchain = _ppl->swapchain();
 
         auto& shaderGraph = _ppl->shaderGraph();
-        //shaderGraph.compile("sparse");
+        // shaderGraph.compile("sparse");
 
         auto textureFile = resourcePath / "images" / "8k_earth_daymap.jpg";
         auto textureMip6 = resourcePath / "images" / "8k_earth_daymap_view_mip6_128x64.bmp";
@@ -71,8 +71,6 @@ public:
         //        _vt->initLocalBind(binds,
         //                           shaderRes.descriptorLayouts.at(static_cast<uint32_t>(graph::Rate::PER_INSTANCE)));
 
-
-
         _cmdPool = rhi::CommandPoolPtr(device->createCoomandPool({}));
         auto* q = device->getQueue({rhi::QueueType::GRAPHICS});
         auto cmd = rhi::CommandBufferPtr(_cmdPool->makeCommandBuffer({}));
@@ -98,7 +96,7 @@ public:
         sparseMat->set("mainTexture", scene::Texture{
                                           _vt->sparseImage(),
                                           _vt->sparseView()});
-        rhi::SamplerInfo samplerInfo {
+        rhi::SamplerInfo samplerInfo{
             .magFilter = rhi::Filter::LINEAR,
             .minFilter = rhi::Filter::LINEAR,
             .minLod = 0,
@@ -110,32 +108,30 @@ public:
         sparseMat->update();
 
         _preRenderTask = framework::RenderTask{
-            [this](std::chrono::milliseconds sec, rhi::CommandBufferPtr cmd, rhi::DevicePtr device){
+            [this](std::chrono::milliseconds sec, rhi::CommandBufferPtr cmd, rhi::DevicePtr device) {
                 auto* sparseQ = device->getQueue({{rhi::QueueType::SPARSE}});
                 auto* grfxQ = device->getQueue({{rhi::QueueType::GRAPHICS}});
-                if(_lastGraphicsSem) {
-                    //sparseQ->addWait(_lastGraphicsSem);
+                if (_lastGraphicsSem) {
+                    // sparseQ->addWait(_lastGraphicsSem);
                 }
                 if (_lastSparseSem) {
-
                 }
                 _lastGraphicsSem = grfxQ->getSignal();
                 _lastSparseSem = sparseQ->getSignal();
                 _vt->resetAccessCounter(cmd);
-                _vt->update(cmd);
+                _vt->analyze(cmd);
                 auto newUpdate = _vt->hasRemainedTask();
                 if (newUpdate) {
                     grfxQ->addWait(_lastSparseSem);
                 }
-            }
-        };
+                _vt->update(cmd);
+            }};
         _director->addPreRenderTask(&_preRenderTask);
 
         _postRenderTask = framework::RenderTask{
-            [this](std::chrono::milliseconds sec, rhi::CommandBufferPtr cmd, rhi::DevicePtr device){
+            [this](std::chrono::milliseconds sec, rhi::CommandBufferPtr cmd, rhi::DevicePtr device) {
                 _vt->invalidateFeedback(cmd);
-            }
-        };
+            }};
         _director->addPostRenderTask(&_postRenderTask);
 
         scene::TechniquePtr sparseTech = std::make_shared<scene::Technique>(sparseMat, "default");
