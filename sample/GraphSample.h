@@ -13,16 +13,18 @@
 #include "common.h"
 #include "core/utils/utils.h"
 #include "math.h"
+#include "Director.h"
 namespace raum::sample {
 class GraphSample : public SampleBase {
 public:
-    explicit GraphSample(rhi::DevicePtr device, rhi::SwapchainPtr swapchain, graph::GraphSchedulerPtr graphScheduler)
-    : _device(device), _swapchain(swapchain), _graphScheduler(graphScheduler) {}
+    explicit GraphSample(framework::Director* director) : _ppl(director->pipeline()), _director(director) {}
 
     void init() override {
         // load scene from gltf
+        _device = _director->device();
+        _swapchain = _director->swapchain();
         const auto& resourcePath = utils::resourceDirectory();
-        auto& sceneGraph = _graphScheduler->sceneGraph();
+        auto& sceneGraph = _director->sceneGraph();
         asset::serialize::load(sceneGraph, resourcePath / "models" / "DamagedHelmet" / "DamagedHelmet.gltf", _device);
 
         auto& skybox = asset::BuiltinRes::skybox();
@@ -39,7 +41,7 @@ public:
         eye.update();
 
 
-        auto& resourceGraph = _graphScheduler->resourceGraph();
+        auto& resourceGraph = _ppl->resourceGraph();
         if (!resourceGraph.contains(_forwardRT)) {
             resourceGraph.import(_forwardRT, _swapchain);
         }
@@ -122,10 +124,10 @@ public:
     }
 
     void show() override {
-        auto& renderGraph = _graphScheduler->renderGraph();
+        auto& renderGraph = _ppl->renderGraph();
         auto uploadPass = renderGraph.addCopyPass("cambufferUpdate");
 
-        _graphScheduler->resourceGraph().updateImage("forwardDS", _swapchain->width(), _swapchain->height());
+        _ppl->resourceGraph().updateImage("forwardDS", _swapchain->width(), _swapchain->height());
 
         auto& eye = _cam->eye();
         auto viewMat = eye.inverseAttitide();
@@ -151,12 +153,10 @@ public:
             .addUniformBuffer(_camBuffer, "Mat")
             .addUniformBuffer(_camPose, "CamPos")
             .addUniformBuffer(_light, "Light");
-
-        _graphScheduler->execute();
     }
 
     void hide() override {
-        _graphScheduler->sceneGraph().disable("sponza");
+        _director->sceneGraph().disable("sponza");
     }
 
     const std::string& name() override {
@@ -164,6 +164,9 @@ public:
     }
 
 private:
+    graph::PipelinePtr _ppl;
+    framework::Director* _director;
+
     rhi::DevicePtr _device;
     rhi::SwapchainPtr _swapchain;
 
