@@ -1,7 +1,7 @@
 #pragma once
 #include <cstdlib>
 #include <iostream>
-//#include "GraphSample.h"
+#include "GraphSample.h"
 #include "VirtualTexture.h"
 #include "WindowEvent.h"
 #include "World.h"
@@ -44,8 +44,8 @@ public:
         _closeListener.add(closeHandler);
 
         _samples = {
-            //            std::make_shared<sample::GraphSample>(_device, _swapchain, _graphScheduler),
-            std::make_shared<sample::VirtualTextureSample>(&_world->director()),
+            std::make_shared<sample::GraphSample>(&_world->director()),
+//            std::make_shared<sample::VirtualTextureSample>(&_world->director()),
         };
         _inited.resize(_samples.size(), 0);
 
