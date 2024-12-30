@@ -3,6 +3,7 @@
 #include <iostream>
 #include "GraphSample.h"
 #include "VirtualTexture.h"
+#include "shadow/ShadowMap.h"
 #include "WindowEvent.h"
 #include "World.h"
 #include "common.h"
@@ -44,8 +45,9 @@ public:
         _closeListener.add(closeHandler);
 
         _samples = {
-            std::make_shared<sample::GraphSample>(&_world->director()),
+            // std::make_shared<sample::GraphSample>(&_world->director()),
 //            std::make_shared<sample::VirtualTextureSample>(&_world->director()),
+            std::make_shared<sample::ShadowMapSample>(&_world->director()),
         };
         _inited.resize(_samples.size(), 0);
 

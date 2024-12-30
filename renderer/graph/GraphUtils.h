@@ -27,4 +27,6 @@ void collectRenderables(std::vector<scene::RenderablePtr>& renderables, const Sc
 
 void warmUp(SceneGraph& sg, ShaderGraph& shg, rhi::DevicePtr device);
 
+std::string_view getPhaseName(std::string_view queueName);
+
 }

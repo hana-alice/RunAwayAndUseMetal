@@ -149,8 +149,8 @@ public:
 
         auto width = swapchain->width();
         auto height = swapchain->height();
-        scene::Frustum frustum{45.0f, width / (float)height, 0.1f, 1000.0f};
-        _cam = std::make_shared<scene::Camera>(frustum, scene::Projection::PERSPECTIVE);
+        scene::PerspectiveFrustum frustum{45.0f, width / (float)height, 0.1f, 1000.0f};
+        _cam = std::make_shared<scene::Camera>(frustum);
         auto& eye = _cam->eye();
         eye.setPosition(0.0, 0.0f, 4.0);
         eye.lookAt({0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f});
@@ -247,7 +247,7 @@ public:
         auto& eye = _cam->eye();
         Mat4 modelMat = Mat4(1.0f);
         uploadPass.uploadBuffer(&modelMat[0], 64, _mvp, 0);
-        auto viewMat = eye.inverseAttitide();
+        auto viewMat = eye.inverseAttitude();
         uploadPass.uploadBuffer(&viewMat[0], 64, _mvp, 64);
         const auto& projMat = eye.projection();
         uploadPass.uploadBuffer(&projMat[0], 64, _mvp, 128);

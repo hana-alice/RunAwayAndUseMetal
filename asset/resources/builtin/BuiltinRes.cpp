@@ -44,6 +44,7 @@ void BuiltinRes::initialize(graph::ShaderGraph& shaderGraph, rhi::DevicePtr devi
     graph::deserialize(resourcePath / "shader", "skybox", shaderGraph);
     graph::deserialize(resourcePath / "shader", "simple", shaderGraph);
     graph::deserialize(resourcePath / "shader", "sparse", shaderGraph);
+    graph::deserialize(resourcePath / "shader", "ShadowMap", shaderGraph);
     shaderGraph.compile("asset");
 
     auto cmdPool = rhi::CommandPoolPtr(device->createCoomandPool({}));

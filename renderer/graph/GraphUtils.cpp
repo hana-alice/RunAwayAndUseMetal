@@ -132,4 +132,14 @@ void collectRenderables(std::vector<scene::RenderablePtr>& renderables, const Sc
     }
 }
 
+std::string_view getPhaseName(std::string_view queueName) {
+    auto index = queueName.find_last_of('/');
+    if (index != std::string_view::npos) {
+        return queueName.substr(index + 1);
+    } else {
+        return {};
+    }
+}
+
+
 } // namespace raum::graph

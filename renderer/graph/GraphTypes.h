@@ -85,6 +85,7 @@ struct RenderQueueData {
 };
 
 struct ComputePassData {
+    std::string phaseName{};
     std::vector<RenderingResource> resources;
 };
 

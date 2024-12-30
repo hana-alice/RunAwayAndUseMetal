@@ -35,9 +35,18 @@ enum class Projection {
     ORTHOGRAPHIC,
 };
 
-struct Frustum {
+struct PerspectiveFrustum {
     float fov{45.0f};   // radians
     float aspect{0.0f}; // eg. 900.0f/600.0f = 1.5f
+    float near{0.1f};
+    float far{1000.0f};
+};
+
+struct OrthoFrustum {
+    float left{0.0f};
+    float right{0.0f};
+    float bottom{0.0f};
+    float top{0.0f};
     float near{0.1f};
     float far{1000.0f};
 };

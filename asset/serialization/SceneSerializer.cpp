@@ -500,6 +500,25 @@ void loadMesh(const tinygltf::Model& rawModel,
         meshRenderer->setVertexInfo(0, meshData.vertexCount, meshData.indexCount);
         meshRenderer->setTransform(sceneNode.node.transform());
         meshRenderer->setTransformSlot("LocalMat");
+
+        thread_local bool firstLoad{true};
+        static std::unordered_map<EmbededTechnique, scene::TechniquePtr> embededTechs;
+        if (firstLoad) [[unlikely]] {
+            firstLoad = false;
+
+            scene::MaterialTemplatePtr matTemplate = std::make_shared<scene::MaterialTemplate>("asset/layout/shadowMap");
+            auto shadowMapMaterial = matTemplate->instantiate("asset/layout/shadowMap", scene::MaterialType::CUSTOM);
+            auto shadowTech = std::make_shared<scene::Technique>(shadowMapMaterial, "shadowMap");
+
+            auto& ds = shadowTech->depthStencilInfo();
+            ds.depthTestEnable = true;
+            ds.depthWriteEnable = true;
+            auto& bs = shadowTech->blendInfo();
+            bs.attachmentBlends.emplace_back();
+            embededTechs.emplace(EmbededTechnique::SHADOWMAP, shadowTech);
+        }
+
+        meshRenderer->addTechnique(embededTechs.at(EmbededTechnique::SHADOWMAP));
     }
 }
 
@@ -511,22 +530,20 @@ void loadCamera(const tinygltf::Model& rawModel, const tinygltf::Node& rawNode, 
     if (rawCam.type == "perspective") {
         const auto& cam = rawCam.perspective;
         camNode.camera = std::make_shared<scene::Camera>(
-            scene::Frustum{
+            scene::PerspectiveFrustum{
                 static_cast<float>(cam.yfov),
                 static_cast<float>(cam.aspectRatio),
                 static_cast<float>(cam.znear),
-                static_cast<float>(cam.zfar)},
-            scene::Projection::PERSPECTIVE);
+                static_cast<float>(cam.zfar)});
 
     } else if (rawCam.type == "orthographic") {
         const auto& cam = rawCam.orthographic;
         camNode.camera = std::make_shared<scene::Camera>(
-            scene::Frustum{
+            scene::OrthoFrustum{
                 static_cast<float>(cam.xmag),
                 static_cast<float>(cam.ymag),
                 static_cast<float>(cam.znear),
-                static_cast<float>(cam.zfar)},
-            scene::Projection::ORTHOGRAPHIC);
+                static_cast<float>(cam.zfar)});
     }
 }
 

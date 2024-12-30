@@ -85,6 +85,7 @@ public:
     ~ComputePass() = default;
 
     ComputePass& addResource(std::string_view name, std::string_view bindingName, Access access);
+    ComputePass& setPhase(std::string_view phase);
 
 private:
     ComputePassData& _data;

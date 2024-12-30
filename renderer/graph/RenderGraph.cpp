@@ -55,7 +55,8 @@ RenderPass& RenderPass::addShadingRate(std::string_view name) {
 
 RenderQueue RenderPass::addQueue(std::string_view name) {
     auto outs = out_degree(_id, _graph);
-    auto id = add_vertex(name.data(), _graph);
+    const auto& passName = _graph[_id].name;
+    auto id = add_vertex(passName + "/" + name.data(), _graph);
     _graph[id].data = RenderQueueData{};
     add_edge(_id, id, _graph);
     return RenderQueue{id, _graph};
@@ -92,6 +93,10 @@ ComputePass& ComputePass::addResource(std::string_view name, std::string_view bi
     _data.resources.emplace_back(std::string{name}, std::string{bindingname}, access);
     return *this;
 }
+
+// ComputePass &ComputePass::setPhase(std::string_view phase) {
+//     _data.phaseName = phase;
+// }
 
 CopyPass& CopyPass::addPair(const CopyPair& pair) {
     _data.copies.emplace_back(pair);

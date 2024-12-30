@@ -2,7 +2,12 @@
 
 namespace raum::scene {
 
-Camera::Camera(const raum::scene::Frustum &frustum, raum::scene::Projection type): _eye(frustum, type) {
+Camera::Camera(const raum::scene::PerspectiveFrustum &frustum): _eye(frustum) {
 }
+
+Camera::Camera(const OrthoFrustum& frustum):_eye(frustum) {
+
+}
+
 
 }

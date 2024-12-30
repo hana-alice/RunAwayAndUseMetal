@@ -186,6 +186,7 @@ target_link_libraries(raum_asset PUBLIC
 
 file(GLOB_RECURSE Sample
         ${CMAKE_CURRENT_SOURCE_DIR}/Sample/*.*
+        ${CMAKE_CURRENT_SOURCE_DIR}/Sample/shadow/*.*
 )
 
 add_executable(raum_sample

@@ -22,7 +22,7 @@ struct WarmUpVisitor : public boost::dfs_visitor<> {
                                      _ag.getFrameBufferInfo(v)->info.height};
             _renderpass = renderpass.renderpass;
         } else if (std::holds_alternative<RenderQueueData>(g[v].data)) {
-            const auto& phaseName = _g.impl()[v].name;
+            const auto& phaseName = getPhaseName(_g.impl()[v].name);
             auto& queueData = std::get<RenderQueueData>(_g.impl()[v].data);
             scene::SlotMap perBatchBindings;
             for (auto& renderable : _rendererables) {
@@ -81,7 +81,7 @@ struct WarmUpVisitor : public boost::dfs_visitor<> {
                 _device);
             _perPhaseBindGroups.emplace(g[v].name, queueData.bindGroup);
 
-            const auto& phaseName = _g.impl()[v].name;
+            const auto& phaseName = getPhaseName(_g.impl()[v].name);
             for (auto& renderable : _rendererables) {
                 auto meshrenderer = std::static_pointer_cast<scene::MeshRenderer>(renderable);
                 for (auto& technique : meshrenderer->techniques()) {
@@ -243,36 +243,41 @@ struct RenderGraphVisitor : public boost::dfs_visitor<> {
                            _renderEncoder->beginRenderPass(beginInfo);
                        },
                        [&](const RenderQueueData& data) {
-                           std::string_view phase = g[v].name;
+                           std::string_view phase = getPhaseName(g[v].name);
                            _renderEncoder->setViewport(data.viewport);
                            _renderEncoder->setScissor(data.viewport.rect);
                            for (const auto& renderable : _renderables) {
                                const auto& meshRenderer = std::static_pointer_cast<scene::MeshRenderer>(renderable);
-                               if (meshRenderer->technique(0)->phaseName() == phase) {
-                                   const auto& technique = meshRenderer->technique(0);
-                                   _renderEncoder->bindPipeline(technique->pipelineState().get());
-                                   if (technique->hasPassBinding()) {
-                                       _renderEncoder->bindDescriptorSet(data.bindGroup->descriptorSet().get(), 0, nullptr, 0);
+                               uint32_t phaseIndex = -1;
+                               for (const auto& tech : meshRenderer->techniques()) {
+                                   if (tech->phaseName() == phase) {
+                                       phaseIndex = &tech - &meshRenderer->techniques()[0];
                                    }
-                                   if (technique->hasBatchBinding()) [[likely]] {
-                                       _renderEncoder->bindDescriptorSet(technique->material()->bindGroup()->descriptorSet().get(),
-                                                                         1, nullptr, 0);
-                                   }
-                                   if (technique->hasInstanceBinding()) {
-                                       _renderEncoder->bindDescriptorSet(meshRenderer->bindGroup()->descriptorSet().get(), 2, nullptr, 0);
-                                   }
-                                   const auto& drawInfo = meshRenderer->drawInfo();
-                                   const auto& meshData = meshRenderer->mesh()->meshData();
-                                   const auto& indexBuffer = meshData.indexBuffer;
-                                   const auto& vertexBuffer = meshData.vertexBuffer;
-                                   if (drawInfo.indexCount) {
-                                       _renderEncoder->bindIndexBuffer(indexBuffer.buffer.get(), indexBuffer.offset, indexBuffer.type);
-                                       _renderEncoder->bindVertexBuffer(vertexBuffer.buffer.get(), 0);
-                                       _renderEncoder->drawIndexed(drawInfo.indexCount, drawInfo.instanceCount, drawInfo.firstVertex, drawInfo.vertexOffset, drawInfo.firstInstance);
-                                   } else {
-                                       _renderEncoder->bindVertexBuffer(vertexBuffer.buffer.get(), 0);
-                                       _renderEncoder->draw(drawInfo.vertexCount, drawInfo.instanceCount, drawInfo.firstVertex, drawInfo.firstInstance);
-                                   }
+                               }
+                               raum_check(phaseIndex != -1, "Phase %s not found", phase);
+                               const auto& technique = meshRenderer->technique(phaseIndex);
+                               _renderEncoder->bindPipeline(technique->pipelineState().get());
+                               if (technique->hasPassBinding()) {
+                                   _renderEncoder->bindDescriptorSet(data.bindGroup->descriptorSet().get(), 0, nullptr, 0);
+                               }
+                               if (technique->hasBatchBinding()) [[likely]] {
+                                   _renderEncoder->bindDescriptorSet(technique->material()->bindGroup()->descriptorSet().get(),
+                                                                     1, nullptr, 0);
+                               }
+                               if (technique->hasInstanceBinding()) {
+                                   _renderEncoder->bindDescriptorSet(meshRenderer->bindGroup()->descriptorSet().get(), 2, nullptr, 0);
+                               }
+                               const auto& drawInfo = meshRenderer->drawInfo();
+                               const auto& meshData = meshRenderer->mesh()->meshData();
+                               const auto& indexBuffer = meshData.indexBuffer;
+                               const auto& vertexBuffer = meshData.vertexBuffer;
+                               if (drawInfo.indexCount) {
+                                   _renderEncoder->bindIndexBuffer(indexBuffer.buffer.get(), indexBuffer.offset, indexBuffer.type);
+                                   _renderEncoder->bindVertexBuffer(vertexBuffer.buffer.get(), 0);
+                                   _renderEncoder->drawIndexed(drawInfo.indexCount, drawInfo.instanceCount, drawInfo.firstVertex, drawInfo.vertexOffset, drawInfo.firstInstance);
+                               } else {
+                                   _renderEncoder->bindVertexBuffer(vertexBuffer.buffer.get(), 0);
+                                   _renderEncoder->draw(drawInfo.vertexCount, drawInfo.instanceCount, drawInfo.firstVertex, drawInfo.firstInstance);
                                }
                            }
                        },
