@@ -16,13 +16,12 @@ namespace raum::rhi {
 
 void Swapchain::initialize(uintptr_t hwnd, SyncType type, uint32_t width, uint32_t height) {
 #ifdef RAUM_WINDOWS
-
     auto physicalDevice = _device->physicalDevice();
     auto* grfxQ = _device->getQueue({QueueType::GRAPHICS});
     _presentQueue = static_cast<Queue*>(grfxQ);
     auto qIndex = _presentQueue->index();
 
-    if (!_surface) {
+    if (_surface == VK_NULL_HANDLE) {
         VkWin32SurfaceCreateInfoKHR surfaceInfo{};
         surfaceInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
         surfaceInfo.hwnd = (HWND)hwnd;
@@ -140,8 +139,7 @@ Swapchain::Swapchain(const SwapchainInfo& info, Device* device)
 Swapchain::Swapchain(const raum::rhi::SwapchainSurfaceInfo& info, raum::rhi::Device* device)
 : RHISwapchain(info, device), _device(static_cast<Device*>(device)) {
     _info = {info.width, info.height, info.type, 0};
-    _surface = static_cast<VkSurfaceKHR>(info.surface);
-    initialize(0, info.type, info.width, info.height);
+    initialize(info.windId, info.type, info.width, info.height);
 }
 
 void Swapchain::addWaitBeforePresent(RHISemaphore* s) {
@@ -233,17 +231,16 @@ void Swapchain::resize(uint32_t w, uint32_t h) {
     initialize(_info.hwnd, _info.type, w, h);
 }
 
-void Swapchain::resize(uint32_t w, uint32_t h, void* surface) {
-    if (surface != surface) {
-        destroy();
-    } else {
-        vkQueueWaitIdle(_presentQueue->_vkQueue);
-        vkDestroySwapchainKHR(_device->device(), _swapchain, nullptr);
+void Swapchain::resize(uint32_t w, uint32_t h, uintptr_t surface) {
+    if (w == _info.width && h == _info.height) {
+        return;
     }
+    destroy();
+    vkQueueWaitIdle(_presentQueue->_vkQueue);
+    vkDestroySwapchainKHR(_device->device(), _swapchain, nullptr);
     _info.width = w;
     _info.height = h;
-    _surface = static_cast<VkSurfaceKHR>(surface);
-    initialize(0, _info.type, w, h);
+    initialize(surface, _info.type, w, h);
 }
 
 } // namespace raum::rhi

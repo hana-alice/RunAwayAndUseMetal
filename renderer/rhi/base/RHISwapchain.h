@@ -18,7 +18,7 @@ public:
     virtual uint32_t height() const = 0;
     virtual Format format() const = 0;
     virtual void resize(uint32_t w, uint32_t h) = 0;
-    virtual void resize(uint32_t w, uint32_t h, void* surface) = 0;
+    virtual void resize(uint32_t w, uint32_t h, uintptr_t surface) = 0;
 
     virtual RHIImage* allocateImage(uint32_t index) = 0;
     virtual bool imageValid(uint32_t index) = 0;

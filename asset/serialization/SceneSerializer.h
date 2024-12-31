@@ -6,6 +6,7 @@ namespace raum::asset::serialize {
 
 enum class EmbededTechnique : uint8_t {
     SHADOWMAP,
+    SOLID_COLOR,
 };
 
 void deserialize(graph::SceneGraph& sg, const std::filesystem::path& filePath);

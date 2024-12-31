@@ -44,7 +44,7 @@ public:
 
         scene::OrthoFrustum shadowFrustum{-5.0f, 5.0f, -5.0f, 5.0f, 0.01f, 10.0f};
         _shadowCam = std::make_shared<scene::Camera>(shadowFrustum);
-        auto shadowEye = _shadowCam->eye();
+        auto& shadowEye = _shadowCam->eye();
         shadowEye.setPosition(5.0, 5.0, 0.0);
         shadowEye.lookAt({0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f});
         shadowEye.update();
@@ -65,9 +65,7 @@ public:
             resourceGraph.addBuffer(_light, 32, graph::BufferUsage::UNIFORM | graph::BufferUsage::TRANSFER_DST);
         }
 
-        auto mouseHandler = [&, width, height](int32_t x, int32_t y, framework::MouseButton btn, framework::ButtonStatus status) {
-        };
-        _mouseListener.add(mouseHandler);
+
     }
 
     ~ShadowMapSample() {
@@ -79,6 +77,7 @@ public:
         auto& renderGraph = _ppl->renderGraph();
 
         _ppl->resourceGraph().updateImage("forwardDS", _swapchain->width(), _swapchain->height());
+        #if 1
         // shadow buffer upload pass
         {
             auto uploadPass = renderGraph.addCopyPass("shadowCamUpdate");
@@ -89,6 +88,7 @@ public:
             uploadPass.uploadBuffer(&shadowProjMat[0], 64, _camBuffer, 64);
         }
 
+        #endif
         // shadow rendering pass
         {
             auto shadowPass = renderGraph.addRenderPass("shadowMap");
@@ -118,23 +118,26 @@ public:
         // rendering
         {
             auto renderPass = renderGraph.addRenderPass("forward");
-            renderPass.addColor(_forwardRT, graph::LoadOp::CLEAR, graph::StoreOp::STORE, {0.3, 0.3, 0.3, 1.0})
+
+            static  float a = 0.0f;
+            a += 0.1f;
+            renderPass.addColor(_forwardRT, graph::LoadOp::CLEAR, graph::StoreOp::STORE, {std::sin(a) , 0.3, 0.3, 1.0})
                       .addDepthStencil(_forwardDS, graph::LoadOp::CLEAR, graph::StoreOp::STORE, graph::LoadOp::CLEAR, graph::StoreOp::STORE, 1.0, 0);
-            auto queue = renderPass.addQueue("default");
+            auto queue = renderPass.addQueue("solidColor");
 
             auto width = _swapchain->width();
             auto height = _swapchain->height();
             queue.setViewport(0, 0, width, height, 0.0f, 1.0f)
-                 .addCamera(_cam.get())
-                 .addUniformBuffer(_camBuffer, "Mat")
-                 .addUniformBuffer(_camPose, "CamPos")
-                 .addUniformBuffer(_light, "Light");
+                .addCamera(_cam.get())
+                .addUniformBuffer(_camBuffer, "Mat");
+                 //.addUniformBuffer(_camPose, "CamPos")
+                 //.addUniformBuffer(_light, "Light");
         }
 
     }
 
     void hide() override {
-        _director->sceneGraph().disable("Particles");
+        _director->sceneGraph().disable("ShadowMap");
     }
 
     const std::string& name() override {
@@ -164,7 +167,7 @@ private:
     const std::string _name = "Particles";
 
     framework::EventListener<framework::KeyboardEventTag> _keyListener;
-    framework::EventListener<framework::MouseEventTag> _mouseListener;
+    framework::EventListener<framework::MouseButtonEventTag> _mouseListener;
     framework::EventListener<framework::ResizeEventTag> _resizeListener;
 };
 } // namespace raum::sample

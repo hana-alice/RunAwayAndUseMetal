@@ -255,7 +255,7 @@ struct SwapchainSurfaceInfo {
     uint32_t width{0};
     uint32_t height{0};
     SyncType type;
-    void* surface;
+    uintptr_t windId;
 };
 
 enum class ShaderStage : uint32_t {

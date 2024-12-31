@@ -1,0 +1,43 @@
+{
+  "path": "asset/layout/solidColor",
+  "vertex": {
+    "source": "vertexOnly",
+    "bindings": [
+      {
+        "slot": 0,
+        "resource": "buffer",
+        "usage": "uniform",
+        "rate": "per_pass",
+        "elements": [
+          {
+            "type": "mat4",
+            "count": 1
+          },
+          {
+            "type": "mat4",
+            "count": 1
+          }
+        ],
+        "count": 1
+      },
+      {
+        "slot": 0,
+        "resource": "buffer",
+        "usage": "uniform",
+        "rate": "per_instance",
+        "elements": [
+          {
+            "type": "mat4",
+            "count": 1
+          }
+        ],
+        "count": 1
+      }
+    ]
+  },
+  "fragment": {
+    "source": "solidColor",
+    "bindings": [
+    ]
+  }
+}

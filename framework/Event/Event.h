@@ -61,7 +61,7 @@ struct EventTag {
     using Params = std::tuple<Args...>;
 };
 
-// typedef  EventTag<InputEventType::MOUSE, uint32_t, uint32_t, uint32_t> MouseEventTag;
+// typedef  EventTag<InputEventType::MOUSE, uint32_t, uint32_t, uint32_t> MouseButtonEventTag;
 
 // https://indii.org/blog/is-type-instantiation-of-template/
 template <class T, template <class...> class U>

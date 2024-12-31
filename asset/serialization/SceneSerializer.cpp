@@ -506,19 +506,37 @@ void loadMesh(const tinygltf::Model& rawModel,
         if (firstLoad) [[unlikely]] {
             firstLoad = false;
 
-            scene::MaterialTemplatePtr matTemplate = std::make_shared<scene::MaterialTemplate>("asset/layout/shadowMap");
-            auto shadowMapMaterial = matTemplate->instantiate("asset/layout/shadowMap", scene::MaterialType::CUSTOM);
-            auto shadowTech = std::make_shared<scene::Technique>(shadowMapMaterial, "shadowMap");
+            // shadow map tech
+            {
+                scene::MaterialTemplatePtr shadowTemplate = std::make_shared<scene::MaterialTemplate>("asset/layout/shadowMap");
+                auto shadowMapMaterial = shadowTemplate->instantiate("asset/layout/shadowMap", scene::MaterialType::CUSTOM);
+                auto shadowTech = std::make_shared<scene::Technique>(shadowMapMaterial, "shadowMap");
 
-            auto& ds = shadowTech->depthStencilInfo();
-            ds.depthTestEnable = true;
-            ds.depthWriteEnable = true;
-            auto& bs = shadowTech->blendInfo();
-            bs.attachmentBlends.emplace_back();
-            embededTechs.emplace(EmbededTechnique::SHADOWMAP, shadowTech);
+                auto& ds = shadowTech->depthStencilInfo();
+                ds.depthTestEnable = true;
+                ds.depthWriteEnable = true;
+                auto& bs = shadowTech->blendInfo();
+                bs.attachmentBlends.emplace_back();
+                embededTechs.emplace(EmbededTechnique::SHADOWMAP, shadowTech);
+            }
+
+            // solid color tech
+            {
+                scene::MaterialTemplatePtr solidTemplate = std::make_shared<scene::MaterialTemplate>("asset/layout/solidColor");
+                auto solidColorMaterial = solidTemplate->instantiate("asset/layout/solidColor", scene::MaterialType::CUSTOM);
+                auto solidTech = std::make_shared<scene::Technique>(solidColorMaterial, "solidColor");
+
+                auto& ds = solidTech->depthStencilInfo();
+                ds.depthTestEnable = true;
+                ds.depthWriteEnable = true;
+                auto& bs = solidTech->blendInfo();
+                bs.attachmentBlends.emplace_back();
+                embededTechs.emplace(EmbededTechnique::SOLID_COLOR, solidTech);
+            }
         }
 
         meshRenderer->addTechnique(embededTechs.at(EmbededTechnique::SHADOWMAP));
+        meshRenderer->addTechnique(embededTechs.at(EmbededTechnique::SOLID_COLOR));
     }
 }
 

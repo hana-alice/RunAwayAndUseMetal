@@ -57,7 +57,7 @@ public:
 
 protected:
     bool _dirty{false};
-    MaterialType _type{MaterialType::PBR};
+    MaterialType _type{MaterialType::CUSTOM};
     std::map<std::string, Texture> _textures;
     std::map<std::string, Buffer> _buffers;
     std::map<std::string, Sampler> _samplers;

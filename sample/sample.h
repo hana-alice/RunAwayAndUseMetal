@@ -34,7 +34,7 @@ public:
         auto swapchain = director.swapchain();
 
         auto resizeHandler = [&, swapchain](uint32_t w, uint32_t h) {
-            swapchain->resize(w, h, _window->surface());
+            swapchain->resize(w, h, _window->handle());
         };
         _resizeListener.add(resizeHandler);
 
@@ -56,6 +56,10 @@ public:
     }
 
     ~Sample() {
+    }
+
+    void showWindow() {
+        _window->show();
     }
 
     void show() {
