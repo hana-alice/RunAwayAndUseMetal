@@ -79,7 +79,7 @@ public:
         static int32_t lastX = 0;
         static int32_t lastY = 0;
 
-        auto mouseHandler = [&, width, height](int32_t x, int32_t y, framework::MouseButton btn, framework::ButtonStatus status) {
+        auto mouseHandler = [&, width, height](float x, float y, framework::MouseButton btn, framework::ButtonStatus status) {
             if(status == framework::ButtonStatus::RELEASE) {
                 firstPress = true;
                 pressed = false;

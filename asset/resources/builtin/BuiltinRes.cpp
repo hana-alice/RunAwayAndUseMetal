@@ -76,7 +76,7 @@ void BuiltinRes::initialize(graph::ShaderGraph& shaderGraph, rhi::DevicePtr devi
         stbi_image_free(data);
         s_skybox = new Skybox(imgBuffer, width, height, cmdBuffer, device, shaderGraph);
 
-        s_quad = new Quad(cmdBuffer, device, shaderGraph);
+        s_quad = new Quad(cmdBuffer, device);
 
         cmdBuffer->onComplete([imgBuffer]() mutable {
             imgBuffer.reset();

@@ -30,8 +30,17 @@ public:
         _device = _director->device();
         _swapchain = _director->swapchain();
         const auto& resourcePath = utils::resourceDirectory();
-        auto& sceneGraph = _director->sceneGraph();
-        asset::serialize::load(sceneGraph, resourcePath / "models" / "DamagedHelmet" / "DamagedHelmet.gltf", _device);
+
+        // load models
+        {
+            auto& sceneGraph = _director->sceneGraph();
+            asset::serialize::load(sceneGraph, resourcePath / "models" / "DamagedHelmet" / "DamagedHelmet.gltf", _device);
+
+            auto& quad = asset::BuiltinRes::quad();
+            graph::ModelNode& quadNode = sceneGraph.addModel("quad");
+            quadNode.model = quad.model();
+        }
+
 
         auto width = _swapchain->width();
         auto height = _swapchain->height();
@@ -75,9 +84,8 @@ public:
 
     void show() override {
         auto& renderGraph = _ppl->renderGraph();
-
         _ppl->resourceGraph().updateImage("forwardDS", _swapchain->width(), _swapchain->height());
-        #if 1
+
         // shadow buffer upload pass
         {
             auto uploadPass = renderGraph.addCopyPass("shadowCamUpdate");
@@ -88,7 +96,6 @@ public:
             uploadPass.uploadBuffer(&shadowProjMat[0], 64, _camBuffer, 64);
         }
 
-        #endif
         // shadow rendering pass
         {
             auto shadowPass = renderGraph.addRenderPass("shadowMap");

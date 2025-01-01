@@ -4,7 +4,7 @@
 
 namespace raum::asset {
 
-Quad::Quad(rhi::CommandBufferPtr cmdBuffer, rhi::DevicePtr device, graph::ShaderGraph &shaderGraph) {
+Quad::Quad(rhi::CommandBufferPtr cmdBuffer, rhi::DevicePtr device) {
     _model = std::make_shared<scene::Model>();
     auto mesh = std::make_shared<scene::Mesh>();
     auto& meshData = mesh->meshData();
@@ -54,6 +54,9 @@ Quad::Quad(rhi::CommandBufferPtr cmdBuffer, rhi::DevicePtr device, graph::Shader
 
     meshRenderer->addTechnique(quadTech);
     meshRenderer->setVertexInfo(0, 6, 0);
+    meshRenderer->addTechnique(scene::getEmbededTechnique(scene::EmbededTechnique::SHADOWMAP));
+    meshRenderer->addTechnique(scene::getEmbededTechnique(scene::EmbededTechnique::SOLID_COLOR));
+    meshRenderer->setTransformSlot("LocalMat");
 }
 
 scene::ModelPtr Quad::model() const {

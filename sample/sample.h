@@ -38,12 +38,6 @@ public:
         };
         _resizeListener.add(resizeHandler);
 
-        auto closeHandler = [&]() {
-            _resizeListener.remove();
-            _closeListener.remove();
-        };
-        _closeListener.add(closeHandler);
-
         _samples = {
             // std::make_shared<sample::GraphSample>(&_world->director()),
 //            std::make_shared<sample::VirtualTextureSample>(&_world->director()),
@@ -56,6 +50,8 @@ public:
     }
 
     ~Sample() {
+        _resizeListener.remove();
+        _closeListener.remove();
     }
 
     void showWindow() {

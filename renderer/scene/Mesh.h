@@ -102,7 +102,7 @@ private:
     MeshPtr _mesh;
     std::vector<TechniquePtr> _techs;
     DrawInfo _drawInfo{};
-    Mat4 _transform{};
+    Mat4 _transform{1.0};
     BindGroupPtr _bindGroup;
     rhi::BufferPtr _localBuffer;
 };
