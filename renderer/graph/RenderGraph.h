@@ -93,10 +93,11 @@ private:
 
 class CopyPass {
 public:
-    CopyPass(CopyPassData& data) : _data(data) {}
-    CopyPass(const CopyPass& rhs) : _data(rhs._data) {}
+    CopyPass(CopyPassData& data, rhi::DevicePtr device) : _data(data),_device(device) {}
+    CopyPass(const CopyPass& rhs) : _data(rhs._data), _device(rhs._device) {}
     CopyPass& operator=(const CopyPass& rhs) {
         _data = rhs._data;
+        _device = rhs._device;
         return *this;
     }
 
@@ -109,11 +110,12 @@ public:
 
 private:
     CopyPassData& _data;
+    rhi::DevicePtr _device;
 };
 
 class RenderGraph {
 public:
-    RenderGraph() = default;
+    RenderGraph(rhi::DevicePtr);
     RenderGraph(const RenderGraph&) = delete;
     RenderGraph& operator=(const RenderGraph&) = delete;
     RenderGraph(RenderGraph&&) = delete;
@@ -132,6 +134,7 @@ public:
 
 private:
     RenderGraphImpl _graph;
+    rhi::DevicePtr _device;
 };
 
 } // namespace raum::graph

@@ -287,7 +287,17 @@ struct RenderGraphVisitor : public boost::dfs_visitor<> {
                                if (!_blitEncoder) {
                                    _blitEncoder = rhi::BlitEncoderPtr(_commandBuffer->makeBlitEncoder());
                                }
-                               _blitEncoder->updateBuffer(buffer.get(), upload.offset, upload.data.data(), upload.size);
+                               const auto& stagingBuffer = upload.stagingBuffer;
+                               rhi::BufferCopyRegion region{
+                                   .srcOffset = stagingBuffer.offset,
+                                   .dstOffset = upload.offset,
+                                   .size = upload.size,
+                               };
+                               _blitEncoder->copyBufferToBuffer(
+                                   stagingBuffer.buffer.get(),
+                                   buffer.get(),
+                                   &region,
+                                   1);
                            }
                            for (const auto& fill : copy.fills) {
                                auto buffer = _resg.getBuffer(fill.name);

@@ -1231,4 +1231,10 @@ struct IndexBuffer {
     BufferPtr buffer{nullptr};
 };
 
+struct StagingBufferInfo {
+    BufferPtr buffer;
+    uint32_t offset{0};
+    uint32_t size{0};
+};
+
 }; // namespace raum::rhi

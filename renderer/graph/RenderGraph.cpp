@@ -12,6 +12,12 @@ using boost::vertex;
 using boost::vertices;
 
 namespace raum::graph {
+
+RenderGraph::RenderGraph(rhi::DevicePtr device):_device(device)
+{
+}
+
+
 RenderPass RenderGraph::addRenderPass(std::string_view name) {
     auto id = add_vertex(std::string{name}, _graph);
     _graph[id].data = RenderPassData{};
@@ -27,7 +33,7 @@ ComputePass RenderGraph::addComputePass(std::string_view name) {
 CopyPass RenderGraph::addCopyPass(std::string_view name) {
     auto id = add_vertex(std::string{name}, _graph);
     _graph[id].data = CopyPassData{};
-    return CopyPass{std::get<CopyPassData>(_graph[id].data)};
+    return CopyPass{std::get<CopyPassData>(_graph[id].data), _device};
 }
 
 void RenderGraph::clear() {
@@ -104,9 +110,11 @@ CopyPass& CopyPass::addPair(const CopyPair& pair) {
 }
 
 CopyPass& CopyPass::uploadBuffer(const void* const data, uint32_t size, std::string_view name, uint32_t dstOffset) {
-    std::vector<uint8_t> dataIn(size);
-    memcpy(dataIn.data(), data, size);
-    _data.uploads.emplace_back(dataIn, size, dstOffset, name.data());
+    auto stagingBuffer = _device->allocateStagingBuffer(size, 0);
+    auto* dst = static_cast<uint8_t*>(stagingBuffer.buffer->mappedData()) + stagingBuffer.offset;
+    memcpy(dst, data, size);
+
+    _data.uploads.emplace_back(stagingBuffer, size, dstOffset, name.data());
     return *this;
 }
 

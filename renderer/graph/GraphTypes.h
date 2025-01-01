@@ -96,7 +96,7 @@ struct CopyPair {
 };
 
 struct UploadPair {
-    std::vector<uint8_t> data;
+    rhi::StagingBufferInfo stagingBuffer;
     uint32_t size{0};
     std::uint32_t offset{0};
     std::string name;

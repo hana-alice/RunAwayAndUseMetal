@@ -38,6 +38,9 @@ public:
     RHIDescriptorPool *createDescriptorPool(const DescriptorPoolInfo &) override;
     RHISparseImage* createSparseImage(const SparseImageInfo&) override;
 
+    StagingBufferInfo allocateStagingBuffer(uint32_t size, uint8_t queueIndex) override;
+    void resetStagingBuffer(uint8_t queueIndex);
+
     void waitDeviceIdle() override;
     void waitQueueIdle(RHIQueue*) override;
 
@@ -62,6 +65,7 @@ private:
     VmaAllocator _allocator;
 
     std::map<QueueType, Queue *> _queues;
+    std::map<uint8_t, RHIStagingBuffer*> _stagingBuffers;
     std::vector<VkDescriptorPool> _descriptorPools;
     std::unordered_map<SamplerInfo, Sampler *, RHIHash<SamplerInfo>> _samplers;
 
