@@ -61,6 +61,6 @@ enum class EmbededTechnique : uint8_t {
     SOLID_COLOR,
 };
 
-TechniquePtr getEmbededTechnique(EmbededTechnique type);
+TechniquePtr makeEmbededTechnique(EmbededTechnique type);
 
 } // namespace raum::scene

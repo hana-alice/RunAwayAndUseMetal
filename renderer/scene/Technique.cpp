@@ -13,7 +13,7 @@ std::unordered_map<std::size_t, rhi::ShaderPtr> _shaderMap;
 } // namespace
 
 Technique::Technique(MaterialPtr material, std::string_view phaseName)
-    : _material(material), _phaseName(phaseName) {
+: _material(material), _phaseName(phaseName) {
 }
 
 MaterialPtr Technique::material() {
@@ -179,19 +179,20 @@ TechniquePtr makeTechnique<EmbededTechnique::SOLID_COLOR>() {
     return solidTech;
 }
 
-TechniquePtr getEmbededTechnique(EmbededTechnique type) {
-    if (!embededTechs.contains(type)) {
-        switch (type) {
-            case EmbededTechnique::SHADOWMAP: {
-                embededTechs.emplace(EmbededTechnique::SHADOWMAP, makeTechnique<EmbededTechnique::SHADOWMAP>());
-                break;
-            }
-            case EmbededTechnique::SOLID_COLOR: {
-                embededTechs.emplace(EmbededTechnique::SOLID_COLOR, makeTechnique<EmbededTechnique::SOLID_COLOR>());
-                break;
-            }
+TechniquePtr makeEmbededTechnique(EmbededTechnique type) {
+    TechniquePtr tech;
+    switch (type) {
+        case EmbededTechnique::SHADOWMAP: {
+            tech = makeTechnique<EmbededTechnique::SHADOWMAP>();
+            break;
+        }
+        case EmbededTechnique::SOLID_COLOR: {
+            tech = makeTechnique<EmbededTechnique::SOLID_COLOR>();
+            break;
+        default:
+            break;
         }
     }
-    return embededTechs.at(type);
+    return tech;
 }
 } // namespace raum::scene

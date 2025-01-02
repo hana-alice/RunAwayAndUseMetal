@@ -501,8 +501,8 @@ void loadMesh(const tinygltf::Model& rawModel,
         meshRenderer->setTransform(sceneNode.node.transform());
         meshRenderer->setTransformSlot("LocalMat");
 
-        meshRenderer->addTechnique(scene::getEmbededTechnique(scene::EmbededTechnique::SHADOWMAP));
-        meshRenderer->addTechnique(scene::getEmbededTechnique(scene::EmbededTechnique::SOLID_COLOR));
+        meshRenderer->addTechnique(scene::makeEmbededTechnique(scene::EmbededTechnique::SHADOWMAP));
+        meshRenderer->addTechnique(scene::makeEmbededTechnique(scene::EmbededTechnique::SOLID_COLOR));
     }
 }
 
