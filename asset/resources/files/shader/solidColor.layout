@@ -16,6 +16,10 @@
           {
             "type": "mat4",
             "count": 1
+          },
+          {
+            "type": "float2",
+            "count": 1
           }
         ],
         "count": 1

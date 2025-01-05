@@ -81,15 +81,17 @@ public:
             resourceGraph.addBuffer(_camBuffer, 128, graph::BufferUsage::UNIFORM | graph::BufferUsage::TRANSFER_DST);
             resourceGraph.addBuffer(_camPose, 12, graph::BufferUsage::UNIFORM | graph::BufferUsage::TRANSFER_DST);
             resourceGraph.addBuffer(_light, 32, graph::BufferUsage::UNIFORM | graph::BufferUsage::TRANSFER_DST);
-            resourceGraph.addBuffer(_shadowVPBuffer, 128, graph::BufferUsage::UNIFORM | graph::BufferUsage::TRANSFER_DST);
+            resourceGraph.addBuffer(_shadowVPBuffer, 136, graph::BufferUsage::UNIFORM | graph::BufferUsage::TRANSFER_DST);
         }
-        if (!resourceGraph.contains(_pointSampler)) {
+        if (!resourceGraph.contains(_shadowSampler)) {
             rhi::SamplerInfo info{};
+            info.magFilter = rhi::Filter::LINEAR;
+            info.minFilter = rhi::Filter::LINEAR;
             info.mipmapMode = rhi::MipmapMode::NEAREST;
             info.addressModeU = rhi::SamplerAddressMode::CLAMP_TO_EDGE;
             info.addressModeV = rhi::SamplerAddressMode::CLAMP_TO_EDGE;
             info.addressModeW = rhi::SamplerAddressMode::CLAMP_TO_EDGE;
-            resourceGraph.addSampler(_pointSampler, info);
+            resourceGraph.addSampler(_shadowSampler, info);
         }
     }
 
@@ -110,6 +112,8 @@ public:
             uploadPass.uploadBuffer(&shadowViewMat[0], 64, _shadowVPBuffer, 0);
             const auto& shadowProjMat = shadowEye.projection();
             uploadPass.uploadBuffer(&shadowProjMat[0], 64, _shadowVPBuffer, 64);
+            constexpr float invSize[2] = {1.0f / shadowMapWidth, 1.0f / shadowMapHeight};
+            uploadPass.uploadBuffer(&invSize[0], 8, _shadowVPBuffer, 128);
         }
 
         // shadow rendering pass
@@ -143,9 +147,7 @@ public:
         {
             auto renderPass = renderGraph.addRenderPass("forward");
 
-            static float a = 0.0f;
-            a += 0.1f;
-            renderPass.addColor(_forwardRT, graph::LoadOp::CLEAR, graph::StoreOp::STORE, {std::sin(a), 0.3, 0.3, 1.0})
+            renderPass.addColor(_forwardRT, graph::LoadOp::CLEAR, graph::StoreOp::STORE, {0.2, 0.4, 0.4, 1.0})
                 .addDepthStencil(_forwardDS, graph::LoadOp::CLEAR, graph::StoreOp::DONT_CARE, graph::LoadOp::DONT_CARE, graph::StoreOp::DONT_CARE, 1.0, 0);
             auto queue = renderPass.addQueue("solidColor");
 
@@ -156,7 +158,7 @@ public:
                 .addUniformBuffer(_camBuffer, "Mat")
                 .addUniformBuffer(_shadowVPBuffer, "ShadowView")
                 .addSampledImage(_shadowMapRT, "shadowMap")
-                .addSampler(_pointSampler, "shadowSampler");
+                .addSampler(_shadowSampler, "shadowSampler");
         }
     }
 
@@ -189,9 +191,9 @@ private:
     const std::string _camPose = "camPose";
     const std::string _shadowVPBuffer = "shadowVP";
     const std::string _light = "light";
-    const std::string _pointSampler = "pointSampler";
+    const std::string _shadowSampler = "shadowSampler";
 
-    const std::string _name = "Particles";
+    const std::string _name = "ShadowMap";
 
     framework::EventListener<framework::KeyboardEventTag> _keyListener;
     framework::EventListener<framework::MouseButtonEventTag> _mouseListener;
