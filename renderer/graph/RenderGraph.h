@@ -8,7 +8,7 @@
 
 namespace raum::graph {
 struct Pass {
-    std::string name{};
+    std::string_view name;
     std::variant<RenderPassData, SubRenderPassData, ComputePassData, CopyPassData, RenderQueueData> data;
 };
 } // namespace raum::graph
@@ -18,7 +18,7 @@ namespace graph {
 
 template <>
 struct internal_vertex_name<raum::graph::Pass> {
-    typedef multi_index::member<raum::graph::Pass, std::string, &raum::graph::Pass::name> type;
+    typedef multi_index::member<raum::graph::Pass, std::string_view, &raum::graph::Pass::name> type;
 };
 
 template <>
@@ -43,6 +43,8 @@ public:
     //RenderQueue& addScene(scene::DIrector* scene);
     RenderQueue& setViewport(int32_t x, int32_t y, uint32_t w, uint32_t h, float minDepth, float maxDepth);
     RenderQueue& addUniformBuffer(std::string_view name, std::string_view bindingName);
+    RenderQueue& addSampledImage(std::string_view name, std::string_view bindingName);
+    RenderQueue& addSampler(std::string_view name, std::string_view bindingName);
 
 private:
     RenderGraphImpl::vertex_descriptor _id{0};
@@ -51,11 +53,12 @@ private:
 
 class RenderPass {
 public:
-    RenderPass(RenderGraphImpl::vertex_descriptor id, RenderGraphImpl& graph) : _id(id), _graph(graph) {}
-    RenderPass(const RenderPass& rhs) : _id(rhs._id), _graph(rhs._graph) {}
+    RenderPass(RenderGraphImpl::vertex_descriptor id, RenderGraphImpl& graph, TransparentUnorderedSet& names) : _id(id), _graph(graph), _names(names) {}
+    RenderPass(const RenderPass& rhs) : _id(rhs._id), _graph(rhs._graph), _names(rhs._names) {}
     RenderPass& operator=(const RenderPass& rhs) {
         _id = rhs._id;
         _graph = rhs._graph;
+        _names = rhs._names;
         return *this;
     }
     RenderPass(RenderPass&& rhs) = delete;
@@ -70,6 +73,7 @@ public:
 private:
     RenderGraphImpl::vertex_descriptor _id{0};
     RenderGraphImpl& _graph;
+    TransparentUnorderedSet& _names;
 };
 
 class ComputePass {
@@ -85,6 +89,7 @@ public:
     ~ComputePass() = default;
 
     ComputePass& addResource(std::string_view name, std::string_view bindingName, Access access);
+    ComputePass& setPhase(std::string_view phase);
 
 private:
     ComputePassData& _data;
@@ -92,10 +97,11 @@ private:
 
 class CopyPass {
 public:
-    CopyPass(CopyPassData& data) : _data(data) {}
-    CopyPass(const CopyPass& rhs) : _data(rhs._data) {}
+    CopyPass(CopyPassData& data, rhi::DevicePtr device) : _data(data),_device(device) {}
+    CopyPass(const CopyPass& rhs) : _data(rhs._data), _device(rhs._device) {}
     CopyPass& operator=(const CopyPass& rhs) {
         _data = rhs._data;
+        _device = rhs._device;
         return *this;
     }
 
@@ -108,11 +114,12 @@ public:
 
 private:
     CopyPassData& _data;
+    rhi::DevicePtr _device;
 };
 
 class RenderGraph {
 public:
-    RenderGraph() = default;
+    RenderGraph(rhi::DevicePtr);
     RenderGraph(const RenderGraph&) = delete;
     RenderGraph& operator=(const RenderGraph&) = delete;
     RenderGraph(RenderGraph&&) = delete;
@@ -128,9 +135,13 @@ public:
     auto& impl() { return _graph; }
 
     using VertexType = RenderGraphImpl::vertex_descriptor;
+    static VertexType null_vertex() { return RenderGraphImpl::null_vertex(); }
 
 private:
     RenderGraphImpl _graph;
+    rhi::DevicePtr _device;
+   TransparentUnorderedSet _names; // pass queue names
+   TransparentUnorderedSet _resNames; // rendering resource name
 };
 
 } // namespace raum::graph

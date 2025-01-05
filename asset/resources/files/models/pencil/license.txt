@@ -1,0 +1,11 @@
+Model Information:
+* title:	Pencil
+* source:	https://sketchfab.com/3d-models/pencil-e67db84c8d2442519353afbae5220de0
+* author:	Akshat (https://sketchfab.com/shooter24994)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Pencil" (https://sketchfab.com/3d-models/pencil-e67db84c8d2442519353afbae5220de0) by Akshat (https://sketchfab.com/shooter24994) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

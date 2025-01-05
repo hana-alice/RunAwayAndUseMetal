@@ -15,6 +15,7 @@
 #include "RHIShader.h"
 #include "RHISwapchain.h"
 #include "RHISparseImage.h"
+#include "RHIStagingBuffer.h"
 namespace raum::rhi {
 
 class RHIDevice {
@@ -36,6 +37,8 @@ public:
     virtual RHIRenderPass* createRenderPass(const RenderPassInfo&) = 0;
     virtual RHIFrameBuffer* createFrameBuffer(const FrameBufferInfo&) = 0;
     virtual RHISparseImage* createSparseImage(const SparseImageInfo&) = 0;
+
+    virtual StagingBufferInfo allocateStagingBuffer(uint32_t size, uint8_t queueIndex) = 0;
 
     // internal holds
     virtual RHIQueue* getQueue(const QueueInfo&) = 0;

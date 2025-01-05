@@ -22,7 +22,7 @@ struct WarmUpVisitor : public boost::dfs_visitor<> {
                                      _ag.getFrameBufferInfo(v)->info.height};
             _renderpass = renderpass.renderpass;
         } else if (std::holds_alternative<RenderQueueData>(g[v].data)) {
-            const auto& phaseName = _g.impl()[v].name;
+            const auto& phaseName = getPhaseName(_g.impl()[v].name);
             auto& queueData = std::get<RenderQueueData>(_g.impl()[v].data);
             scene::SlotMap perBatchBindings;
             for (auto& renderable : _rendererables) {
@@ -81,7 +81,7 @@ struct WarmUpVisitor : public boost::dfs_visitor<> {
                 _device);
             _perPhaseBindGroups.emplace(g[v].name, queueData.bindGroup);
 
-            const auto& phaseName = _g.impl()[v].name;
+            const auto& phaseName = getPhaseName(_g.impl()[v].name);
             for (auto& renderable : _rendererables) {
                 auto meshrenderer = std::static_pointer_cast<scene::MeshRenderer>(renderable);
                 for (auto& technique : meshrenderer->techniques()) {
@@ -110,7 +110,7 @@ struct WarmUpVisitor : public boost::dfs_visitor<> {
     ResourceGraph& _resg;
     rhi::DevicePtr _device;
     std::vector<scene::RenderablePtr>& _rendererables;
-    std::unordered_map<std::string, scene::BindGroupPtr>& _perPhaseBindGroups;
+    std::unordered_map<std::string, scene::BindGroupPtr, hash_string, std::equal_to<>>& _perPhaseBindGroups;
     rhi::RenderPassPtr _renderpass;
     rhi::DescriptorSetLayoutInfo _perPassLayoutInfo;
     scene::SlotMap _perPassBindings;
@@ -131,7 +131,7 @@ struct PreProcessVisitor : public boost::dfs_visitor<> {
             renderpass.framebuffer = getOrCreateFrameBuffer(renderpass.renderpass, v, _ag, _resg, _device, _swapchain);
         } else if (std::holds_alternative<RenderQueueData>(g[v].data)) {
             auto& queueData = std::get<RenderQueueData>(_g.impl()[v].data);
-            queueData.bindGroup = _perPhaseBindGroups.at(g[v].name);
+            queueData.bindGroup = _perPhaseBindGroups.find(g[v].name)->second;
             auto bindGroup = queueData.bindGroup;
             for (auto renderingResource : queueData.resources) {
                 _resg.mount(renderingResource.name);
@@ -158,6 +158,9 @@ struct PreProcessVisitor : public boost::dfs_visitor<> {
                                                         0,
                                                         imageView.imageView,
                                                         _ag.getImageLayout(renderingResource.name, v));
+                               },
+                               [&](const SamplerData& sampler) {
+                                   bindGroup->bindSampler(renderingResource.bindingName, 0, sampler.info);
                                },
                                [&](const rhi::SwapchainPtr& swapchain) {
                                    bindGroup->bindImage(renderingResource.bindingName,
@@ -202,7 +205,7 @@ struct PreProcessVisitor : public boost::dfs_visitor<> {
     rhi::DevicePtr _device;
     rhi::SwapchainPtr _swapchain;
     std::vector<scene::RenderablePtr>& _renderables;
-    std::unordered_map<std::string, scene::BindGroupPtr>& _perPhaseBindGroups;
+    std::unordered_map<std::string, scene::BindGroupPtr, hash_string, std::equal_to<>>& _perPhaseBindGroups;
 };
 
 struct RenderGraphVisitor : public boost::dfs_visitor<> {
@@ -243,36 +246,41 @@ struct RenderGraphVisitor : public boost::dfs_visitor<> {
                            _renderEncoder->beginRenderPass(beginInfo);
                        },
                        [&](const RenderQueueData& data) {
-                           std::string_view phase = g[v].name;
+                           std::string_view phase = getPhaseName(g[v].name);
                            _renderEncoder->setViewport(data.viewport);
                            _renderEncoder->setScissor(data.viewport.rect);
                            for (const auto& renderable : _renderables) {
                                const auto& meshRenderer = std::static_pointer_cast<scene::MeshRenderer>(renderable);
-                               if (meshRenderer->technique(0)->phaseName() == phase) {
-                                   const auto& technique = meshRenderer->technique(0);
-                                   _renderEncoder->bindPipeline(technique->pipelineState().get());
-                                   if (technique->hasPassBinding()) {
-                                       _renderEncoder->bindDescriptorSet(data.bindGroup->descriptorSet().get(), 0, nullptr, 0);
+                               uint32_t phaseIndex = -1;
+                               for (const auto& tech : meshRenderer->techniques()) {
+                                   if (tech->phaseName() == phase) {
+                                       phaseIndex = &tech - &meshRenderer->techniques()[0];
                                    }
-                                   if (technique->hasBatchBinding()) [[likely]] {
-                                       _renderEncoder->bindDescriptorSet(technique->material()->bindGroup()->descriptorSet().get(),
-                                                                         1, nullptr, 0);
-                                   }
-                                   if (technique->hasInstanceBinding()) {
-                                       _renderEncoder->bindDescriptorSet(meshRenderer->bindGroup()->descriptorSet().get(), 2, nullptr, 0);
-                                   }
-                                   const auto& drawInfo = meshRenderer->drawInfo();
-                                   const auto& meshData = meshRenderer->mesh()->meshData();
-                                   const auto& indexBuffer = meshData.indexBuffer;
-                                   const auto& vertexBuffer = meshData.vertexBuffer;
-                                   if (drawInfo.indexCount) {
-                                       _renderEncoder->bindIndexBuffer(indexBuffer.buffer.get(), indexBuffer.offset, indexBuffer.type);
-                                       _renderEncoder->bindVertexBuffer(vertexBuffer.buffer.get(), 0);
-                                       _renderEncoder->drawIndexed(drawInfo.indexCount, drawInfo.instanceCount, drawInfo.firstVertex, drawInfo.vertexOffset, drawInfo.firstInstance);
-                                   } else {
-                                       _renderEncoder->bindVertexBuffer(vertexBuffer.buffer.get(), 0);
-                                       _renderEncoder->draw(drawInfo.vertexCount, drawInfo.instanceCount, drawInfo.firstVertex, drawInfo.firstInstance);
-                                   }
+                               }
+                               raum_check(phaseIndex != -1, "Phase %s not found", phase);
+                               const auto& technique = meshRenderer->technique(phaseIndex);
+                               _renderEncoder->bindPipeline(technique->pipelineState().get());
+                               if (technique->hasPassBinding()) {
+                                   _renderEncoder->bindDescriptorSet(data.bindGroup->descriptorSet().get(), 0, nullptr, 0);
+                               }
+                               if (technique->hasBatchBinding()) [[likely]] {
+                                   _renderEncoder->bindDescriptorSet(technique->material()->bindGroup()->descriptorSet().get(),
+                                                                     1, nullptr, 0);
+                               }
+                               if (technique->hasInstanceBinding()) {
+                                   _renderEncoder->bindDescriptorSet(meshRenderer->bindGroup()->descriptorSet().get(), 2, nullptr, 0);
+                               }
+                               const auto& drawInfo = meshRenderer->drawInfo();
+                               const auto& meshData = meshRenderer->mesh()->meshData();
+                               const auto& indexBuffer = meshData.indexBuffer;
+                               const auto& vertexBuffer = meshData.vertexBuffer;
+                               if (drawInfo.indexCount) {
+                                   _renderEncoder->bindIndexBuffer(indexBuffer.buffer.get(), indexBuffer.offset, indexBuffer.type);
+                                   _renderEncoder->bindVertexBuffer(vertexBuffer.buffer.get(), 0);
+                                   _renderEncoder->drawIndexed(drawInfo.indexCount, drawInfo.instanceCount, drawInfo.firstVertex, drawInfo.vertexOffset, drawInfo.firstInstance);
+                               } else {
+                                   _renderEncoder->bindVertexBuffer(vertexBuffer.buffer.get(), 0);
+                                   _renderEncoder->draw(drawInfo.vertexCount, drawInfo.instanceCount, drawInfo.firstVertex, drawInfo.firstInstance);
                                }
                            }
                        },
@@ -282,7 +290,17 @@ struct RenderGraphVisitor : public boost::dfs_visitor<> {
                                if (!_blitEncoder) {
                                    _blitEncoder = rhi::BlitEncoderPtr(_commandBuffer->makeBlitEncoder());
                                }
-                               _blitEncoder->updateBuffer(buffer.get(), upload.offset, upload.data.data(), upload.size);
+                               const auto& stagingBuffer = upload.stagingBuffer;
+                               rhi::BufferCopyRegion region{
+                                   .srcOffset = stagingBuffer.offset,
+                                   .dstOffset = upload.offset,
+                                   .size = upload.size,
+                               };
+                               _blitEncoder->copyBufferToBuffer(
+                                   stagingBuffer.buffer.get(),
+                                   buffer.get(),
+                                   &region,
+                                   1);
                            }
                            for (const auto& fill : copy.fills) {
                                auto buffer = _resg.getBuffer(fill.name);

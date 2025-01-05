@@ -3,6 +3,7 @@
 #include <iostream>
 #include "GraphSample.h"
 #include "VirtualTexture.h"
+#include "shadow/ShadowMap.h"
 #include "WindowEvent.h"
 #include "World.h"
 #include "common.h"
@@ -33,19 +34,14 @@ public:
         auto swapchain = director.swapchain();
 
         auto resizeHandler = [&, swapchain](uint32_t w, uint32_t h) {
-            swapchain->resize(w, h, _window->surface());
+            swapchain->resize(w, h, _window->handle());
         };
         _resizeListener.add(resizeHandler);
 
-        auto closeHandler = [&]() {
-            _resizeListener.remove();
-            _closeListener.remove();
-        };
-        _closeListener.add(closeHandler);
-
         _samples = {
-            std::make_shared<sample::GraphSample>(&_world->director()),
+            // std::make_shared<sample::GraphSample>(&_world->director()),
 //            std::make_shared<sample::VirtualTextureSample>(&_world->director()),
+            std::make_shared<sample::ShadowMapSample>(&_world->director()),
         };
         _inited.resize(_samples.size(), 0);
 
@@ -54,6 +50,12 @@ public:
     }
 
     ~Sample() {
+        _resizeListener.remove();
+        _closeListener.remove();
+    }
+
+    void showWindow() {
+        _window->show();
     }
 
     void show() {

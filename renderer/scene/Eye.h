@@ -3,7 +3,8 @@
 namespace raum::scene {
 class Eye {
 public:
-    explicit Eye(const Frustum& frustum, Projection projection);
+    explicit Eye(const PerspectiveFrustum& frustum);
+    explicit Eye(const OrthoFrustum& frustum);
     ~Eye();
 
     void setPosition(const Vec3f& pos);
@@ -24,9 +25,13 @@ public:
 
     void lookAt(const Vec3f& pos, const Vec3f& up);
 
-    void setFrustum(const Frustum& frustum);
+    void setFrustum(const PerspectiveFrustum& frustum);
 
-    const Frustum& getFrustum() const;
+    void setFrustum(const OrthoFrustum& frustum);
+
+    const PerspectiveFrustum& getPerspectiveFrustum() const;
+
+    const OrthoFrustum& getOrthoFrustum() const;
 
     const Vec3f& getPosition() const;
 
@@ -40,13 +45,14 @@ public:
 
     const Vec3f up() const;
 
-    const Mat4& inverseAttitide() const;
+    const Mat4& inverseAttitude() const;
 
     void update();
 
 private:
     Projection _projection{Projection::PERSPECTIVE};
-    Frustum _frustum{};
+    PerspectiveFrustum _perspectiveFrustum{};
+    OrthoFrustum _orthoFrustum{};
     Vec3f _position{0.0f};
     Vec3f _forward{0.0f, 0.0f, 1.0f};
     Vec3f _up{0.0f, 1.0f, 0.0f};

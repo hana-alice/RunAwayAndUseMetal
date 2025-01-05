@@ -255,7 +255,7 @@ struct SwapchainSurfaceInfo {
     uint32_t width{0};
     uint32_t height{0};
     SyncType type;
-    void* surface;
+    uintptr_t windId;
 };
 
 enum class ShaderStage : uint32_t {
@@ -1116,8 +1116,8 @@ struct SamplerInfo {
     float mipLodBias{0.0f};
     float maxAnisotropy{0.0f};
     CompareOp compareOp{CompareOp::ALWAYS};
-    float minLod;
-    float maxLod;
+    float minLod{0.0f};
+    float maxLod{0.0f};
     BorderColor borderColor{BorderColor::FLOAT_TRANSPARENT_BLACK};
 };
 RHIHASHER(SamplerInfo)
@@ -1229,6 +1229,12 @@ struct IndexBuffer {
     uint32_t offset{0};
     IndexType type{IndexType::FULL};
     BufferPtr buffer{nullptr};
+};
+
+struct StagingBufferInfo {
+    BufferPtr buffer;
+    uint32_t offset{0};
+    uint32_t size{0};
 };
 
 }; // namespace raum::rhi

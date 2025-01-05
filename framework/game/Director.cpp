@@ -24,8 +24,8 @@ Director::Director() {
 
 void Director::attachWindow(platform::WindowPtr window) {
     _window = window;
-    auto pxSize = window->pixelSize();
-    rhi::SwapchainSurfaceInfo scInfo{pxSize.width, pxSize.height, rhi::SyncType::IMMEDIATE, window->surface()};
+    const auto& pxSize = window->size();
+    rhi::SwapchainSurfaceInfo scInfo{pxSize.width, pxSize.height, rhi::SyncType::VSYNC, window->handle()};
     _swapchain = std::shared_ptr<rhi::RHISwapchain>(_device->createSwapchain(scInfo));
     _pipeline = std::make_shared<graph::Pipeline>(_device, _swapchain, _sceneGraph, _shaderGraph);
 }

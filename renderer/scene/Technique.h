@@ -56,4 +56,11 @@ private:
 };
 using TechniquePtr = std::shared_ptr<Technique>;
 
+enum class EmbededTechnique : uint8_t {
+    SHADOWMAP,
+    SOLID_COLOR,
+};
+
+TechniquePtr makeEmbededTechnique(EmbededTechnique type);
+
 } // namespace raum::scene

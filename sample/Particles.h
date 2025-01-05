@@ -15,9 +15,9 @@
 #include "math.h"
 #include "Director.h"
 namespace raum::sample {
-class GraphSample : public SampleBase {
+class ShadowMapSample : public SampleBase {
 public:
-    explicit GraphSample(framework::Director* director) : _ppl(director->pipeline()), _director(director) {}
+    explicit ShadowMapSample(framework::Director* director) : _ppl(director->pipeline()), _director(director) {}
 
     void init() override {
         // load scene from gltf
@@ -25,7 +25,7 @@ public:
         _swapchain = _director->swapchain();
         const auto& resourcePath = utils::resourceDirectory();
         auto& sceneGraph = _director->sceneGraph();
-        asset::serialize::load(sceneGraph, resourcePath / "models" / "DamagedHelmet" / "DamagedHelmet.gltf", _device);
+        // asset::serialize::load(sceneGraph, resourcePath / "models" / "DamagedHelmet" / "DamagedHelmet.gltf", _device);
 
         auto& skybox = asset::BuiltinRes::skybox();
         graph::ModelNode& skyboxNode = sceneGraph.addModel("skybox");
@@ -34,7 +34,7 @@ public:
         auto width = _swapchain->width();
         auto height = _swapchain->height();
         scene::PerspectiveFrustum frustum{45.0f, width / (float)height, 0.01f, 10.0f};
-        _cam = std::make_shared<scene::Camera>(frustum);
+        _cam = std::make_shared<scene::Camera>(frustum, scene::Projection::PERSPECTIVE);
         auto& eye = _cam->eye();
         eye.setPosition(0.0, 0.0f, 4.0);
         eye.lookAt({0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f});
@@ -47,80 +47,25 @@ public:
         if (!resourceGraph.contains(_forwardDS)) {
             resourceGraph.addImage(_forwardDS, rhi::ImageUsage::DEPTH_STENCIL_ATTACHMENT, width, height, rhi::Format::D24_UNORM_S8_UINT);
         }
+        if (!resourceGraph.contains(_computeRes)) {
+            uint32_t size = width * height;
+            resourceGraph.addBuffer(_computeRes, size, rhi::BufferUsage::STORAGE);
+        }
         if (!resourceGraph.contains(_camBuffer)) {
             resourceGraph.addBuffer(_camBuffer, 128, graph::BufferUsage ::UNIFORM | graph::BufferUsage ::TRANSFER_DST);
             resourceGraph.addBuffer(_camPose, 12, graph::BufferUsage ::UNIFORM | graph::BufferUsage ::TRANSFER_DST);
             resourceGraph.addBuffer(_light, 32, graph::BufferUsage ::UNIFORM | graph::BufferUsage ::TRANSFER_DST);
         }
 
-        // listeners
-        auto keyHandler = [&](framework::Keyboard key, framework::KeyboardType type) {
-            if (key != framework::Keyboard::OTHER && type == framework::KeyboardType::PRESS) {
-                auto front = _cam->eye().forward();
-                front = glm::normalize(front) * 0.1f;
-                auto right = glm::cross(front, _cam->eye().up());
-                right = glm::normalize(right) * 0.1f;
-                if (key == framework::Keyboard::W) {
-                    _cam->eye().translate(front);
-                } else if (key == framework::Keyboard::S) {
-                    _cam->eye().translate(-front);
-                } else if (key == framework::Keyboard::A) {
-                    _cam->eye().translate(-right);
-                } else if (key == framework::Keyboard::D) {
-                    _cam->eye().translate(right);
-                }
-                _cam->eye().update();
-            }
+        auto mouseHandler = [&, width, height](int32_t x, int32_t y, framework::MouseButton btn, framework::ButtonStatus status) {
+
         };
-//        _keyListener.add(keyHandler);
-
-        static bool firstPress{true};
-        static bool pressed{false};
-        static int32_t lastX = 0;
-        static int32_t lastY = 0;
-
-        auto mouseHandler = [&, width, height](float x, float y, framework::MouseButton btn, framework::ButtonStatus status) {
-            if(status == framework::ButtonStatus::RELEASE) {
-                firstPress = true;
-                pressed = false;
-            } else if(status == framework::ButtonStatus::PRESS && btn != framework::MouseButton::OTHER) {
-                pressed = true;
-            }
-            if(pressed && firstPress) {
-                firstPress = false;
-                lastX = x;
-                lastY = y;
-            }
-        };
-        _mouseBtnListener.add(mouseHandler);
-
-        auto mouseMovehandler = [&](float x, float y, float deltaXIn, float deltaYIn) {
-            static float curDeg = 0.0f;
-            auto deltaX = x - lastX;
-            curDeg += deltaX * 0.1f;
-            auto radius = 4.0f;
-
-            auto curRad = curDeg / 180.0f * 3.141593f;
-            auto zpos = radius * cos(-curRad);
-            auto xpos = radius * sin(-curRad);
-
-            auto& eye = _cam->eye();
-            eye.setPosition(xpos, 0.0f,  zpos);
-            eye.lookAt({0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f});
-            eye.update();
-            lastX = x;
-            lastY = y;
-
-            if(curRad > 6.283186f) {
-                curRad -= 6.283186f;
-            }
-        };
+        _mouseListener.add(mouseHandler);
     }
 
-    ~GraphSample() {
+    ~ShadowMapSample() {
         _keyListener.remove();
-        _mouseBtnListener.remove();
-        _mouseMoveListener.remove();
+        _mouseListener.remove();
     }
 
     void show() override {
@@ -141,6 +86,10 @@ public:
         uploadPass.uploadBuffer(&lightPos[0], 16, _light, 0);
         uploadPass.uploadBuffer(&color[0], 16, _light, 16);
 
+        auto computePass = renderGraph.addComputePass("compute");
+        computePass.setPhase("")
+            .addResource(_computeRes, "", graph::Access::WRITE);
+
         auto renderPass = renderGraph.addRenderPass("forward");
         renderPass.addColor(_forwardRT, graph::LoadOp::CLEAR, graph::StoreOp::STORE, {0.3, 0.3, 0.3, 1.0})
             .addDepthStencil(_forwardDS, graph::LoadOp::CLEAR, graph::StoreOp::STORE, graph::LoadOp::CLEAR, graph::StoreOp::STORE, 1.0, 0);
@@ -156,7 +105,7 @@ public:
     }
 
     void hide() override {
-        _director->sceneGraph().disable("sponza");
+        _director->sceneGraph().disable("Particles");
     }
 
     const std::string& name() override {
@@ -177,15 +126,15 @@ private:
 
     const std::string _forwardRT = "forwardRT";
     const std::string _forwardDS = "forwardDS";
+    const std::string _computeRes = "computeRes";
     const std::string _camBuffer = "camBuffer";
     const std::string _camPose = "camPose";
     const std::string _light = "light";
 
-    const std::string _name = "GraphSample";
+    const std::string _name = "Particles";
 
     framework::EventListener<framework::KeyboardEventTag> _keyListener;
-    framework::EventListener<framework::MouseButtonEventTag> _mouseBtnListener;
-    framework::EventListener<framework::MouseMotionEventTag> _mouseMoveListener;
+    framework::EventListener<framework::MouseButtonEventTag> _mouseListener;
     framework::EventListener<framework::ResizeEventTag> _resizeListener;
 };
 

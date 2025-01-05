@@ -9,7 +9,8 @@ constexpr uint32_t EyePerCam{1};
 class Camera {
 public:
     Camera() = delete;
-    explicit Camera(const Frustum& frustum, Projection type);
+    explicit Camera(const PerspectiveFrustum& frustum);
+    explicit Camera(const OrthoFrustum& frustum);
 
 //    void setPosition()
 

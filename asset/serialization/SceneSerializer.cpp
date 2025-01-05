@@ -500,6 +500,9 @@ void loadMesh(const tinygltf::Model& rawModel,
         meshRenderer->setVertexInfo(0, meshData.vertexCount, meshData.indexCount);
         meshRenderer->setTransform(sceneNode.node.transform());
         meshRenderer->setTransformSlot("LocalMat");
+
+        meshRenderer->addTechnique(scene::makeEmbededTechnique(scene::EmbededTechnique::SHADOWMAP));
+        meshRenderer->addTechnique(scene::makeEmbededTechnique(scene::EmbededTechnique::SOLID_COLOR));
     }
 }
 
@@ -511,22 +514,20 @@ void loadCamera(const tinygltf::Model& rawModel, const tinygltf::Node& rawNode, 
     if (rawCam.type == "perspective") {
         const auto& cam = rawCam.perspective;
         camNode.camera = std::make_shared<scene::Camera>(
-            scene::Frustum{
+            scene::PerspectiveFrustum{
                 static_cast<float>(cam.yfov),
                 static_cast<float>(cam.aspectRatio),
                 static_cast<float>(cam.znear),
-                static_cast<float>(cam.zfar)},
-            scene::Projection::PERSPECTIVE);
+                static_cast<float>(cam.zfar)});
 
     } else if (rawCam.type == "orthographic") {
         const auto& cam = rawCam.orthographic;
         camNode.camera = std::make_shared<scene::Camera>(
-            scene::Frustum{
+            scene::OrthoFrustum{
                 static_cast<float>(cam.xmag),
                 static_cast<float>(cam.ymag),
                 static_cast<float>(cam.znear),
-                static_cast<float>(cam.zfar)},
-            scene::Projection::ORTHOGRAPHIC);
+                static_cast<float>(cam.zfar)});
     }
 }
 

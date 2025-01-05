@@ -23,10 +23,12 @@
 #include "math.h"
 #include "renderer/feature/VirtualTexture.h"
 #include "stb_image.h"
+
 namespace raum::sample {
 class VirtualTextureSample : public SampleBase {
 public:
-    explicit VirtualTextureSample(framework::Director* director) : _ppl(director->pipeline()), _director(director) {}
+    explicit VirtualTextureSample(framework::Director* director) : _ppl(director->pipeline()), _director(director) {
+    }
 
     void init() override {
         // load scene from gltf
@@ -94,8 +96,8 @@ public:
         auto sparseMat = matTemplate->instantiate("asset/layout/sparse", scene::MaterialType::CUSTOM);
         sparseMat->initBindGroup(binds, shaderRes.descriptorLayouts.at(static_cast<uint32_t>(graph::Rate::PER_BATCH)), device);
         sparseMat->set("mainTexture", scene::Texture{
-                                          _vt->sparseImage(),
-                                          _vt->sparseView()});
+                           _vt->sparseImage(),
+                           _vt->sparseView()});
         rhi::SamplerInfo samplerInfo{
             .magFilter = rhi::Filter::LINEAR,
             .minFilter = rhi::Filter::LINEAR,
@@ -149,8 +151,8 @@ public:
 
         auto width = swapchain->width();
         auto height = swapchain->height();
-        scene::Frustum frustum{45.0f, width / (float)height, 0.1f, 1000.0f};
-        _cam = std::make_shared<scene::Camera>(frustum, scene::Projection::PERSPECTIVE);
+        scene::PerspectiveFrustum frustum{45.0f, width / (float)height, 0.1f, 1000.0f};
+        _cam = std::make_shared<scene::Camera>(frustum);
         auto& eye = _cam->eye();
         eye.setPosition(0.0, 0.0f, 4.0);
         eye.lookAt({0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f});
@@ -164,27 +166,28 @@ public:
             resourceGraph.addImage(_forwardDS, rhi::ImageUsage::DEPTH_STENCIL_ATTACHMENT, width, height, rhi::Format::D24_UNORM_S8_UINT);
         }
         if (!resourceGraph.contains(_mvp)) {
-            resourceGraph.addBuffer(_mvp, 192, graph::BufferUsage ::UNIFORM | graph::BufferUsage ::TRANSFER_DST);
+            resourceGraph.addBuffer(_mvp, 192, graph::BufferUsage::UNIFORM | graph::BufferUsage::TRANSFER_DST);
         }
 
         // listeners
-        auto keyHandler = [&](framework::Keyboard key, framework::KeyboardType type) {
-            if (key != framework::Keyboard::OTHER && type == framework::KeyboardType::PRESS) {
-                auto front = _cam->eye().forward();
-                front = glm::normalize(front) * 0.1f;
-                auto right = glm::cross(front, _cam->eye().up());
-                right = glm::normalize(right) * 0.1f;
-                if (key == framework::Keyboard::W) {
-                    _cam->eye().translate(front);
-                } else if (key == framework::Keyboard::S) {
-                    _cam->eye().translate(-front);
-                } else if (key == framework::Keyboard::A) {
-                    _cam->eye().translate(-right);
-                } else if (key == framework::Keyboard::D) {
-                    _cam->eye().translate(right);
-                }
-                _cam->eye().update();
+        auto keyHandler = [&]() {
+            auto front = _cam->eye().forward();
+            front = glm::normalize(front) * 0.1f;
+            auto right = glm::cross(front, _cam->eye().up());
+            right = glm::normalize(right) * 0.1f;
+            if (framework::keyPressed(framework::Keyboard::W)) {
+                _cam->eye().translate(front);
             }
+            if (framework::keyPressed(framework::Keyboard::S)) {
+                _cam->eye().translate(-front);
+            }
+            if (framework::keyPressed(framework::Keyboard::A)) {
+                _cam->eye().translate(-right);
+            }
+            if (framework::keyPressed(framework::Keyboard::D)) {
+                _cam->eye().translate(right);
+            }
+            _cam->eye().update();
         };
         _keyListener.add(keyHandler);
 
@@ -247,21 +250,21 @@ public:
         auto& eye = _cam->eye();
         Mat4 modelMat = Mat4(1.0f);
         uploadPass.uploadBuffer(&modelMat[0], 64, _mvp, 0);
-        auto viewMat = eye.inverseAttitide();
+        auto viewMat = eye.inverseAttitude();
         uploadPass.uploadBuffer(&viewMat[0], 64, _mvp, 64);
         const auto& projMat = eye.projection();
         uploadPass.uploadBuffer(&projMat[0], 64, _mvp, 128);
 
         auto renderPass = renderGraph.addRenderPass("forward");
         renderPass.addColor(_forwardRT, graph::LoadOp::CLEAR, graph::StoreOp::STORE, {0.3, 0.3, 0.3, 1.0})
-            .addDepthStencil(_forwardDS, graph::LoadOp::CLEAR, graph::StoreOp::STORE, graph::LoadOp::CLEAR, graph::StoreOp::STORE, 1.0, 0);
+                  .addDepthStencil(_forwardDS, graph::LoadOp::CLEAR, graph::StoreOp::STORE, graph::LoadOp::CLEAR, graph::StoreOp::STORE, 1.0, 0);
         auto queue = renderPass.addQueue("default");
 
         auto width = swapchain->width();
         auto height = swapchain->height();
         queue.setViewport(0, 0, width, height, 0.0f, 1.0f)
-            .addCamera(_cam.get())
-            .addUniformBuffer(_mvp, "Mat");
+             .addCamera(_cam.get())
+             .addUniformBuffer(_mvp, "Mat");
     }
 
     void hide() override {
@@ -288,7 +291,7 @@ private:
     const std::string _name = "VirtualTexture";
 
     framework::EventListener<framework::KeyboardEventTag> _keyListener;
-    framework::EventListener<framework::MouseEventTag> _mouseListener;
+    framework::EventListener<framework::MouseButtonEventTag> _mouseListener;
     //    framework::EventListener<framework::ResizeEventTag> _resizeListener;
 
     framework::RenderTask _preRenderTask;
@@ -299,5 +302,4 @@ private:
 
     rhi::CommandPoolPtr _cmdPool;
 };
-
 } // namespace raum::sample

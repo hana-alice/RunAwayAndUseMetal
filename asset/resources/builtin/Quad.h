@@ -9,8 +9,7 @@ class Quad {
 public:
     Quad() = delete;
     Quad(rhi::CommandBufferPtr cmdBuffer,
-         rhi::DevicePtr device,
-         graph::ShaderGraph& shaderGraph);
+         rhi::DevicePtr device);
 
     scene::ModelPtr model() const;
 

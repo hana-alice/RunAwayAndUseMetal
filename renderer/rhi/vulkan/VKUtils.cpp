@@ -1064,6 +1064,9 @@ void fillClearColors(std::vector<VkClearValue>& clearValues,
                 clearValues[i].depthStencil.depth = colors[i].depthStencil.depth;
                 clearValues[i].depthStencil.stencil = colors[i].depthStencil.stencil;
                 break;
+            case FormatType::COLOR_UNFILTER_FLOAT:
+                memcpy(clearValues[i].color.float32, &colors[i], sizeof(colors[i].color.clearColorF));
+                break;
         }
     }
 }

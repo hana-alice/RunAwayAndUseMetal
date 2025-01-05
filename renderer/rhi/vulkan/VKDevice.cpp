@@ -23,6 +23,8 @@ namespace raum::rhi {
 
 static constexpr bool enableValidationLayer{true};
 
+static constexpr uint32_t ChunkSize{1024 * 1024 * 4};
+
 namespace {
 bool checkRequiredLayers(const std::vector<const char*>& reqs, const std::vector<VkLayerProperties>& availables) {
     bool found = false;
@@ -420,6 +422,20 @@ SparseBindingRequirement Device::sparseBindingRequirement(RHIImage* image) {
     req.mipTailStride = reqs[0].imageMipTailStride;
     return req;
 }
+
+StagingBufferInfo Device::allocateStagingBuffer(uint32_t size, uint8_t queueIndex) {
+    if (!_stagingBuffers.contains(queueIndex)) {
+        _stagingBuffers.emplace(queueIndex, new RHIStagingBuffer(ChunkSize, this));
+    }
+    return _stagingBuffers.at(queueIndex)->allocate(size);
+}
+
+void Device::resetStagingBuffer(uint8_t queueIndex) {
+    if (_stagingBuffers.contains(queueIndex)) {
+        _stagingBuffers.at(queueIndex)->reset();
+    }
+}
+
 
 void Device::waitDeviceIdle() {
     vkDeviceWaitIdle(_device);

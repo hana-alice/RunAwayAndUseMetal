@@ -37,7 +37,7 @@ private:
 
     bool _warmed{false};
 
-    std::unordered_map<std::string, scene::BindGroupPtr> _perPhaseBindGroups;
+    std::unordered_map<std::string, scene::BindGroupPtr, hash_string, std::equal_to<>> _perPhaseBindGroups;
 };
 
 using GraphSchedulerPtr = std::shared_ptr<GraphScheduler>;

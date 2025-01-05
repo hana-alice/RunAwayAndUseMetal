@@ -1,6 +1,6 @@
 #include "ui.h"
 int main(int argc, char** argv) {
     raum::sample::UI ui(argc, argv);
-    ui.mainLoop();
+    ui.show();
     return 0;
 }
