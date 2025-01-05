@@ -34,6 +34,11 @@ source_group("raum_utils_h" FILES ${raum_utils_h})
 file(GLOB_RECURSE raum_utils_cpp ${CMAKE_CURRENT_LIST_DIR}/core/utils/*.cpp)
 source_group("raum_utils_cpp" FILES ${raum_utils_cpp})
 
+file(GLOB_RECURSE raum_thread_h ${CMAKE_CURRENT_LIST_DIR}/core/thread/*.h)
+source_group("raum_thread_h" FILES ${raum_thread_h})
+file(GLOB_RECURSE raum_thread_cpp ${CMAKE_CURRENT_LIST_DIR}/core/thread/*.cpp)
+source_group("raum_thread_cpp" FILES ${raum_thread_cpp})
+
 file(GLOB_RECURSE raum_core_h ${CMAKE_CURRENT_LIST_DIR}/core/*.h)
 source_group("raum_core_h" FILES ${raum_core_h})
 file(GLOB_RECURSE raum_core_cpp ${CMAKE_CURRENT_LIST_DIR}/core/*.cpp)
@@ -44,6 +49,8 @@ add_library(raum_core
         ${raum_utils_cpp}
         ${raum_core_h}
         ${raum_core_cpp}
+        ${raum_thread_h}
+        ${raum_thread_cpp}
 )
 target_include_directories(raum_core PUBLIC
         ./
