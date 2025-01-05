@@ -501,24 +501,8 @@ void loadMesh(const tinygltf::Model& rawModel,
         meshRenderer->setTransform(sceneNode.node.transform());
         meshRenderer->setTransformSlot("LocalMat");
 
-        thread_local bool firstLoad{true};
-        static std::unordered_map<EmbededTechnique, scene::TechniquePtr> embededTechs;
-        if (firstLoad) [[unlikely]] {
-            firstLoad = false;
-
-            scene::MaterialTemplatePtr matTemplate = std::make_shared<scene::MaterialTemplate>("asset/layout/shadowMap");
-            auto shadowMapMaterial = matTemplate->instantiate("asset/layout/shadowMap", scene::MaterialType::CUSTOM);
-            auto shadowTech = std::make_shared<scene::Technique>(shadowMapMaterial, "shadowMap");
-
-            auto& ds = shadowTech->depthStencilInfo();
-            ds.depthTestEnable = true;
-            ds.depthWriteEnable = true;
-            auto& bs = shadowTech->blendInfo();
-            bs.attachmentBlends.emplace_back();
-            embededTechs.emplace(EmbededTechnique::SHADOWMAP, shadowTech);
-        }
-
-        meshRenderer->addTechnique(embededTechs.at(EmbededTechnique::SHADOWMAP));
+        meshRenderer->addTechnique(scene::makeEmbededTechnique(scene::EmbededTechnique::SHADOWMAP));
+        meshRenderer->addTechnique(scene::makeEmbededTechnique(scene::EmbededTechnique::SOLID_COLOR));
     }
 }
 

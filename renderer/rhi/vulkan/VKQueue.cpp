@@ -120,6 +120,7 @@ void Queue::submit(bool signal) {
     }
     _completeHandlers[_currFrameIndex].clear();
     _commandBuffers.clear();
+    _device->resetStagingBuffer(_index);
 }
 
 void Queue::bindSparse(const SparseBindingInfo& info, SparseType type) {

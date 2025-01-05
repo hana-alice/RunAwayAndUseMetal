@@ -134,7 +134,7 @@ private:
     const std::string _name = "Particles";
 
     framework::EventListener<framework::KeyboardEventTag> _keyListener;
-    framework::EventListener<framework::MouseEventTag> _mouseListener;
+    framework::EventListener<framework::MouseButtonEventTag> _mouseListener;
     framework::EventListener<framework::ResizeEventTag> _resizeListener;
 };
 

@@ -18,7 +18,7 @@ set(CMAKE_AUTOMOC ON)
 # if(MSVC)
 #     set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 # endif()
-
+find_package(SDL3 CONFIG REQUIRED)
 set(dependency_dir ${CMAKE_CURRENT_SOURCE_DIR}/dependencies CACHE INTERNAL "dependency_dir")
 set(core_dir ${CMAKE_CURRENT_SOURCE_DIR}/core CACHE INTERNAL "core_dir")
 set(renderer_dir ${CMAKE_CURRENT_SOURCE_DIR}/renderer CACHE INTERNAL "renderer_dir")
@@ -26,7 +26,7 @@ set(renderer_dir ${CMAKE_CURRENT_SOURCE_DIR}/renderer CACHE INTERNAL "renderer_d
 # core
 find_package(spdlog CONFIG REQUIRED)
 
-add_definitions(-DGLM_ENABLE_EXPERIMENTAL)
+add_definitions(-DGLM_ENABLE_EXPERIMENTAL -DGLM_FORCE_DEPTH_ZERO_TO_ONE)
 find_package(glm CONFIG REQUIRED)
 
 file(GLOB_RECURSE raum_utils_h ${CMAKE_CURRENT_LIST_DIR}/core/utils/*.h)
@@ -52,9 +52,8 @@ target_link_libraries(raum_core PUBLIC
         spdlog::spdlog
 )
 # framework
-find_package(Qt6 REQUIRED COMPONENTS Widgets)
-file(GLOB_RECURSE raum_framework_platform_h ${CMAKE_CURRENT_LIST_DIR}/framework/platform/windows/*.h)
-file(GLOB_RECURSE raum_framework_platform_cpp ${CMAKE_CURRENT_LIST_DIR}/framework/platform/windows/*.cpp)
+#file(GLOB_RECURSE raum_framework_platform_h ${CMAKE_CURRENT_LIST_DIR}/framework/platform/windows/*.h)
+#file(GLOB_RECURSE raum_framework_platform_cpp ${CMAKE_CURRENT_LIST_DIR}/framework/platform/windows/*.cpp)
 file(GLOB_RECURSE raum_framework_platform_common_h ${CMAKE_CURRENT_LIST_DIR}/framework/platform/common/*.h)
 file(GLOB_RECURSE raum_framework_platform_common_cpp ${CMAKE_CURRENT_LIST_DIR}/framework/platform/common/*.cpp)
 
@@ -71,7 +70,6 @@ list(APPEND raum_framework_h ${raum_framework_game_h})
 list(APPEND raum_framework_cpp ${raum_framework_game_cpp})
 
 if (WIN32)
-    file(GLOB_RECURSE raum_framework_platform_specific_cpp ${CMAKE_CURRENT_LIST_DIR}/framework/platform/windows/*.cpp)
     source_group("raum_framework_platform_specific_cpp" FILES ${raum_framework_platform_specific_cpp})
 endif ()
 
@@ -80,21 +78,18 @@ add_library(raum_framework
         ${raum_framework_platform_cpp}
         ${raum_framework_h}
         ${raum_framework_cpp}
-        ${raum_framework_platform_specific_cpp}
 )
 target_include_directories(raum_framework PUBLIC
-        ${CMAKE_CURRENT_LIST_DIR}/framework/platform/windows/
         ${CMAKE_CURRENT_LIST_DIR}/framework/platform/common/
         ${CMAKE_CURRENT_LIST_DIR}/framework/event/
         ${CMAKE_CURRENT_LIST_DIR}/framework/game/
         ${CMAKE_CURRENT_LIST_DIR}/renderer/graph/
 )
 target_link_libraries(raum_framework PRIVATE
-        Qt6::Widgets
-        Qt6::Gui
         raum_core
         raum_renderer
         raum_asset
+        SDL3::SDL3
 )
 
 # renderer
@@ -209,12 +204,11 @@ target_link_libraries(raum_sample PRIVATE
         raum_framework
         raum_asset
         raum_core
-        Qt6::Widgets
 )
 
 # set_target_properties(raum_sample PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
 
 file(COPY asset/resources/files DESTINATION ${CMAKE_BINARY_DIR})
-file(COPY framework/platform/windows/builds/qt6.conf DESTINATION ${CMAKE_BINARY_DIR})
+#file(COPY framework/platform/windows/builds/qt6.conf DESTINATION ${CMAKE_BINARY_DIR})
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT raum_sample)

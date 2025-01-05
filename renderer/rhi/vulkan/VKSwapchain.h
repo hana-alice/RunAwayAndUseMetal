@@ -20,7 +20,7 @@ public:
     Format format() const override { return _preferredFormat; }
 
     void resize(uint32_t w, uint32_t h) override;
-    void resize(uint32_t w, uint32_t h, void* surface) override;
+    void resize(uint32_t w, uint32_t h, uintptr_t surface) override;
 
     bool imageValid(uint32_t index) override;
     bool holds(RHIImage* img) override;
@@ -38,7 +38,7 @@ private:
     void initialize(uintptr_t hwnd, SyncType type, uint32_t width, uint32_t height);
 
     SwapchainInfo _info;
-    VkSurfaceKHR _surface;
+    VkSurfaceKHR _surface{VK_NULL_HANDLE};
     VkSwapchainKHR _swapchain;
     Format _preferredFormat;
     Device* _device{nullptr};

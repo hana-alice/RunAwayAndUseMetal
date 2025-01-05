@@ -4,7 +4,7 @@
 namespace raum::framework {
 
 // gpt
-enum class Keyboard : uint32_t {
+enum class Keyboard {
     A,
     B,
     C,
@@ -120,8 +120,10 @@ enum class KeyboardType : uint8_t {
     RELEASE,
 };
 
+bool keyPressed(Keyboard key);
+
 // EventType, Key, type
-using KeyboardEventTag = EventTag<InputEventType::KEYBOARD, Keyboard, KeyboardType>;
+using KeyboardEventTag = EventTag<InputEventType::KEYBOARD>;
 EventDispatcher<KeyboardEventTag>;
 
 

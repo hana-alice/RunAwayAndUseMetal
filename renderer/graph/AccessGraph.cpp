@@ -9,6 +9,20 @@ namespace raum::graph {
 
 namespace {
 
+RenderGraph::VertexType getParentPass(RenderGraph& g, std::string_view name) {
+    auto pos = name.find_last_of('/');
+    if (pos == std::string::npos) {
+        return RenderGraph::null_vertex();
+    }
+    auto parentName = name.substr(0, pos);
+    auto parentVert = *boost::graph::find_vertex(parentName, g.impl());
+    return parentVert;
+}
+
+RenderGraph::VertexType getParentPass(RenderGraph& g, const RenderGraph::VertexType& v) {
+    return getParentPass(g, g.impl()[v].name);
+}
+
 bool isDepthStencil(const AttachmentResource& res) {
     return res.type == ResourceType::DEPTH || res.type == ResourceType::STENCIL || res.type == ResourceType::DEPTH_STENCIL;
 }
@@ -51,7 +65,7 @@ rhi::ImageSubresourceRange getSubresourceRange(const Resource& resourceDetail) {
                    [&](const ImageViewData& imageViewData) {
                        range = imageViewData.info.range;
                    },
-                   [&](const rhi::SwapchainPtr& swapchain) {
+                   [&](const SwapchainData& swapchainData) {
                        range.aspect = rhi::AspectMask::COLOR;
                        range.sliceCount = 1;
                        range.mipCount = 1;
@@ -158,7 +172,8 @@ auto decomposeDetail(std::string_view name, ResourceGraph& resg) {
                 height = imgInfo.extent.y;
                 sliceCount = imgView.info.range.sliceCount;
             },
-            [&](const rhi::SwapchainPtr& swapchain) {
+            [&](const SwapchainData& swapchainData) {
+                const auto& swapchain = swapchainData.swapchain;
                 samples = 1;
                 samples = 1;
                 format = swapchain->format();
@@ -303,6 +318,7 @@ public:
 
 void populateBarrier(const AccessGraph::ResourceAccessMap& accessMap,
                      ResourceGraph& resg,
+                     RenderGraph& rg,
                      AccessGraph::BufferBarrierMap& bufferBarrierMap,
                      AccessGraph::ImageBarrierMap& imageBarrierMap,
                      AccessGraph::ImageBarrier& presentBarrier) {
@@ -312,12 +328,17 @@ void populateBarrier(const AccessGraph::ResourceAccessMap& accessMap,
         auto lastStage = rhi::PipelineStage::TOP_OF_PIPE;
         std::string_view backbuffer{};
         for (const auto& [v, access, stage] : status) {
+
+            // current perpass barrier
+            auto parentPass = getParentPass(rg, v);
+            parentPass = parentPass == RenderGraph::null_vertex() ? v : parentPass;
+
             if (std::holds_alternative<BufferData>(resDetail.data) || std::holds_alternative<BufferViewData>(resDetail.data)) {
                 if (isReadAccess(lastAccess) && isReadAccess(access)) {
                     continue;
                 }
 
-                bufferBarrierMap[v].emplace_back(
+                bufferBarrierMap[parentPass].emplace_back(
                     name,
                     rhi::BufferBarrierInfo(nullptr,
                                            lastStage,
@@ -330,12 +351,12 @@ void populateBarrier(const AccessGraph::ResourceAccessMap& accessMap,
                 if (resDetail.residency != ResourceResidency::DONT_CARE) {
                     resDetail.access = access;
                 }
-            } else if (std::holds_alternative<ImageData>(resDetail.data) || std::holds_alternative<ImageViewData>(resDetail.data) || std::holds_alternative<rhi::SwapchainPtr>(resDetail.data)) {
+            } else if (std::holds_alternative<ImageData>(resDetail.data) || std::holds_alternative<ImageViewData>(resDetail.data) || std::holds_alternative<SwapchainData>(resDetail.data)) {
                 if (lastAccess == access) {
                     continue;
                 }
 
-                imageBarrierMap[v].emplace_back(
+                imageBarrierMap[parentPass].emplace_back(
                     name,
                     rhi::ImageBarrierInfo{
                         nullptr,
@@ -387,7 +408,7 @@ void AccessGraph::analyze() {
         }
     }
 
-    populateBarrier(_accessMap, _resg, _bufferBarrierMap, _imageBarrierMap, _presentBarrier);
+    populateBarrier(_accessMap,  _resg, _rg, _bufferBarrierMap, _imageBarrierMap, _presentBarrier);
 }
 
 std::vector<AccessGraph::BufferBarrier>* AccessGraph::getBufferBarrier(RenderGraph::VertexType v) {

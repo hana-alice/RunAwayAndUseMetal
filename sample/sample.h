@@ -34,15 +34,9 @@ public:
         auto swapchain = director.swapchain();
 
         auto resizeHandler = [&, swapchain](uint32_t w, uint32_t h) {
-            swapchain->resize(w, h, _window->surface());
+            swapchain->resize(w, h, _window->handle());
         };
         _resizeListener.add(resizeHandler);
-
-        auto closeHandler = [&]() {
-            _resizeListener.remove();
-            _closeListener.remove();
-        };
-        _closeListener.add(closeHandler);
 
         _samples = {
             // std::make_shared<sample::GraphSample>(&_world->director()),
@@ -56,6 +50,12 @@ public:
     }
 
     ~Sample() {
+        _resizeListener.remove();
+        _closeListener.remove();
+    }
+
+    void showWindow() {
+        _window->show();
     }
 
     void show() {

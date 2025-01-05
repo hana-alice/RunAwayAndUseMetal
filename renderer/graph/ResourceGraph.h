@@ -16,11 +16,17 @@ enum class ResourceResidency : uint8_t {
     SWAPCHAIN,
 };
 
+struct SwapchainData {
+    rhi::SwapchainPtr swapchain;
+    std::map<uint8_t, rhi::ImagePtr> images;
+    std::map<uint8_t, rhi::ImageViewPtr> imageViews;
+};
+
 struct Resource {
-    std::string name{};
+    std::string_view name{};
     ResourceResidency residency{ResourceResidency::DONT_CARE};
     rhi::AccessFlags access{rhi::AccessFlags::NONE};
-    std::variant<BufferData, BufferViewData, ImageData, ImageViewData, rhi::SwapchainPtr> data;
+    std::variant<BufferData, BufferViewData, ImageData, ImageViewData, SamplerData, SwapchainData> data;
     uint64_t life{0};
 };
 } // namespace raum::graph
@@ -30,7 +36,7 @@ namespace graph {
 
 template <>
 struct internal_vertex_name<raum::graph::Resource> {
-    typedef multi_index::member<raum::graph::Resource, std::string, &raum::graph::Resource::name> type;
+    typedef multi_index::member<raum::graph::Resource, std::string_view, &raum::graph::Resource::name> type;
 };
 
 template <>
@@ -61,6 +67,7 @@ public:
     void addImage(std::string_view name, const rhi::ImageInfo& data);
     void addImage(std::string_view name, rhi::ImageUsage, uint32_t width, uint32_t height, rhi::Format format);
     void addImageView(std::string_view name, const ImageViewData& data);
+    void addSampler(std::string_view name, const rhi::SamplerInfo& data);
     void import(std::string_view name, rhi::SwapchainPtr swapchain);
     void mount(std::string_view name);
     void unmount(std::string_view name, uint64_t life);
@@ -81,6 +88,7 @@ public:
 private:
     rhi::RHIDevice* _device{nullptr};
     ResourceGraphImpl _graph;
+    std::unordered_set<std::string, hash_string, std::equal_to<>> _names;
 };
 
 }

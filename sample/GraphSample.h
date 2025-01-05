@@ -74,52 +74,53 @@ public:
         };
 //        _keyListener.add(keyHandler);
 
-        auto mouseHandler = [&, width, height](int32_t x, int32_t y, framework::MouseButton btn, framework::ButtonStatus status) {
-            static bool firstPress{true};
-            static bool pressed{false};
-            static int32_t lastX = x;
-            static int32_t lastY = y;
-                if(status == framework::ButtonStatus::RELEASE) {
-                    firstPress = true;
-                    pressed = false;
-                } else if(status == framework::ButtonStatus::PRESS && btn != framework::MouseButton::OTHER) {
-                    pressed = true;
-                }
-                if(pressed) {
-                    if(firstPress) {
-                        firstPress = false;
-                        lastX = x;
-                        lastY = y;
-                    } else {
-                        static float curDeg = 0.0f;
-                        auto deltaX = x - lastX;
-                        curDeg += deltaX * 0.1f;
-                        auto radius = 4.0f;
+        static bool firstPress{true};
+        static bool pressed{false};
+        static int32_t lastX = 0;
+        static int32_t lastY = 0;
 
-                        auto curRad = curDeg / 180.0f * 3.141593f;
-                        auto zpos = radius * cos(-curRad);
-                        auto xpos = radius * sin(-curRad);
-
-                        auto& eye = _cam->eye();
-                        eye.setPosition(xpos, 0.0f,  zpos);
-                        eye.lookAt({0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f});
-                        eye.update();
-                        lastX = x;
-                        lastY = y;
-
-                        if(curRad > 6.283186f) {
-                            curRad -= 6.283186f;
-                        }
-                    }
-                }
-
+        auto mouseHandler = [&, width, height](float x, float y, framework::MouseButton btn, framework::ButtonStatus status) {
+            if(status == framework::ButtonStatus::RELEASE) {
+                firstPress = true;
+                pressed = false;
+            } else if(status == framework::ButtonStatus::PRESS && btn != framework::MouseButton::OTHER) {
+                pressed = true;
+            }
+            if(pressed && firstPress) {
+                firstPress = false;
+                lastX = x;
+                lastY = y;
+            }
         };
-        _mouseListener.add(mouseHandler);
+        _mouseBtnListener.add(mouseHandler);
+
+        auto mouseMovehandler = [&](float x, float y, float deltaXIn, float deltaYIn) {
+            static float curDeg = 0.0f;
+            auto deltaX = x - lastX;
+            curDeg += deltaX * 0.1f;
+            auto radius = 4.0f;
+
+            auto curRad = curDeg / 180.0f * 3.141593f;
+            auto zpos = radius * cos(-curRad);
+            auto xpos = radius * sin(-curRad);
+
+            auto& eye = _cam->eye();
+            eye.setPosition(xpos, 0.0f,  zpos);
+            eye.lookAt({0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f});
+            eye.update();
+            lastX = x;
+            lastY = y;
+
+            if(curRad > 6.283186f) {
+                curRad -= 6.283186f;
+            }
+        };
     }
 
     ~GraphSample() {
         _keyListener.remove();
-        _mouseListener.remove();
+        _mouseBtnListener.remove();
+        _mouseMoveListener.remove();
     }
 
     void show() override {
@@ -183,7 +184,8 @@ private:
     const std::string _name = "GraphSample";
 
     framework::EventListener<framework::KeyboardEventTag> _keyListener;
-    framework::EventListener<framework::MouseEventTag> _mouseListener;
+    framework::EventListener<framework::MouseButtonEventTag> _mouseBtnListener;
+    framework::EventListener<framework::MouseMotionEventTag> _mouseMoveListener;
     framework::EventListener<framework::ResizeEventTag> _resizeListener;
 };
 
