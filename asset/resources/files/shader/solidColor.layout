@@ -38,6 +38,38 @@
   "fragment": {
     "source": "solidColor",
     "bindings": [
+      {
+        "slot": 1,
+        "resource": "buffer",
+        "usage": "uniform",
+        "rate": "per_pass",
+        "elements": [
+          {
+            "type": "mat4",
+            "count": 1
+          },
+          {
+            "type": "mat4",
+            "count": 1
+          }
+        ],
+        "count": 1
+      },
+      {
+        "slot": 2,
+        "resource": "image",
+        "usage": "sampled",
+        "rate": "per_pass",
+        "type": "2d",
+        "count": 1
+      },
+      {
+        "slot": 3,
+        "rate": "per_pass",
+        "resource": "sampler",
+        "count": 2,
+        "immutable": true
+      }
     ]
   }
 }

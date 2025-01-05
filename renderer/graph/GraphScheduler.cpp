@@ -110,7 +110,7 @@ struct WarmUpVisitor : public boost::dfs_visitor<> {
     ResourceGraph& _resg;
     rhi::DevicePtr _device;
     std::vector<scene::RenderablePtr>& _rendererables;
-    std::unordered_map<std::string, scene::BindGroupPtr>& _perPhaseBindGroups;
+    std::unordered_map<std::string, scene::BindGroupPtr, hash_string, std::equal_to<>>& _perPhaseBindGroups;
     rhi::RenderPassPtr _renderpass;
     rhi::DescriptorSetLayoutInfo _perPassLayoutInfo;
     scene::SlotMap _perPassBindings;
@@ -131,7 +131,7 @@ struct PreProcessVisitor : public boost::dfs_visitor<> {
             renderpass.framebuffer = getOrCreateFrameBuffer(renderpass.renderpass, v, _ag, _resg, _device, _swapchain);
         } else if (std::holds_alternative<RenderQueueData>(g[v].data)) {
             auto& queueData = std::get<RenderQueueData>(_g.impl()[v].data);
-            queueData.bindGroup = _perPhaseBindGroups.at(g[v].name);
+            queueData.bindGroup = _perPhaseBindGroups.find(g[v].name)->second;
             auto bindGroup = queueData.bindGroup;
             for (auto renderingResource : queueData.resources) {
                 _resg.mount(renderingResource.name);
@@ -158,6 +158,9 @@ struct PreProcessVisitor : public boost::dfs_visitor<> {
                                                         0,
                                                         imageView.imageView,
                                                         _ag.getImageLayout(renderingResource.name, v));
+                               },
+                               [&](const SamplerData& sampler) {
+                                   bindGroup->bindSampler(renderingResource.bindingName, 0, sampler.info);
                                },
                                [&](const rhi::SwapchainPtr& swapchain) {
                                    bindGroup->bindImage(renderingResource.bindingName,
@@ -202,7 +205,7 @@ struct PreProcessVisitor : public boost::dfs_visitor<> {
     rhi::DevicePtr _device;
     rhi::SwapchainPtr _swapchain;
     std::vector<scene::RenderablePtr>& _renderables;
-    std::unordered_map<std::string, scene::BindGroupPtr>& _perPhaseBindGroups;
+    std::unordered_map<std::string, scene::BindGroupPtr, hash_string, std::equal_to<>>& _perPhaseBindGroups;
 };
 
 struct RenderGraphVisitor : public boost::dfs_visitor<> {

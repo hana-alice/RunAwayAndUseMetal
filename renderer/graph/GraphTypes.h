@@ -47,7 +47,7 @@ using ClearValue = rhi::ClearValue;
 using ShaderStage = rhi::ShaderStage;
 using BufferUsage = rhi::BufferUsage;
 
-struct RenderingResource {
+struct  RenderingResource {
     std::string name{};
     std::string bindingName{};
     Access access{Access::READ};
@@ -137,6 +137,10 @@ struct ImageViewData {
     rhi::ImageViewPtr imageView;
 };
 
+struct SamplerData {
+    rhi::SamplerInfo info{};
+};
+
 enum class BindingType :uint8_t {
     BUFFER,
     IMAGE,
@@ -198,5 +202,7 @@ enum class RenderQueueFlags: uint32_t {
     OPAQUE = 1,
     TRANSPARENT = 1 << 1,
 };
+
+using TransparentUnorderedSet = std::unordered_set<std::string, hash_string, std::equal_to<>>;
 
 } // namespace raum::graph

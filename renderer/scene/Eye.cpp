@@ -21,7 +21,7 @@ void Eye::setPosition(float x, float y, float z) {
 
 void Eye::setOrientation(const raum::Quaternion& quat) {
     _orientation = quat;
-    _up = quat * _up;
+    _up = quat * Vec3f{0.0f, 1.0f, 0.0f};
     _forward = quat * _forward;
 }
 
@@ -58,11 +58,13 @@ void Eye::lookAt(const Vec3f& pos, const Vec3f& up) {
 
 void Eye::setFrustum(const PerspectiveFrustum& frustum) {
     _perspectiveFrustum = frustum;
+    _projection = Projection::PERSPECTIVE;
     _projectionMat = glm::perspective(glm::radians(frustum.fov), frustum.aspect, frustum.near, frustum.far);
 }
 
 void Eye::setFrustum(const OrthoFrustum& frustum) {
     _orthoFrustum = frustum;
+    _projection = Projection::ORTHOGRAPHIC;
     _projectionMat = glm::ortho(frustum.left, frustum.right, frustum.bottom, frustum.top, frustum.near, frustum.far);
 }
 

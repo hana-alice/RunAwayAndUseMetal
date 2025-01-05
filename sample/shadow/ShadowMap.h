@@ -1,6 +1,7 @@
 #pragma once
 #include "BuiltinRes.h"
 #include "Camera.h"
+#include "Director.h"
 #include "GraphScheduler.h"
 #include "KeyboardEvent.h"
 #include "Mesh.h"
@@ -13,7 +14,6 @@
 #include "common.h"
 #include "core/utils/utils.h"
 #include "math.h"
-#include "Director.h"
 
 namespace raum::sample {
 class ShadowMapSample : public SampleBase {
@@ -39,8 +39,14 @@ public:
             auto& quad = asset::BuiltinRes::quad();
             graph::ModelNode& quadNode = sceneGraph.addModel("quad");
             quadNode.model = quad.model();
-        }
+            auto& quadRenderer = quadNode.model->meshRenderers().front();
 
+            auto scaleMat = glm::scale(Mat4{1.0f}, Vec3f{3.0f, 3.0f, 3.0f});
+            auto rotMat = glm::rotate(Mat4{1.0f}, glm::radians(-90.0f), Vec3f{1.0f, 0.0f, 0.0f});
+            auto transMat = glm::translate(Mat4{1.0f}, Vec3f{0.0f, -1.0f, 0.0f});
+            auto mat = transMat * rotMat * scaleMat;
+            quadRenderer->setTransform(mat);
+        }
 
         auto width = _swapchain->width();
         auto height = _swapchain->height();
@@ -72,9 +78,11 @@ public:
             resourceGraph.addBuffer(_camBuffer, 128, graph::BufferUsage::UNIFORM | graph::BufferUsage::TRANSFER_DST);
             resourceGraph.addBuffer(_camPose, 12, graph::BufferUsage::UNIFORM | graph::BufferUsage::TRANSFER_DST);
             resourceGraph.addBuffer(_light, 32, graph::BufferUsage::UNIFORM | graph::BufferUsage::TRANSFER_DST);
+            resourceGraph.addBuffer(_shadowVPBuffer, 128, graph::BufferUsage::UNIFORM | graph::BufferUsage::TRANSFER_DST);
         }
-
-
+        if (!resourceGraph.contains(_pointSampler)) {
+            resourceGraph.addSampler(_pointSampler, rhi::SamplerInfo{});
+        }
     }
 
     ~ShadowMapSample() {
@@ -91,9 +99,9 @@ public:
             auto uploadPass = renderGraph.addCopyPass("shadowCamUpdate");
             auto& shadowEye = _shadowCam->eye();
             const auto& shadowViewMat = shadowEye.inverseAttitude();
-            uploadPass.uploadBuffer(&shadowViewMat[0], 64, _camBuffer, 0);
+            uploadPass.uploadBuffer(&shadowViewMat[0], 64, _shadowVPBuffer, 0);
             const auto& shadowProjMat = shadowEye.projection();
-            uploadPass.uploadBuffer(&shadowProjMat[0], 64, _camBuffer, 64);
+            uploadPass.uploadBuffer(&shadowProjMat[0], 64, _shadowVPBuffer, 64);
         }
 
         // shadow rendering pass
@@ -102,8 +110,8 @@ public:
             shadowPass.addColor(_shadowMapRT, graph::LoadOp::CLEAR, graph::StoreOp::STORE, {0.0f});
             auto shadowQ = shadowPass.addQueue("shadowMap");
             shadowQ.setViewport(0, 0, shadowMapWidth, shadowMapHeight, 0.0f, 1.0f)
-                   .addCamera(_shadowCam.get())
-                   .addUniformBuffer(_camBuffer, "Mat");
+                .addCamera(_shadowCam.get())
+                .addUniformBuffer(_shadowVPBuffer, "Mat");
         }
 
         // main camera upload pass
@@ -126,21 +134,21 @@ public:
         {
             auto renderPass = renderGraph.addRenderPass("forward");
 
-            static  float a = 0.0f;
+            static float a = 0.0f;
             a += 0.1f;
-            renderPass.addColor(_forwardRT, graph::LoadOp::CLEAR, graph::StoreOp::STORE, {std::sin(a) , 0.3, 0.3, 1.0})
-                      .addDepthStencil(_forwardDS, graph::LoadOp::CLEAR, graph::StoreOp::STORE, graph::LoadOp::CLEAR, graph::StoreOp::STORE, 1.0, 0);
+            renderPass.addColor(_forwardRT, graph::LoadOp::CLEAR, graph::StoreOp::STORE, {std::sin(a), 0.3, 0.3, 1.0})
+                .addDepthStencil(_forwardDS, graph::LoadOp::CLEAR, graph::StoreOp::STORE, graph::LoadOp::CLEAR, graph::StoreOp::STORE, 1.0, 0);
             auto queue = renderPass.addQueue("solidColor");
 
             auto width = _swapchain->width();
             auto height = _swapchain->height();
             queue.setViewport(0, 0, width, height, 0.0f, 1.0f)
                 .addCamera(_cam.get())
-                .addUniformBuffer(_camBuffer, "Mat");
-                 //.addUniformBuffer(_camPose, "CamPos")
-                 //.addUniformBuffer(_light, "Light");
+                .addUniformBuffer(_camBuffer, "Mat")
+                .addUniformBuffer(_shadowVPBuffer, "ShadowView")
+                .addSampledImage(_shadowMapRT, "shadowMap")
+                .addSampler(_pointSampler, "shadowSampler");
         }
-
     }
 
     void hide() override {
@@ -169,7 +177,9 @@ private:
     const std::string _shadowMapRT = "shadowMap";
     const std::string _camBuffer = "camBuffer";
     const std::string _camPose = "camPose";
+    const std::string _shadowVPBuffer = "shadowVP";
     const std::string _light = "light";
+    const std::string _pointSampler = "pointSampler";
 
     const std::string _name = "Particles";
 

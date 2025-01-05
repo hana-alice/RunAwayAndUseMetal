@@ -64,12 +64,12 @@ struct Cube {
 
 struct Quad {
     constexpr static std::array<float, 30> vertices = {
-        -1.0f, -1.0f, 1.0f, 0.0f, 1.0f,
-        1.0f, 1.0f, 1.0f, 1.0f, 0.0f,
-        1.0f, -1.0f, 1.0f, 1.0f, 1.0f,
-        -1.0f, -1.0f, 1.0f, 0.0f, 1.0f,
-        -1.0f, 1.0f, 1.0f, 0.0f, 0.0f,
-        1.0f, 1.0f, 1.0f, 1.0f, 0.0f,
+        -1.0f, -1.0f, 0.0f, 0.0f, 1.0f,
+        1.0f, 1.0f, 0.0f, 1.0f, 0.0f,
+        1.0f, -1.0f, 0.0f, 1.0f, 1.0f,
+        -1.0f, -1.0f, 0.0f, 0.0f, 1.0f,
+        -1.0f, 1.0f, 0.0f, 0.0f, 0.0f,
+        1.0f, 1.0f, 0.0f, 1.0f, 0.0f,
     };
 
     constexpr static rhi::PrimitiveType primitiveType{rhi::PrimitiveType::TRIANGLE_LIST};
