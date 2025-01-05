@@ -13,11 +13,16 @@ layout(set = 0, binding = 3) uniform sampler shadowSampler;
 void main () {
     vec4 shadowCoord = shadowProjection * shadowView * vec4(f_worldPos, 1.0);
     shadowCoord.xyz /= shadowCoord.w;
-    shadowCoord.xyz = shadowCoord.xyz * 0.5 + 0.5;
+    shadowCoord.xy = shadowCoord.xy * 0.5 + 0.5;
+
+    // vulkan flip viewport
+    shadowCoord.y = 1.0 - shadowCoord.y;
+
     float shadow = texture(sampler2D(shadowMap, shadowSampler), shadowCoord.xy).r;
 
     float solidColor = 0.8;
-    if (shadowCoord.z > shadow) {
+    float bias = 0.005;
+    if (shadowCoord.z - bias > shadow) {
         solidColor = 0.2;
     }
 

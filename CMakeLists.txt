@@ -26,7 +26,7 @@ set(renderer_dir ${CMAKE_CURRENT_SOURCE_DIR}/renderer CACHE INTERNAL "renderer_d
 # core
 find_package(spdlog CONFIG REQUIRED)
 
-add_definitions(-DGLM_ENABLE_EXPERIMENTAL)
+add_definitions(-DGLM_ENABLE_EXPERIMENTAL -DGLM_FORCE_DEPTH_ZERO_TO_ONE)
 find_package(glm CONFIG REQUIRED)
 
 file(GLOB_RECURSE raum_utils_h ${CMAKE_CURRENT_LIST_DIR}/core/utils/*.h)

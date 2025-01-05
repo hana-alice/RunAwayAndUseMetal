@@ -1116,8 +1116,8 @@ struct SamplerInfo {
     float mipLodBias{0.0f};
     float maxAnisotropy{0.0f};
     CompareOp compareOp{CompareOp::ALWAYS};
-    float minLod;
-    float maxLod;
+    float minLod{0.0f};
+    float maxLod{0.0f};
     BorderColor borderColor{BorderColor::FLOAT_TRANSPARENT_BLACK};
 };
 RHIHASHER(SamplerInfo)
