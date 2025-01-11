@@ -4,6 +4,7 @@
 #include "GraphSample.h"
 #include "VirtualTexture.h"
 #include "shadow/ShadowMap.h"
+#include "shadow/ContactShadow.h"
 #include "WindowEvent.h"
 #include "World.h"
 #include "common.h"
