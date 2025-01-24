@@ -865,6 +865,12 @@ struct GraphicsPipelineInfo {
 };
 RHIHASHER(GraphicsPipelineInfo)
 
+struct ComputePipelineInfo {
+    RHIPipelineLayout* pipelineLayout{nullptr};
+    RHIShader* shader{nullptr};
+};
+RHIHASHER(ComputePipelineInfo)
+
 enum class MemoryUsage : uint8_t {
     HOST_VISIBLE,
     DEVICE_ONLY,

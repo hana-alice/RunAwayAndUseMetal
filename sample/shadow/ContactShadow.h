@@ -59,6 +59,9 @@ private:
     const std::string _shadowVPBuffer = "shadowVP";
     const std::string _light = "light";
     const std::string _shadowSampler = "shadowSampler";
+    const std::string _sssInfo = "uniformInfoBuffer";
+    const std::string _waveOffsetBuffer = "waveOffsetBuffer";
+    const std::string _sssOuput = "sssOuput";
     // const std::string _
 
     const std::string _name = "ContactShadowSample";

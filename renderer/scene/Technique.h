@@ -59,6 +59,9 @@ using TechniquePtr = std::shared_ptr<Technique>;
 enum class EmbededTechnique : uint8_t {
     SHADOWMAP,
     SOLID_COLOR,
+    DEPTH_ONLY,
+
+    COUNT,
 };
 
 TechniquePtr makeEmbededTechnique(EmbededTechnique type);

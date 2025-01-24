@@ -18,6 +18,7 @@
 #include "VKSparseImage.h"
 #include "VKUtils.h"
 #include "VkBufferView.h"
+#include "VKComputePipeline.h"
 #include "core/utils/log.h"
 namespace raum::rhi {
 
@@ -342,6 +343,10 @@ RHIShader* Device::createShader(const ShaderBinaryInfo& info) {
 
 RHIGraphicsPipeline* Device::createGraphicsPipeline(const GraphicsPipelineInfo& info) {
     return new GraphicsPipeline(info, this);
+}
+
+RHIComputePipeline* Device::createComputePipeline(const ComputePipelineInfo& info) {
+    return new ComputePipeline(info, this);
 }
 
 RHISampler* Device::getSampler(const SamplerInfo& info) {

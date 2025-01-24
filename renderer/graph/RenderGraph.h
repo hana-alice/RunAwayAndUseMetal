@@ -44,6 +44,8 @@ public:
     RenderQueue& setViewport(int32_t x, int32_t y, uint32_t w, uint32_t h, float minDepth, float maxDepth);
     RenderQueue& addUniformBuffer(std::string_view name, std::string_view bindingName);
     RenderQueue& addSampledImage(std::string_view name, std::string_view bindingName);
+    RenderQueue& addSampledDepth(std::string_view name, std::string_view bindingName);
+    RenderQueue& addSampledStencil(std::string_view name, std::string_view bindingName);
     RenderQueue& addSampler(std::string_view name, std::string_view bindingName);
 
 private:
@@ -89,7 +91,10 @@ public:
     ~ComputePass() = default;
 
     ComputePass& addResource(std::string_view name, std::string_view bindingName, Access access);
-    ComputePass& setPhase(std::string_view phase);
+    ComputePass& addSampledDepth(std::string_view name, std::string_view bindingName);
+    ComputePass& addSampledStencil(std::string_view name, std::string_view bindingName);
+    ComputePass& setProgramName(std::string_view programName);
+    ComputePass& setDispatch(uint32_t x, uint32_t y, uint32_t z);
 
 private:
     ComputePassData& _data;

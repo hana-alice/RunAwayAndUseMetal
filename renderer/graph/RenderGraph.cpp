@@ -107,6 +107,26 @@ RenderQueue& RenderQueue::addSampledImage(std::string_view name, std::string_vie
     return *this;
 }
 
+RenderQueue& RenderQueue::addSampledDepth(std::string_view name, std::string_view bindingName) {
+    auto& data = std::get<RenderQueueData>(_graph[_id].data);
+    auto& resource = data.resources.emplace_back();
+    resource.name.append(name);
+    resource.name.append("/Depth");
+    resource.bindingName = bindingName;
+    resource.access = Access::READ;
+    return *this;
+}
+
+RenderQueue& RenderQueue::addSampledStencil(std::string_view name, std::string_view bindingName) {
+    auto& data = std::get<RenderQueueData>(_graph[_id].data);
+    auto& resource = data.resources.emplace_back();
+    resource.name.append(name);
+    resource.name.append("/Stencil");
+    resource.bindingName = bindingName;
+    resource.access = Access::READ;
+    return *this;
+}
+
 RenderQueue& RenderQueue::addSampler(std::string_view name, std::string_view bindingName) {
     auto& data = std::get<RenderQueueData>(_graph[_id].data);
     auto& resource = data.resources.emplace_back();
@@ -127,9 +147,27 @@ ComputePass& ComputePass::addResource(std::string_view name, std::string_view bi
     return *this;
 }
 
-// ComputePass &ComputePass::setPhase(std::string_view phase) {
-//     _data.phaseName = phase;
-// }
+ComputePass& ComputePass::addSampledDepth(std::string_view name, std::string_view bindingName) {
+    std::string depthName = std::string{name} + "/Depth";
+    _data.resources.emplace_back(depthName, std::string{bindingName}, Access::READ);
+    return *this;
+}
+
+ComputePass& ComputePass::addSampledStencil(std::string_view name, std::string_view bindingName) {
+    std::string stencilName = std::string{name} + "/Stencil";
+    _data.resources.emplace_back(stencilName, std::string{bindingName}, Access::READ);
+    return *this;
+}
+
+ComputePass &ComputePass::setProgramName(std::string_view name) {
+    _data.programName = name;
+    return *this;
+}
+
+ComputePass& ComputePass::setDispatch(uint32_t x, uint32_t y, uint32_t z) {
+    _data.dispatch = {x, y, z};
+    return *this;
+}
 
 CopyPass& CopyPass::addPair(const CopyPair& pair) {
     _data.copies.emplace_back(pair);

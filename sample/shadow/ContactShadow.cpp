@@ -1,8 +1,11 @@
 #include "ContactShadow.h"
+#include "bend_sss_cpu.h"
 
 namespace raum::sample {
 
 constexpr bool ENABLE_SHADOWMAP{false};
+
+constexpr Vec4f LightPos{3.0, 3.0, 3.0, 0.0};
 
 ContactShadowSample::~ContactShadowSample() {
     _keyListener.remove();
@@ -53,18 +56,18 @@ void ContactShadowSample::show() {
 
         uploadPass.uploadBuffer(&eye.getPosition()[0], 12, _camPose, 0);
         Vec4f color{1.0, 1.0, 1.0, 1.0};
-        Vec4f lightPos{3.0, 3.0, 3.0, 1.0};
+        Vec4f lightPos{LightPos.x, LightPos.y, LightPos.z, 1.0};
         uploadPass.uploadBuffer(&lightPos[0], 16, _light, 0);
         uploadPass.uploadBuffer(&color[0], 16, _light, 16);
     }
 
+    auto width = _swapchain->width();
+    auto height = _swapchain->height();
     // depth pre-pass
     {
-        auto width = _swapchain->width();
-        auto height = _swapchain->height();
         auto depthPrePass = renderGraph.addRenderPass("depthPrePass");
         depthPrePass.addDepthStencil(_forwardDS, graph::LoadOp::CLEAR, graph::StoreOp::STORE, graph::LoadOp::DONT_CARE, graph::StoreOp::DONT_CARE, 1.0, 0);
-        auto depthPrePassQ = depthPrePass.addQueue("depthPrePass");
+        auto depthPrePassQ = depthPrePass.addQueue("DepthOnly");
         depthPrePassQ.setViewport(0, 0, width, height, 0.0f, 1.0f)
             .addCamera(_cam.get())
             .addUniformBuffer(_camBuffer, "Mat");
@@ -72,8 +75,27 @@ void ContactShadowSample::show() {
 
     // compute contact shadow
     {
-        auto contactShadowPass = renderGraph.addComputePass("contactShadow");
-        contactShadowPass.addResource(_forwardDS, "depthImage", graph::Access::READ);
+        auto& eye = _cam->eye();
+        auto viewMat = eye.inverseAttitude();
+        const auto& projMat = eye.projection();
+        const auto& lightProj = LightPos * viewMat * projMat;
+
+        int viewport[2] = {static_cast<int>(width), static_cast<int>(height)};
+        int minBounds[2] = {0, 0};
+        int maxBounds[2] = {static_cast<int>(width), static_cast<int>(height)};
+        float lightProjArray[4] = {lightProj.x, lightProj.y, lightProj.z, lightProj.w};
+        const auto& dispatchList = Bend::BuildDispatchList(lightProjArray, viewport, minBounds, maxBounds, false, 64);
+        for (size_t i = 0; i < dispatchList.DispatchCount; ++i) {
+            auto& dispatch = dispatchList.Dispatch[i];
+            auto contactShadowPass = renderGraph.addComputePass("contactShadow" + std::to_string(i));
+            contactShadowPass.setProgramName("asset/layout/ContactShadowBendCS")
+                .setDispatch(64, 1, 1)
+                .addSampledDepth(_forwardDS, "DepthTexture")
+                .addResource(_shadowSampler, "DepthTextureSampler", graph::Access::READ)
+                .addResource(_sssInfo, "UniformInfoBuffer", graph::Access::READ)
+                .addResource(_sssOuput, "OutputTexture", graph::Access::WRITE)
+                .addResource(_waveOffsetBuffer, "WaveOffsetsBuffer", graph::Access::READ);
+        }
     }
 
     // rendering
@@ -139,7 +161,7 @@ void ContactShadowSample::init() {
         resourceGraph.import(_forwardRT, _swapchain);
     }
     if (!resourceGraph.contains(_forwardDS)) {
-        resourceGraph.addImage(_forwardDS, rhi::ImageUsage::DEPTH_STENCIL_ATTACHMENT, width, height, rhi::Format::D24_UNORM_S8_UINT);
+        resourceGraph.addImage(_forwardDS, rhi::ImageUsage::DEPTH_STENCIL_ATTACHMENT | rhi::ImageUsage::SAMPLED, width, height, rhi::Format::D24_UNORM_S8_UINT);
     }
     if (!resourceGraph.contains(_shadowMapRT)) {
         resourceGraph.addImage(_shadowMapRT, rhi::ImageUsage::COLOR_ATTACHMENT | rhi::ImageUsage::SAMPLED, shadowMapWidth, shadowMapHeight, rhi::Format::R32_SFLOAT);
@@ -155,13 +177,20 @@ void ContactShadowSample::init() {
     }
     if (!resourceGraph.contains(_shadowSampler)) {
         rhi::SamplerInfo info{};
-        info.magFilter = rhi::Filter::LINEAR;
-        info.minFilter = rhi::Filter::LINEAR;
+        info.magFilter = rhi::Filter::NEAREST;
+        info.minFilter = rhi::Filter::NEAREST;
         info.mipmapMode = rhi::MipmapMode::NEAREST;
-        info.addressModeU = rhi::SamplerAddressMode::CLAMP_TO_EDGE;
-        info.addressModeV = rhi::SamplerAddressMode::CLAMP_TO_EDGE;
-        info.addressModeW = rhi::SamplerAddressMode::CLAMP_TO_EDGE;
+        info.addressModeU = rhi::SamplerAddressMode::CLAMP_TO_BORDER;
+        info.addressModeV = rhi::SamplerAddressMode::CLAMP_TO_BORDER;
+        info.addressModeW = rhi::SamplerAddressMode::CLAMP_TO_BORDER;
         resourceGraph.addSampler(_shadowSampler, info);
+    }
+    if (!resourceGraph.contains(_sssInfo)) {
+        resourceGraph.addBuffer(_sssInfo, 24, graph::BufferUsage::UNIFORM | graph::BufferUsage::TRANSFER_DST);
+        resourceGraph.addBuffer(_waveOffsetBuffer, 8, graph::BufferUsage::UNIFORM | graph::BufferUsage::TRANSFER_DST);
+    }
+    if (!resourceGraph.contains(_sssOuput)) {
+        resourceGraph.addImage(_sssOuput, rhi::ImageUsage::STORAGE | rhi::ImageUsage::SAMPLED, width, height, rhi::Format::R32_SFLOAT);
     }
 }
 

@@ -34,6 +34,7 @@ public:
     virtual RHIDescriptorSetLayout* createDescriptorSetLayout(const DescriptorSetLayoutInfo&) = 0;
     virtual RHIPipelineLayout* createPipelineLayout(const PipelineLayoutInfo&) = 0;
     virtual RHIGraphicsPipeline* createGraphicsPipeline(const GraphicsPipelineInfo&) = 0;
+    virtual RHIComputePipeline* createComputePipeline(const ComputePipelineInfo&) = 0;
     virtual RHIRenderPass* createRenderPass(const RenderPassInfo&) = 0;
     virtual RHIFrameBuffer* createFrameBuffer(const FrameBufferInfo&) = 0;
     virtual RHISparseImage* createSparseImage(const SparseImageInfo&) = 0;

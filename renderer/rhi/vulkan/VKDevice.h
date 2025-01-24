@@ -31,6 +31,7 @@ public:
     RHIShader *createShader(const ShaderSourceInfo &) override;
     RHIDescriptorSetLayout *createDescriptorSetLayout(const DescriptorSetLayoutInfo &) override;
     RHIGraphicsPipeline *createGraphicsPipeline(const GraphicsPipelineInfo &) override;
+    RHIComputePipeline *createComputePipeline(const ComputePipelineInfo &) override;
     RHIRenderPass *createRenderPass(const RenderPassInfo &) override;
     RHIFrameBuffer *createFrameBuffer(const FrameBufferInfo &) override;
     RHIPipelineLayout *createPipelineLayout(const PipelineLayoutInfo &) override;

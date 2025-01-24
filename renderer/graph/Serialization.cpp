@@ -183,8 +183,9 @@ std::string loadResource(const boost::json::object& obj, const std::filesystem::
     return res;
 }
 
+// TODO: AST reflection
 void reflect(const std::string& source, BindingMap& bindingMap) {
-    const char* pattern = R"(\s*layout\s*\([^\)]*binding\s*=\s(\d+)\).*?(\w+)\s*[{;])";
+    const char* pattern = R"(\s*layout\s*\([^\)]*binding\s*=\s(\d+)[^\)]*\).*?(\w+)\s*[{;])";
     boost::regex reg(pattern);
 
     boost::sregex_iterator it(source.begin(), source.end(), reg);

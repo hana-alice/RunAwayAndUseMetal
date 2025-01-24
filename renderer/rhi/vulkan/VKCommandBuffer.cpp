@@ -34,7 +34,7 @@ RHIRenderEncoder* CommandBuffer::makeRenderEncoder() {
 }
 
 RHIComputeEncoder* CommandBuffer::makeComputeEncoder() {
-    return nullptr;
+    return new ComputeEncoder(this);
 }
 
 RHIBlitEncoder* CommandBuffer::makeBlitEncoder() {

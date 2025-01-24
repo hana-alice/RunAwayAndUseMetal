@@ -1,0 +1,61 @@
+{
+  "path": "asset/layout/ContactShadowBendCS",
+  "compute": {
+    "source": "contactShadow",
+    "bindings": [
+      {
+        "slot": 0,
+        "rate": "per_pass",
+        "resource": "image",
+        "type": "2d",
+        "usage": "sampled",
+        "count": 1
+      },
+      {
+        "slot": 1,
+        "rate": "per_pass",
+        "resource": "sampler",
+        "count": 1,
+        "immutable": true
+      },
+      {
+        "slot": 2,
+        "rate": "per_pass",
+        "resource": "buffer",
+        "usage": "uniform",
+        "count": 1,
+        "elements": [
+          {
+            "type": "float4",
+            "count": 1
+          },
+          {
+            "type": "float2",
+            "count": 1
+          }
+        ]
+      },
+      {
+        "slot": 3,
+        "rate": "per_pass",
+        "resource": "image",
+        "type": "2d",
+        "usage": "storage",
+        "count": 1
+      },
+      {
+        "slot": 0,
+        "rate": "per_batch",
+        "resource": "buffer",
+        "usage": "uniform",
+        "count": 1,
+        "elements": [
+          {
+            "type": "float2",
+            "count": 1
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -19,6 +19,30 @@ RenderGraph::VertexType getParentPass(RenderGraph& g, std::string_view name) {
     return parentVert;
 }
 
+ResourceGraph::VertexType getParentResource(ResourceGraph& g, std::string_view name) {
+    auto pos = name.find_last_of('/');
+    if (pos == std::string::npos) {
+        return ResourceGraph::null_vertex();
+    }
+    auto parentName = name.substr(0, pos);
+    auto parentVert = *boost::graph::find_vertex(parentName, g.impl());
+    return parentVert;
+}
+
+std::string_view eraseView(ResourceGraph& g, std::string_view name) {
+    auto v = *boost::graph::find_vertex(name, g.impl());
+    if (std::holds_alternative<ImageViewData>(g.impl()[v].data)) {
+        const auto& viewData = std::get<ImageViewData>(g.impl()[v].data);
+        return viewData.origin;
+    } else if (std::holds_alternative<BufferViewData>(g.impl()[v].data)) {
+        const auto& viewData = std::get<BufferViewData>(g.impl()[v].data);
+        return viewData.origin;
+    }
+    return name;
+}
+
+} // namespace
+
 RenderGraph::VertexType getParentPass(RenderGraph& g, const RenderGraph::VertexType& v) {
     return getParentPass(g, g.impl()[v].name);
 }
@@ -31,11 +55,11 @@ bool hasDepth(const AttachmentResource& res) {
     return res.type == ResourceType::DEPTH || res.type == ResourceType::DEPTH_STENCIL;
 }
 
-bool hasDepth(const rhi::Format& format) {
-}
-
-bool hasStencil(const rhi::Format& format) {
-}
+// bool hasDepth(const rhi::Format& format) {
+// }
+//
+// bool hasStencil(const rhi::Format& format) {
+// }
 
 bool isReadAccess(const rhi::AccessFlags access) {
     return access <= rhi::AccessFlags::SHADING_RATE_ATTACHMENT_READ;
@@ -64,6 +88,11 @@ rhi::ImageSubresourceRange getSubresourceRange(const Resource& resourceDetail) {
                    },
                    [&](const ImageViewData& imageViewData) {
                        range = imageViewData.info.range;
+                       // [ VUID-VkImageMemoryBarrier-image-03320 ]
+                       // format and barrier access should match if no related extension is enabled
+                       if (range.aspect == rhi::AspectMask::DEPTH || range.aspect == rhi::AspectMask::STENCIL) {
+                           range.aspect = rhi::AspectMask::DEPTH | rhi::AspectMask::STENCIL;
+                       }
                    },
                    [&](const SwapchainData& swapchainData) {
                        range.aspect = rhi::AspectMask::COLOR;
@@ -194,8 +223,6 @@ public:
         if (std::holds_alternative<RenderPassData>(rg[v].data)) {
             auto [fbIter, _] = _fbInfoMap.emplace(std::piecewise_construct, std::forward_as_tuple(v), std::forward_as_tuple());
             const auto& data = std::get<RenderPassData>(rg[v].data);
-            //            fbIter->second.renderPassName = rg[v].name;
-
             for (const auto& res : data.attachments) {
                 // convention: "" represents color/depth outputs
                 rhi::AccessFlags access{rhi::AccessFlags::NONE};
@@ -249,15 +276,19 @@ public:
                 fbIter->second.info.layers = sliceCount;
                 fbIter->second.images.emplace_back(res.name);
 
-                _accessMap[res.name].emplace_back(v, access, stage);
+                auto resourceName = eraseView(_resg, res.name);
+                _accessMap[resourceName].emplace_back(v, access, stage);
             }
         } else if (std::holds_alternative<RenderQueueData>(rg[v].data)) {
             const auto& data = std::get<RenderQueueData>(rg[v].data);
             for (const auto& res : data.resources) {
                 rhi::AccessFlags access{rhi::AccessFlags::NONE};
                 rhi::PipelineStage stage{rhi::PipelineStage::TOP_OF_PIPE};
+                const auto& resourceDetail = _resg.get(res.name);
+                if (std::holds_alternative<SamplerData>(resourceDetail.data)) {
+                    continue;
+                }
                 if (res.access == Access::READ) {
-                    const auto& resourceDetail = _resg.get(res.name);
                     if (std::holds_alternative<BufferData>(resourceDetail.data)) {
                         const auto& bufferData = std::get<BufferData>(resourceDetail.data);
                         if (rhi::test(bufferData.info.bufferUsage, rhi::BufferUsage::UNIFORM)) {
@@ -282,7 +313,45 @@ public:
                     access |= rhi::AccessFlags::SHADER_WRITE;
                 }
                 stage = getPipelineStage(res.visibility);
-                _accessMap[res.name].emplace_back(v, access, stage);
+                auto resourceName = eraseView(_resg, res.name);
+                _accessMap[resourceName].emplace_back(v, access, stage);
+            }
+        } else if (std::holds_alternative<ComputePassData>(rg[v].data)) {
+            const auto& data = std::get<ComputePassData>(rg[v].data);
+            for (const auto& res : data.resources) {
+                rhi::AccessFlags access{rhi::AccessFlags::NONE};
+                rhi::PipelineStage stage{rhi::PipelineStage::TOP_OF_PIPE};
+                const auto& resourceDetail = _resg.get(res.name);
+                if (std::holds_alternative<SamplerData>(resourceDetail.data)) {
+                    continue;
+                }
+                if (res.access == Access::READ) {
+                    if (std::holds_alternative<BufferData>(resourceDetail.data)) {
+                        const auto& bufferData = std::get<BufferData>(resourceDetail.data);
+                        if (rhi::test(bufferData.info.bufferUsage, rhi::BufferUsage::UNIFORM)) {
+                            access |= rhi::AccessFlags::UNIFORM_READ;
+                        } else {
+                            access |= rhi::AccessFlags::SHADER_READ;
+                        }
+                    } else if (std::holds_alternative<BufferViewData>(resourceDetail.data)) {
+                        const auto& bufferViewData = std::get<BufferViewData>(resourceDetail.data);
+                        const auto& bufferInfo = bufferViewData.info.buffer->info();
+                        if (rhi::test(bufferInfo.bufferUsage, rhi::BufferUsage::UNIFORM)) {
+                            access |= rhi::AccessFlags::UNIFORM_READ;
+                        } else {
+                            access |= rhi::AccessFlags::SHADER_READ;
+                        }
+                    } else {
+                        access |= rhi::AccessFlags::SHADER_READ;
+                    }
+                } else if (res.access == Access::READ_WRITE) {
+                    access |= rhi::AccessFlags::SHADER_READ | rhi::AccessFlags::SHADER_WRITE;
+                } else {
+                    access |= rhi::AccessFlags::SHADER_WRITE;
+                }
+                stage = getPipelineStage(res.visibility);
+                auto resourceName = eraseView(_resg, res.name);
+                _accessMap[resourceName].emplace_back(v, access, stage);
             }
         }
     }
@@ -393,7 +462,6 @@ void populateBarrier(const AccessGraph::ResourceAccessMap& accessMap,
         }
     }
 }
-} // namespace
 
 AccessGraph::AccessGraph(RenderGraph& rg, ResourceGraph& resg, ShaderGraph& sg) : _rg(rg), _resg(resg), _sg(sg) {}
 
@@ -448,8 +516,9 @@ AccessGraph::ImageBarrier* AccessGraph::presentBarrier() {
 
 rhi::ImageLayout AccessGraph::getImageLayout(std::string_view name, unsigned long long v) {
     auto res = rhi::ImageLayout::UNDEFINED;
-    if (_accessMap.contains(name)) {
-        const auto& accesses = _accessMap.at(name);
+    auto resName = eraseView(_resg, name);
+    if (_accessMap.contains(resName)) {
+        const auto& accesses = _accessMap.at(resName);
         auto iter = std::find_if(accesses.begin(), accesses.end(),
                                  [v](const Access& access) {
                                      return access.v == v;

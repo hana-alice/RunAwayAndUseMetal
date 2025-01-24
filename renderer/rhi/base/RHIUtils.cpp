@@ -1,11 +1,11 @@
 #include "RHIUtils.h"
 #include <boost/functional/hash.hpp>
 #include <unordered_set>
+#include "RHIBlitEncoder.h"
 #include "RHIBufferView.h"
+#include "RHICommandBuffer.h"
 #include "RHIDefine.h"
 #include "RHIDevice.h"
-#include "RHICommandBuffer.h"
-#include "RHIBlitEncoder.h"
 
 namespace raum::rhi {
 bool operator==(const SamplerInfo& lhs, const SamplerInfo& rhs) {
@@ -380,6 +380,16 @@ std::size_t hash_value(const GraphicsPipelineInfo& info) {
     return seed;
 }
 
+bool operator==(const ComputePipelineInfo& lhs, const ComputePipelineInfo& rhs) {
+    return lhs.pipelineLayout == rhs.pipelineLayout && lhs.shader == rhs.shader;
+}
+std::size_t hash_value(const ComputePipelineInfo& info) {
+    size_t seed = 9527;
+    boost::hash_combine(seed, info.pipelineLayout);
+    boost::hash_combine(seed, info.shader);
+    return seed;
+}
+
 namespace {
 std::unordered_map<DescriptorSetLayoutInfo, DescriptorSetLayoutPtr, RHIHash<DescriptorSetLayoutInfo>> _descriptorsetLayoutMap;
 std::unordered_map<PipelineLayoutInfo, PipelineLayoutPtr, RHIHash<PipelineLayoutInfo>> _pplLayoutMap;
@@ -546,13 +556,13 @@ SamplerInfo sampler{
     return sampler;
 }
 
-[[nodiscard]]ImagePtr createImageFromBuffer(BufferPtr buffer,
+[[nodiscard]] ImagePtr createImageFromBuffer(BufferPtr buffer,
                                              uint32_t width,
                                              uint32_t height,
                                              Format format,
                                              CommandBufferPtr cmdBuffer,
                                              DevicePtr device) {
-    ImageInfo imgInfo {
+    ImageInfo imgInfo{
         .usage = ImageUsage::TRANSFER_DST | ImageUsage::SAMPLED,
         .format = format,
         .extent = {width, height, 1},
