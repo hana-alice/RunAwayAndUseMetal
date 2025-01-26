@@ -16,6 +16,12 @@ enum class ResourceResidency : uint8_t {
     SWAPCHAIN,
 };
 
+enum class Aspect : uint32_t {
+    COLOR = rhi::AspectMask::COLOR,
+    DEPTH = rhi::AspectMask::DEPTH,
+    STENCIL = rhi::AspectMask::STENCIL,
+};
+
 struct SwapchainData {
     rhi::SwapchainPtr swapchain;
     std::map<uint8_t, rhi::ImagePtr> images;
@@ -26,6 +32,7 @@ struct Resource {
     std::string_view name{};
     ResourceResidency residency{ResourceResidency::DONT_CARE};
     rhi::AccessFlags access{rhi::AccessFlags::NONE};
+    rhi::ImageLayout layout{rhi::ImageLayout::UNDEFINED};
     std::variant<BufferData, BufferViewData, ImageData, ImageViewData, SamplerData, SwapchainData> data;
     uint64_t life{0};
 };
@@ -73,11 +80,17 @@ public:
     void unmount(std::string_view name, uint64_t life);
     void updateImage(std::string_view name, uint32_t width, uint32_t height);
 
+    static VertexType null_vertex() { return boost::graph_traits<ResourceGraphImpl>::null_vertex(); }
+    auto& impl() { return _graph; }
+
     bool contains(std::string_view name);
     const Resource& get(std::string_view name) const;
     Resource& get(std::string_view name);
     const Resource& getView(std::string_view name) const;
     Resource& getView(std::string_view name);
+
+    const Resource& getAspectView(std::string_view name, Aspect aspect) const;
+    Resource& getAspectView(std::string_view name, Aspect aspect);
 
     rhi::BufferPtr getBuffer(std::string_view name);
     rhi::BufferViewPtr getBufferView(std::string_view name);
@@ -86,6 +99,7 @@ public:
     rhi::SwapchainPtr getSwapchain(std::string_view name);
 
 private:
+    void addImageView(std::string_view name, const rhi::ImageInfo& info);
     rhi::RHIDevice* _device{nullptr};
     ResourceGraphImpl _graph;
     std::unordered_set<std::string, hash_string, std::equal_to<>> _names;

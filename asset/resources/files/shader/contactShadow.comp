@@ -1,0 +1,333 @@
+// bend studios ssm
+
+#define WAVE_SIZE 64
+#define SAMPLE_COUNT 60
+#define HARD_SHADOW_SAMPLES 4
+#define FADE_OUT_SAMPLES 8
+#define READ_COUNT (SAMPLE_COUNT / WAVE_SIZE + 2)
+
+layout (local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
+
+struct DispatchParameters
+{
+    float SurfaceThickness;
+    float BilinearThreshold;
+    float ShadowContrast;
+    bool IgnoreEdgePixels;
+    bool UsePrecisionOffset;
+    bool BilinearSamplingOffsetMode;
+
+    bool DebugOutputEdgeMask;
+    bool DebugOutputThreadIndex;
+    bool DebugOutputWaveIndex;
+
+    vec2 DepthBounds;
+    bool UseEarlyOut;
+    vec4 LightCoordinate;
+    float FarDepthValue;
+    float NearDepthValue;
+};
+
+layout (set = 0, binding = 0) uniform texture2D DepthTexture;
+layout (set = 0, binding = 1) uniform sampler DepthTextureSampler;
+
+layout (set = 0, binding = 2) uniform UniformInfoBuffer {
+    vec4 lightPosition;
+    vec2 InvDepthTextureSize;
+};
+layout (set = 0, binding = 3, r32f) uniform writeonly image2D OutputTexture;
+
+layout (set = 1, binding = 0) uniform WaveOffsetsBuffer {
+    vec2 WaveOffsets;
+};
+
+shared float DepthData[READ_COUNT * WAVE_SIZE];
+shared bool LdsEarlyOut;
+
+bool EarlyOutPixel(DispatchParameters inParameters, ivec2 pixel_xy, float depth)
+{
+    return depth >= inParameters.DepthBounds.y || depth <= inParameters.DepthBounds.x;
+}
+
+void ComputeWavefrontExtents(DispatchParameters inParameters, ivec3 inGroupID, uint inGroupThreadID, out vec2 outDeltaXY, out vec2 outPixelXY, out float outPixelDistance, out bool outMajorAxisX)
+{
+    ivec2 xy = inGroupID.yz * WAVE_SIZE + ivec2(WaveOffsets.x, WaveOffsets.y);
+
+    //integer light position / fractional component
+    vec2 light_xy = floor(inParameters.LightCoordinate.xy) + 0.5;
+    vec2 light_xy_fraction = inParameters.LightCoordinate.xy - light_xy;
+    bool reverse_direction = inParameters.LightCoordinate.w > 0.0f;
+
+    ivec2 sign_xy = sign(xy);
+    bool horizontal = abs(xy.x + sign_xy.y) < abs(xy.y - sign_xy.x);
+
+    ivec2 axis;
+    axis.x = horizontal ? (+sign_xy.y) : (0);
+    axis.y = horizontal ? (0) : (-sign_xy.x);
+
+    // Apply wave offset
+    xy = axis * inGroupID.x + xy;
+    vec2 xy_f = xy;
+
+    // For interpolation to the light center, we only really care about the larger of the two axis
+    bool x_axis_major = abs(xy_f.x) > abs(xy_f.y);
+    float major_axis = x_axis_major ? xy_f.x : xy_f.y;
+
+    float major_axis_start = abs(major_axis);
+    float major_axis_end = abs(major_axis) - WAVE_SIZE;
+
+    float ma_light_frac = x_axis_major ? light_xy_fraction.x : light_xy_fraction.y;
+    ma_light_frac = major_axis > 0 ? -ma_light_frac : ma_light_frac;
+
+    // back in to screen direction
+    vec2 start_xy = xy_f + light_xy;
+
+    // For the very inner most ring, we need to interpolate to a pixel centered UV, so the UV->pixel rounding doesn't skip output pixels
+    vec2 end_xy = mix(inParameters.LightCoordinate.xy, start_xy, (major_axis_end + ma_light_frac) / (major_axis_start + ma_light_frac));
+
+    // The major axis should be a round number
+    vec2 xy_delta = (start_xy - end_xy);
+
+    // Inverse the read order when reverse direction is true
+    int factor =  reverse_direction ? 0 : (WAVE_SIZE - 1);
+    float thread_step = inGroupThreadID ^ factor;
+
+    vec2 pixel_xy = mix(start_xy, end_xy, thread_step / WAVE_SIZE);
+    float pixel_distance = major_axis_start - thread_step + ma_light_frac;
+
+    outPixelXY = pixel_xy;
+    outPixelDistance = pixel_distance;
+    outDeltaXY = xy_delta;
+    outMajorAxisX = x_axis_major;
+}
+
+void WriteScreenSpaceShadow(DispatchParameters inParameters, ivec3 inGroupID, int inGroupThreadID)
+{
+    vec2 xy_delta;
+    vec2 pixel_xy;
+    float pixel_distance;
+    bool x_axis_major;	// major axis is x axis? abs(xy_delta.x) > abs(xy_delta.y).
+
+    ComputeWavefrontExtents(inParameters, inGroupID, inGroupThreadID.x, xy_delta, pixel_xy, pixel_distance, x_axis_major);
+
+    // Read in the depth values
+    float sampling_depth[READ_COUNT];
+    float shadowing_depth[READ_COUNT];
+    float depth_thickness_scale[READ_COUNT];
+    float sample_distance[READ_COUNT];
+
+    const float direction = -inParameters.LightCoordinate.w;
+    const float z_sign = inParameters.NearDepthValue > inParameters.FarDepthValue ? -1 : +1;
+
+    int i;
+    bool is_edge = false;
+    bool skip_pixel = false;
+    vec2 write_xy = floor(pixel_xy);
+
+    for (i = 0; i < READ_COUNT; i++)
+    {
+        // We sample depth twice per pixel per sample, and interpolate with an edge detect filter
+        // Interpolation should only occur on the minor axis of the ray - major axis coordinates should be at pixel centers
+        vec2 read_xy = floor(pixel_xy);
+        float minor_axis = x_axis_major ? pixel_xy.y : pixel_xy.x;
+
+        // If a pixel has been detected as an edge, then optionally (inParameters.IgnoreEdgePixels) don't include it in the shadow
+        const float edge_skip = 1e20;	// if edge skipping is enabled, apply an extreme value/blend on edge samples to push the value out of range
+
+        vec2 depths;
+        float bilinear = fract(minor_axis) - 0.5;
+
+        #if USE_HALF_PIXEL_OFFSET
+        read_xy += 0.5;
+        #endif
+
+        #if USE_UV_PIXEL_BIAS
+        float bias = bilinear > 0 ? 1 : -1;
+        vec2 offset_xy = vec2(x_axis_major ? 0 : bias, x_axis_major ? bias : 0);
+
+        // HLSL enforces that a pixel offset is a compile-time constant, which isn't strictly required (and can sometimes be a bit faster)
+        // So this fallback will use a manual uv offset instead
+        depths.x = inParameters.DepthTexture.SampleLevel(inParameters.PointBorderSampler, read_xy * InvDepthTextureSize, 0);
+        depths.y = inParameters.DepthTexture.SampleLevel(inParameters.PointBorderSampler, (read_xy + offset_xy) * InvDepthTextureSize, 0);
+        #else
+        int bias = bilinear > 0 ? 1 : -1;
+        ivec2 offset_xy = ivec2(x_axis_major ? 0 : bias, x_axis_major ? bias : 0);
+
+
+        // inParameters.DepthTexture.SampleLevel(inParameters.PointBorderSampler, read_xy * inParameters.InvDepthTextureSize, 0);
+        ivec2 read_xy_i = ivec2(read_xy.x, read_xy.y);
+        depths.x = texelFetchOffset(sampler2D(DepthTexture, DepthTextureSampler), read_xy_i, 0, ivec2(0, 0)).r;
+        depths.y = texelFetchOffset(sampler2D(DepthTexture, DepthTextureSampler), read_xy_i + offset_xy, 0, ivec2(0, 0)).r;
+        #endif
+
+        // Depth thresholds (bilinear/shadow thickness) are based on a fractional ratio of the difference between sampled depth and the far clip depth
+        depth_thickness_scale[i] = abs(inParameters.FarDepthValue - depths.x);
+
+        // If depth variance is more than a specific threshold, then just use point filtering
+        bool use_point_filter = abs(depths.x - depths.y) > depth_thickness_scale[i] * inParameters.BilinearThreshold;
+
+        // Store for debug output when inParameters.DebugOutputEdgeMask is true
+        if (i == 0) is_edge = use_point_filter;
+
+        if (inParameters.BilinearSamplingOffsetMode)
+        {
+            bilinear = use_point_filter ? 0 : bilinear;
+            //both shadow depth and starting depth are the same in this mode, unless shadow skipping edges
+            sampling_depth[i] = mix(depths.x, depths.y, abs(bilinear));
+            shadowing_depth[i] = (inParameters.IgnoreEdgePixels && use_point_filter) ? edge_skip : sampling_depth[i];
+        }
+        else
+        {
+            // The pixel starts sampling at this depth
+            sampling_depth[i] = depths.x;
+
+            float edge_depth = inParameters.IgnoreEdgePixels ? edge_skip : depths.x;
+            // Any sample in this wavefront is possibly interpolated towards the bilinear sample
+            // So use should use a shadowing depth that is further away, based on the difference between the two samples
+            float shadow_depth = depths.x + abs(depths.x - depths.y) * z_sign;
+
+            // Shadows cast from this depth
+            shadowing_depth[i] = use_point_filter ? edge_depth : shadow_depth;
+        }
+
+        // Store for later
+        sample_distance[i] = pixel_distance + (WAVE_SIZE * i) * direction;
+
+        // Iterate to the next pixel along the ray. This will be WAVE_SIZE pixels along the ray...
+        pixel_xy += xy_delta * direction;
+    }
+
+    // Write the shadow depths to LDS
+    for (i = 0; i < READ_COUNT; i++)
+    {
+        // Perspective correct the shadowing depth, in this space, all light rays are parallel
+        float stored_depth = (shadowing_depth[i] - inParameters.LightCoordinate.z) / sample_distance[i];
+
+        if (i != 0)
+        {
+            // For pixels within sampling distance of the light, it is possible that sampling will
+            // overshoot the light coordinate for extended reads. We want to ignore these samples
+            stored_depth = sample_distance[i] > 0 ? stored_depth : 1e10;
+        }
+
+        // Store the depth values in groupshared
+        int idx = (i * WAVE_SIZE) + inGroupThreadID.x;
+        DepthData[idx] = stored_depth;
+    }
+
+    // Sync wavefronts now groupshared DepthData is written
+    groupMemoryBarrier();
+
+    // If the starting depth isn't in depth bounds, then we don't need a shadow
+    if (skip_pixel)
+    return;
+
+    float start_depth = sampling_depth[0];
+
+    // lerp away from far depth by a tiny fraction?
+    if (inParameters.UsePrecisionOffset)
+    start_depth = mix(start_depth, inParameters.FarDepthValue, -1.0 / 0xFFFF);
+
+    // perspective correct the depth
+    start_depth = (start_depth - inParameters.LightCoordinate.z) / sample_distance[0];
+
+    // Start by reading the next value
+    int sample_index = inGroupThreadID.x + 1;
+
+    vec4 shadow_value = vec4(1.0f);
+    float hard_shadow = 1;
+
+    // This is the inverse of how large the shadowing window is for the projected sample data.
+    // All values in the LDS sample list are scaled by 1.0 / sample_distance, such that all light directions become parallel.
+    // The multiply by sample_distance[0] here is to compensate for the projection divide in the data.
+    // The 1.0 / inParameters.SurfaceThickness is to adjust user selected thickness. So a 0.5% thickness will scale depth values from [0,1] to [0,200]. The shadow window is always 1 wide.
+    // 1.0 / depth_thickness_scale[0] is because SurfaceThickness is percentage of remaining depth between the sample and the far clip - not a percentage of the full depth range.
+    // The min() function is to make sure the window is a minimum width when very close to the light. The +direction term will bias the result so the pixel at the very center of the light is either fully lit or shadowed
+    float depth_scale = min(sample_distance[0] + direction, 1.0 / inParameters.SurfaceThickness) * sample_distance[0] / depth_thickness_scale[0];
+
+    start_depth = start_depth * depth_scale - z_sign;
+
+    // The first number of hard shadow samples, a single pixel can produce a full shadow
+    for (i = 0; i < HARD_SHADOW_SAMPLES; i++)
+    {
+        float depth_delta = abs(start_depth - DepthData[sample_index + i] * depth_scale);
+
+        // We want to find the distance of the sample that is closest to the reference depth
+        hard_shadow = min(hard_shadow, depth_delta);
+    }
+
+    // Brute force go!
+    // The main shadow samples, averaged in to a set of 4 shadow values
+    for (i = HARD_SHADOW_SAMPLES; i < SAMPLE_COUNT - FADE_OUT_SAMPLES; i++)
+    {
+        float depth_delta = abs(start_depth - DepthData[sample_index + i] * depth_scale);
+
+        // Do the same as the hard_shadow code above, but this will accumulate to 4 separate values.
+        // By using 4 values, the average shadow can be taken, which can help soften single-pixel shadows.
+        shadow_value[i & 3] = min(shadow_value[i & 3], depth_delta);
+    }
+
+    // Final fade out samples
+    for (i = SAMPLE_COUNT - FADE_OUT_SAMPLES; i < SAMPLE_COUNT; i++)
+    {
+        float depth_delta = abs(start_depth - DepthData[sample_index + i] * depth_scale);
+
+        // Add the fade value to these samples
+        const float fade_out = (i + 1 - (SAMPLE_COUNT - FADE_OUT_SAMPLES)) / (FADE_OUT_SAMPLES + 1) * 0.75;
+
+        shadow_value[i & 3] = min(shadow_value[i & 3], depth_delta + fade_out);
+    }
+
+    // Apply the contrast value.
+    // A value of 0 indicates a sample was exactly matched to the reference depth (and the result is fully shadowed)
+    // We want some boost to this range, so samples don't have to exactly match to produce a full shadow.
+    shadow_value = clamp(shadow_value * (inParameters.ShadowContrast) + (1 - inParameters.ShadowContrast), 0.0f, 1.0f);
+    hard_shadow = clamp(hard_shadow * (inParameters.ShadowContrast) + (1 - inParameters.ShadowContrast), 0.0f, 1.0f);
+
+    float result = 0;
+
+    // Take the average of 4 samples, this is useful to reduces aliasing noise in the source depth, especially with long shadows.
+    result = dot(shadow_value, vec4(0.25));
+
+    // If the first samples are always producing a hard shadow, then compute this value separately.
+    result = min(hard_shadow, result);
+
+    //write the result
+    {
+        float wave_f = WAVE_SIZE;
+        if (inParameters.DebugOutputEdgeMask)
+        result = is_edge ? 1 : 0;
+        if (inParameters.DebugOutputThreadIndex)
+        result = inGroupThreadID /wave_f;
+        if (inParameters.DebugOutputWaveIndex)
+        result = fract(inGroupID.x / wave_f);
+
+        // Asking the GPU to write scattered single-byte pixels isn't great,
+        // But thankfully the latency is hidden by all the work we're doing...
+        ivec2 wxy_i = ivec2(write_xy.x, write_xy.y);
+        imageStore(OutputTexture, wxy_i, vec4(result));
+    }
+}
+
+
+void main() {
+    DispatchParameters disp;
+    disp.SurfaceThickness = 0.005;
+    disp.BilinearThreshold = 0.02;
+    disp.ShadowContrast = 4;
+    disp.IgnoreEdgePixels = false;
+    disp.UsePrecisionOffset = false;
+    disp.BilinearSamplingOffsetMode = false;
+    disp.DebugOutputEdgeMask = false;
+    disp.DebugOutputThreadIndex = false;
+    disp.DebugOutputWaveIndex = false;
+    disp.DepthBounds = vec2(0.0f, 1.0f);
+    disp.UseEarlyOut = false;
+    disp.LightCoordinate = lightPosition;
+    disp.FarDepthValue = 1.0f;
+    disp.NearDepthValue = 0.0f;
+
+    ivec3 groupid = ivec3(gl_WorkGroupID.x, gl_WorkGroupID.y, gl_WorkGroupID.z);
+    int threadID = int(gl_LocalInvocationID.x);
+    WriteScreenSpaceShadow(disp, groupid, threadID);
+}

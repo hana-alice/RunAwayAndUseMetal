@@ -14,6 +14,8 @@ public:
 
     rhi::DescriptorSetPtr descriptorSet() const;
 
+    bool contains(std::string_view slotName) const;
+
     void bindBuffer(std::string_view name,
                     uint32_t index,
                     rhi::BufferPtr buffer);

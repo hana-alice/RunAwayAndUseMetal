@@ -1,4 +1,7 @@
 #pragma once
+#include <boost/container/container_fwd.hpp>
+#include <boost/container/flat_set.hpp>
+#include <boost/container/flat_map.hpp>
 #ifndef RAUM_RELEASE
     #define RAUM_DEBUG 1
 static constexpr bool raum_debug{true};
@@ -73,5 +76,12 @@ function:{}
 )";
     raum_check(false, fmtStr, std::source_location().file_name(), std::source_location().line(), std::source_location().function_name());
 }
+
+template<typename ...Args>
+using flat_map = boost::container::flat_map<Args...>;
+
+template<typename ...Args>
+using flat_set = boost::container::flat_set<Args...>;
+
 
 } // namespace raum

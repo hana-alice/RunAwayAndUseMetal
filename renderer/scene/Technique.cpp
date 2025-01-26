@@ -7,7 +7,6 @@
 
 namespace raum::scene {
 namespace {
-std::unordered_map<EmbededTechnique, scene::TechniquePtr> embededTechs;
 std::unordered_map<rhi::GraphicsPipelineInfo, rhi::GraphicsPipelinePtr, rhi::RHIHash<rhi::GraphicsPipelineInfo>> _psoMap;
 std::unordered_map<std::size_t, rhi::ShaderPtr> _shaderMap;
 } // namespace
@@ -86,7 +85,7 @@ void Technique::bakePipeline(rhi::RenderPassPtr renderpass,
         boost::hash_combine(seed, p.first);
         if (!_shaderMap.contains(seed)) {
             rhi::ShaderSourceInfo info{
-                shaderPath.data(),
+                shaderPath,
                 {p.first, prefix + p.second},
             };
             _shaderMap.emplace(seed, rhi::ShaderPtr(device->createShader(info)));
@@ -179,6 +178,18 @@ TechniquePtr makeTechnique<EmbededTechnique::SOLID_COLOR>() {
     return solidTech;
 }
 
+template <>
+TechniquePtr makeTechnique<EmbededTechnique::DEPTH_ONLY>() {
+    scene::MaterialTemplatePtr shadowTemplate = std::make_shared<scene::MaterialTemplate>("asset/layout/DepthOnly");
+    auto shadowMapMaterial = shadowTemplate->instantiate("asset/layout/DepthOnly", scene::MaterialType::CUSTOM);
+    auto shadowTech = std::make_shared<scene::Technique>(shadowMapMaterial, "DepthOnly");
+
+    auto& ds = shadowTech->depthStencilInfo();
+    ds.depthTestEnable = true;
+    ds.depthWriteEnable = true;
+    return shadowTech;
+}
+
 TechniquePtr makeEmbededTechnique(EmbededTechnique type) {
     TechniquePtr tech;
     switch (type) {
@@ -189,10 +200,15 @@ TechniquePtr makeEmbededTechnique(EmbededTechnique type) {
         case EmbededTechnique::SOLID_COLOR: {
             tech = makeTechnique<EmbededTechnique::SOLID_COLOR>();
             break;
-        default:
+        }
+        case EmbededTechnique::DEPTH_ONLY: {
+            tech = makeTechnique<EmbededTechnique::DEPTH_ONLY>();
             break;
         }
+        default:
+            break;
     }
     return tech;
 }
+
 } // namespace raum::scene

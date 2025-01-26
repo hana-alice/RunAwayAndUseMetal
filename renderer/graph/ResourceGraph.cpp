@@ -43,6 +43,11 @@ rhi::ImageViewInfo getDefaultViewInfo(const rhi::ImageInfo& info) {
     }
     return viewInfo;
 }
+
+bool isDepthStencil(const rhi::Format& format) {
+    return format >= rhi::Format::D16_UNORM && format <= rhi::Format::D32_SFLOAT_S8_UINT;
+}
+
 } // namespace
 
 ResourceGraph::ResourceGraph(RHIDevice* device) : _device(device) {
@@ -78,18 +83,40 @@ void ResourceGraph::addBufferView(std::string_view name, const BufferViewData& d
     }
 }
 
+void ResourceGraph::addImageView(std::string_view name, const rhi::ImageInfo& info) {
+    // ds/Depth , ds/Stencil
+    if (isDepthStencil(info.format)) {
+        ImageViewData depthView{
+            .origin = std::string{name},
+            .info = getDefaultViewInfo(info),
+            .imageView = nullptr,
+        };
+        depthView.info.range.aspect = rhi::AspectMask::DEPTH;
+        addImageView("Depth", depthView);
+
+        ImageViewData stencilView{
+            .origin = std::string{name},
+            .info = getDefaultViewInfo(info),
+            .imageView = nullptr,
+        };
+        stencilView.info.range.aspect = rhi::AspectMask::STENCIL;
+        addImageView("Stencil", stencilView);
+    }
+
+    ImageViewData view{
+        .origin = std::string{name},
+        .info = getDefaultViewInfo(info),
+        .imageView = nullptr,
+    };
+    addImageView(name, view);
+}
+
 void ResourceGraph::addImage(std::string_view name, const rhi::ImageInfo& info) {
     const auto& p = _names.emplace(name);
     if (p.second) {
         const auto& v = add_vertex(*p.first, _graph);
         _graph[v].data = ImageData{info};
-
-        ImageViewData view{
-            .origin = std::string{name},
-            .info = getDefaultViewInfo(info),
-            .imageView = nullptr,
-        };
-        addImageView(name, view);
+        addImageView(name, info);
     }
 }
 
@@ -107,12 +134,7 @@ void ResourceGraph::addImage(std::string_view name, rhi::ImageUsage usage, uint3
         };
         _graph[v].data = ImageData{info};
 
-        ImageViewData view{
-            .origin = std::string{name},
-            .info = getDefaultViewInfo(info),
-            .imageView = nullptr,
-        };
-        addImageView(name, view);
+        addImageView(name, info);
     }
 }
 
@@ -173,6 +195,19 @@ void ResourceGraph::mount(std::string_view name) {
                    [&](ImageData& data) {
                        if (!data.image) {
                            data.image = rhi::ImagePtr(_device->createImage(data.info));
+
+                           // depth/stencil seperate aspect view
+                           if (isDepthStencil(data.info.format)) {
+                               auto& depthViewResource = getAspectView(name, Aspect::DEPTH);
+                               auto& depthView = std::get<ImageViewData>(depthViewResource.data);
+                               depthView.info.image = data.image.get();
+                               depthView.imageView = rhi::ImageViewPtr(_device->createImageView(depthView.info));
+
+                               auto& stencilViewResource = getAspectView(name, Aspect::STENCIL);
+                               auto& stencilView = std::get<ImageViewData>(stencilViewResource.data);
+                               stencilView.info.image = data.image.get();
+                               stencilView.imageView = rhi::ImageViewPtr(_device->createImageView(stencilView.info));
+                           }
 
                            auto& viewResource = getView(name);
                            auto& imageView = std::get<ImageViewData>(viewResource.data);
@@ -294,11 +329,56 @@ Resource& ResourceGraph::getView(std::string_view name) {
     return _graph[res];
 }
 
+Resource& ResourceGraph::getAspectView(std::string_view name, Aspect aspect) {
+    auto v = *find_vertex(name, _graph);
+    size_t res{INVALID_VERTEX};
+    for (const auto& e : make_iterator_range(out_edges(v, _graph))) {
+        // name = "ds"
+        // "ds/Depth" -> depth view
+        auto childName = std::string_view(_graph[e.m_target].name)
+                             .substr(
+                                 name.length() + 1,
+                                 _graph[e.m_target].name.length() - name.length() - 1);
+        if (aspect == Aspect::DEPTH && childName == "Depth") {
+            res = e.m_target;
+            break;
+        } else if (aspect == Aspect::STENCIL && childName == "Stencil") {
+            res = e.m_target;
+            break;
+        }
+    }
+    raum_check(res != INVALID_VERTEX, "can't find resource view: {}/{}", name, name);
+    return _graph[res];
+}
+
+const Resource& ResourceGraph::getAspectView(std::string_view name, Aspect aspect) const {
+    auto v = *find_vertex(name, _graph);
+    size_t res{INVALID_VERTEX};
+    for (const auto& e : make_iterator_range(out_edges(v, _graph))) {
+        // name = "ds"
+        // "ds/Depth" -> depth view
+        auto childName = std::string_view(_graph[e.m_target].name)
+                             .substr(
+                                 name.length() + 1,
+                                 _graph[e.m_target].name.length() - name.length() - 1);
+        if (aspect == Aspect::DEPTH && childName == "Depth") {
+            res = e.m_target;
+            break;
+        } else if (aspect == Aspect::STENCIL && childName == "Stencil") {
+            res = e.m_target;
+            break;
+        }
+    }
+    raum_check(res != INVALID_VERTEX, "can't find resource view: {}/{}", name, name);
+    return _graph[res];
+}
+
 rhi::BufferPtr ResourceGraph::getBuffer(std::string_view name) {
     Resource& res = get(name);
     if (std::holds_alternative<BufferData>(res.data)) {
         return std::get<BufferData>(res.data).buffer;
     }
+    raum_unreachable();
     return nullptr;
 }
 
@@ -307,6 +387,7 @@ rhi::BufferViewPtr ResourceGraph::getBufferView(std::string_view name) {
     if (std::holds_alternative<BufferViewData>(res.data)) {
         return std::get<BufferViewData>(res.data).bufferView;
     }
+    raum_unreachable();
     return nullptr;
 }
 
@@ -318,6 +399,7 @@ rhi::ImagePtr ResourceGraph::getImage(std::string_view name) {
         auto& swapchainData = std::get<SwapchainData>(res.data);
         return swapchainData.images.at(swapchainData.swapchain->imageIndex());
     }
+    raum_unreachable();
     return nullptr;
 }
 
@@ -332,6 +414,7 @@ rhi::ImageViewPtr ResourceGraph::getImageView(std::string_view name) {
         auto& swapchainData = std::get<SwapchainData>(res.data);
         return swapchainData.imageViews.at(swapchainData.swapchain->imageIndex());
     }
+    raum_unreachable();
     return nullptr;
 }
 

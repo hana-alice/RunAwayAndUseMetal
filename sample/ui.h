@@ -7,6 +7,9 @@ public:
     UI(int argc, char** argv) {
         _sample = new Sample(argc, argv);
         _window = _sample->window();
+
+        std::jthread j;
+
     }
     ~UI() {
         delete _sample;

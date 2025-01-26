@@ -70,7 +70,9 @@ struct WarmUpVisitor : public boost::dfs_visitor<> {
     }
 
     void finish_vertex(const RenderGraph::VertexType v, const RenderGraphImpl& g) {
-        if (std::holds_alternative<RenderQueueData>(g[v].data)) {
+        if (std::holds_alternative<RenderPassData>(g[v].data)) {
+            _perPassBindings.clear();
+        } else if (std::holds_alternative<RenderQueueData>(g[v].data)) {
             auto& queueData = std::get<RenderQueueData>(_g.impl()[v].data);
             // auto& bindings = _perPassLayoutInfo.descriptorBindings;
 
@@ -100,6 +102,39 @@ struct WarmUpVisitor : public boost::dfs_visitor<> {
                     }
                 }
             }
+        } else if (std::holds_alternative<ComputePassData>(g[v].data)) {
+            auto& computeData = std::get<ComputePassData>(_g.impl()[v].data);
+            const auto& programName = computeData.programName;
+            const auto& shaderResource = _shg.layout(programName);
+            scene::SlotMap perPassBindings;
+            scene::SlotMap perBatchBindings;
+            std::for_each(
+                shaderResource.bindings.begin(),
+                shaderResource.bindings.end(),
+                [&perBatchBindings, &perPassBindings](const auto& p) {
+                    if (p.second.rate == Rate::PER_PASS) {
+                        perPassBindings.emplace(p.first, p.second.binding);
+                    } else if (p.second.rate == Rate::PER_BATCH) {
+                        perBatchBindings.emplace(p.first, p.second.binding);
+                    }
+                });
+
+            auto method = scene::Method::pool().makeMethod(programName, flat_set<std::string>{});
+            method->bakeBindGroup(
+                perPassBindings,
+                perBatchBindings,
+                shaderResource.descriptorLayouts[static_cast<uint32_t>(Rate::PER_PASS)],
+                shaderResource.descriptorLayouts[static_cast<uint32_t>(Rate::PER_BATCH)],
+                _device);
+
+            method->bakePipeline(
+                shaderResource.descriptorLayouts[static_cast<uint32_t>(Rate::PER_PASS)],
+                shaderResource.descriptorLayouts[static_cast<uint32_t>(Rate::PER_BATCH)],
+                shaderResource.constants,
+                shaderResource.shaderSources,
+                _device);
+
+            computeData.method = method;
         }
     }
 
@@ -150,7 +185,7 @@ struct PreProcessVisitor : public boost::dfs_visitor<> {
                                [&](const ImageData& image) {
                                    bindGroup->bindImage(renderingResource.bindingName,
                                                         0,
-                                                        _resg.getImageView(renderingResource.bindingName),
+                                                        _resg.getImageView(renderingResource.name),
                                                         _ag.getImageLayout(renderingResource.name, v));
                                },
                                [&](const ImageViewData& imageView) {
@@ -190,6 +225,48 @@ struct PreProcessVisitor : public boost::dfs_visitor<> {
             for (const auto& fill : copy.fills) {
                 _resg.mount(fill.name);
             }
+        } else if (std::holds_alternative<ComputePassData>(g[v].data)) {
+            auto& compute = std::get<ComputePassData>(_g.impl()[v].data);
+            compute.method = scene::Method::pool().makeMethod(compute.programName, flat_set<std::string>{});
+            auto& method = compute.method;
+            for (const auto& res : compute.resources) {
+                _resg.mount(res.name);
+                std::visit(overloaded{
+                               [&](const BufferData& buffer) {
+                                   method->bindBuffer(res.bindingName, 0, buffer.buffer);
+                               },
+                               [&](const BufferViewData& bufferView) {
+                                   method->bindBuffer(res.bindingName,
+                                                      0,
+                                                      bufferView.info.offset,
+                                                      bufferView.info.size,
+                                                      _resg.getBuffer(bufferView.origin));
+                               },
+                               [&](const ImageData& image) {
+                                   method->bindImage(res.bindingName,
+                                                     0,
+                                                     _resg.getImageView(res.name),
+                                                     _ag.getImageLayout(res.name, v));
+                               },
+                               [&](const ImageViewData& imageView) {
+                                   method->bindImage(res.bindingName,
+                                                     0,
+                                                     imageView.imageView,
+                                                     _ag.getImageLayout(res.name, v));
+                               },
+                               [&](const SamplerData& sampler) {
+                                   method->bindSampler(res.bindingName, 0, sampler.info);
+                               },
+                               [&](const rhi::SwapchainPtr& swapchain) {
+                                   method->bindImage(res.bindingName,
+                                                     0,
+                                                     _resg.getImageView(res.name),
+                                                     _ag.getImageLayout(res.name, v));
+                               },
+                               [](const auto&) {}},
+                           _resg.get(res.name).data);
+            }
+            method->update();
         }
     }
 
@@ -310,6 +387,38 @@ struct RenderGraphVisitor : public boost::dfs_visitor<> {
                                _blitEncoder->fillBuffer(buffer.get(), fill.dstOffset, fill.size, fill.value);
                            }
                        },
+                       [&](const ComputePassData& data) {
+                           auto* bufferBarriers = _accessGraph.getBufferBarrier(v);
+                           if (bufferBarriers) {
+                               for (auto& bufferBarrier : *bufferBarriers) {
+                                   bufferBarrier.info.buffer = std::get<BufferData>(_resg.get(bufferBarrier.name).data).buffer.get();
+                                   _commandBuffer->appendBufferBarrier(bufferBarrier.info);
+                               }
+                           }
+
+                           auto* imageBarriers = _accessGraph.getImageBarrier(v);
+                           if (imageBarriers) {
+                               for (auto& imageBarrier : *imageBarriers) {
+                                   imageBarrier.info.image = _resg.getImage(imageBarrier.name).get();
+                                   _commandBuffer->appendImageBarrier(imageBarrier.info);
+                               }
+                           }
+                           _commandBuffer->applyBarrier(rhi::DependencyFlags::BY_REGION);
+
+                           _computeEncoder = std::shared_ptr<rhi::RHIComputeEncoder>(_commandBuffer->makeComputeEncoder());
+                           _computeEncoder->bindPipeline(data.method->pipelineState().get());
+                           const auto& method = data.method;
+                           if (method->hasPassBinding()) {
+                               const auto& bindGroup = method->perPassBindGroup();
+                               _computeEncoder->bindDescriptorSet(bindGroup->descriptorSet().get(), 0, nullptr, 0);
+                           }
+                           if (method->hasBatchBinding()) {
+                               const auto& bindGroup = method->perBatchBindGroup();
+                               _computeEncoder->bindDescriptorSet(bindGroup->descriptorSet().get(), 1, nullptr, 0);
+                           }
+                           const auto& dispatch = data.dispatch;
+                           _computeEncoder->dispatch(dispatch.x, dispatch.y, dispatch.z);
+                       },
                        [&](auto _) {
 
                        },
@@ -328,6 +437,9 @@ struct RenderGraphVisitor : public boost::dfs_visitor<> {
                        },
                        [&](const CopyPassData& renderQueue) {
                            _blitEncoder.reset();
+                       },
+                       [&](const ComputePassData&) {
+                           _computeEncoder.reset();
                        },
                        [&](auto _) {
 

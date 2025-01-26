@@ -54,8 +54,10 @@ Quad::Quad(rhi::CommandBufferPtr cmdBuffer, rhi::DevicePtr device) {
 
     meshRenderer->addTechnique(quadTech);
     meshRenderer->setVertexInfo(0, 6, 0);
-    meshRenderer->addTechnique(scene::makeEmbededTechnique(scene::EmbededTechnique::SHADOWMAP));
-    meshRenderer->addTechnique(scene::makeEmbededTechnique(scene::EmbededTechnique::SOLID_COLOR));
+    auto embededTechSize = static_cast<uint32_t>(scene::EmbededTechnique::COUNT);
+    for (size_t i = 0; i < embededTechSize; ++i) {
+        meshRenderer->addTechnique(scene::makeEmbededTechnique(static_cast<scene::EmbededTechnique>(i)));
+    }
     meshRenderer->setTransformSlot("LocalMat");
 }
 

@@ -8,6 +8,7 @@ cd vcpkg
 ```
 using Visual Studio or Clion open this folder direclty, IDEs take care of the next step.
 For Clion, you may need to choose cmake preset manually at first launch.
+For the first time, you may need to set `VCPKG_MANIFEST_INSTALL` to "ON" in `CMakePresets.json` to properly prepare the built-essentials.
 
 
 ### Most recent work:
@@ -74,7 +75,7 @@ with code snippet:
 
 ### What is going on:
 1. Seperate rendering thread for Editor(Human :,)
-2. Contact shadow
+2. Bistro
 3. SSAO - GTAO
 4. Soft shadow
 

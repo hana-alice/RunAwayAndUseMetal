@@ -8,6 +8,7 @@
 #include "Scene.h"
 #include <map>
 #include <boost/graph/adjacency_list.hpp>
+#include "Method.h"
 namespace raum::graph {
 
 template <class... Ts>
@@ -85,8 +86,10 @@ struct RenderQueueData {
 };
 
 struct ComputePassData {
-    std::string phaseName{};
+    std::string programName{};
     std::vector<RenderingResource> resources;
+    Vec3i dispatch{1, 1, 1};
+    scene::MethodPtr method;
 };
 
 struct CopyPair {
