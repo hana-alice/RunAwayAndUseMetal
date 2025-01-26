@@ -10,6 +10,7 @@ public:
     struct Access {
         RenderGraph::VertexType v{0};
         rhi::AccessFlags access{rhi::AccessFlags::NONE};
+        rhi::ImageLayout layout{rhi::ImageLayout::UNDEFINED};
         rhi::PipelineStage stage{rhi::PipelineStage::TOP_OF_PIPE};
     };
 

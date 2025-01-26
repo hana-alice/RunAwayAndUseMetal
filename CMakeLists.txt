@@ -14,6 +14,9 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 set(CMAKE_AUTOMOC ON)
 
+#add_compile_options(-fsanitize=address)
+#add_link_options(-fsanitize=address)
+
 #find_package(Qt6Vulkan CONFIG REQUIRED)
 # if(MSVC)
 #     set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")

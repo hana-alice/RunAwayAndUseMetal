@@ -76,25 +76,39 @@ void ContactShadowSample::show() {
     // compute contact shadow
     {
         auto& eye = _cam->eye();
-        auto viewMat = eye.inverseAttitude();
+        const auto& viewMat = eye.inverseAttitude();
         const auto& projMat = eye.projection();
-        const auto& lightProj = LightPos * viewMat * projMat;
+        const auto& lightProj = projMat * viewMat * LightPos;
 
         int viewport[2] = {static_cast<int>(width), static_cast<int>(height)};
         int minBounds[2] = {0, 0};
         int maxBounds[2] = {static_cast<int>(width), static_cast<int>(height)};
         float lightProjArray[4] = {lightProj.x, lightProj.y, lightProj.z, lightProj.w};
         const auto& dispatchList = Bend::BuildDispatchList(lightProjArray, viewport, minBounds, maxBounds, false, 64);
+
+        // upload wave offsets
+        {
+            auto uploadPass = renderGraph.addCopyPass("waveOffsetsUpdate");
+            for (size_t i = 0; i < dispatchList.DispatchCount; ++i) {
+                auto& dispatch = dispatchList.Dispatch[i];
+                Vec2f offset = {static_cast<float>(dispatch.WaveOffset_Shader[0]), static_cast<float>(dispatch.WaveOffset_Shader[1])};
+                uploadPass.uploadBuffer(&offset[0], 2 * sizeof(float), _waveOffsetBuffers[i], 0);
+            }
+            uploadPass.uploadBuffer(&dispatchList.LightCoordinate_Shader[0], 4 * sizeof(float), _sssInfo, 0);
+            Vec2f invDepthSize = {1.0f / width, 1.0f / height};
+            uploadPass.uploadBuffer(&invDepthSize[0], 2 * sizeof(float), _sssInfo, 16);
+        }
+
         for (size_t i = 0; i < dispatchList.DispatchCount; ++i) {
             auto& dispatch = dispatchList.Dispatch[i];
             auto contactShadowPass = renderGraph.addComputePass("contactShadow" + std::to_string(i));
             contactShadowPass.setProgramName("asset/layout/ContactShadowBendCS")
-                .setDispatch(64, 1, 1)
+                .setDispatch(dispatch.WaveCount[0], dispatch.WaveCount[1], dispatch.WaveCount[2])
                 .addSampledDepth(_forwardDS, "DepthTexture")
                 .addResource(_shadowSampler, "DepthTextureSampler", graph::Access::READ)
                 .addResource(_sssInfo, "UniformInfoBuffer", graph::Access::READ)
                 .addResource(_sssOuput, "OutputTexture", graph::Access::WRITE)
-                .addResource(_waveOffsetBuffer, "WaveOffsetsBuffer", graph::Access::READ);
+                .addResource(_waveOffsetBuffers[i], "WaveOffsetsBuffer", graph::Access::READ);
         }
     }
 
@@ -187,7 +201,11 @@ void ContactShadowSample::init() {
     }
     if (!resourceGraph.contains(_sssInfo)) {
         resourceGraph.addBuffer(_sssInfo, 24, graph::BufferUsage::UNIFORM | graph::BufferUsage::TRANSFER_DST);
-        resourceGraph.addBuffer(_waveOffsetBuffer, 8, graph::BufferUsage::UNIFORM | graph::BufferUsage::TRANSFER_DST);
+        for (size_t i = 0; i < 8; ++i) {
+            _waveOffsetBuffers[i] = "waveOffsetBuffer";
+            _waveOffsetBuffers[i].append(std::to_string(i));
+            resourceGraph.addBuffer(_waveOffsetBuffers[i], 8, graph::BufferUsage::UNIFORM | graph::BufferUsage::TRANSFER_DST);
+        }
     }
     if (!resourceGraph.contains(_sssOuput)) {
         resourceGraph.addImage(_sssOuput, rhi::ImageUsage::STORAGE | rhi::ImageUsage::SAMPLED, width, height, rhi::Format::R32_SFLOAT);

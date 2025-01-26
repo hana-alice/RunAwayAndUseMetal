@@ -324,6 +324,8 @@ void main() {
     disp.DepthBounds = vec2(0.0f, 1.0f);
     disp.UseEarlyOut = false;
     disp.LightCoordinate = lightPosition;
+    disp.FarDepthValue = 1.0f;
+    disp.NearDepthValue = 0.0f;
 
     ivec3 groupid = ivec3(gl_WorkGroupID.x, gl_WorkGroupID.y, gl_WorkGroupID.z);
     int threadID = int(gl_LocalInvocationID.x);

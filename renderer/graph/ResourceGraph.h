@@ -32,6 +32,7 @@ struct Resource {
     std::string_view name{};
     ResourceResidency residency{ResourceResidency::DONT_CARE};
     rhi::AccessFlags access{rhi::AccessFlags::NONE};
+    rhi::ImageLayout layout{rhi::ImageLayout::UNDEFINED};
     std::variant<BufferData, BufferViewData, ImageData, ImageViewData, SamplerData, SwapchainData> data;
     uint64_t life{0};
 };
