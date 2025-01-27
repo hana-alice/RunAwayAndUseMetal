@@ -179,6 +179,20 @@ TechniquePtr makeTechnique<EmbededTechnique::SOLID_COLOR>() {
 }
 
 template <>
+TechniquePtr makeTechnique<EmbededTechnique::SOLID_COLOR_WITH_AO>() {
+    scene::MaterialTemplatePtr solidTemplate = std::make_shared<scene::MaterialTemplate>("asset/layout/solid_with_ao");
+    auto solidColorMaterial = solidTemplate->instantiate("asset/layout/solid_with_ao", scene::MaterialType::CUSTOM);
+    auto solidTech = std::make_shared<scene::Technique>(solidColorMaterial, "solid_with_ao");
+
+    auto& ds = solidTech->depthStencilInfo();
+    ds.depthTestEnable = true;
+    ds.depthWriteEnable = true;
+    auto& bs = solidTech->blendInfo();
+    bs.attachmentBlends.emplace_back();
+    return solidTech;
+}
+
+template <>
 TechniquePtr makeTechnique<EmbededTechnique::DEPTH_ONLY>() {
     scene::MaterialTemplatePtr shadowTemplate = std::make_shared<scene::MaterialTemplate>("asset/layout/DepthOnly");
     auto shadowMapMaterial = shadowTemplate->instantiate("asset/layout/DepthOnly", scene::MaterialType::CUSTOM);
@@ -203,6 +217,10 @@ TechniquePtr makeEmbededTechnique(EmbededTechnique type) {
         }
         case EmbededTechnique::DEPTH_ONLY: {
             tech = makeTechnique<EmbededTechnique::DEPTH_ONLY>();
+            break;
+        }
+        case EmbededTechnique::SOLID_COLOR_WITH_AO: {
+            tech = makeTechnique<EmbededTechnique::SOLID_COLOR_WITH_AO>();
             break;
         }
         default:

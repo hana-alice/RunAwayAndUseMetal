@@ -24,10 +24,25 @@ struct WarmUpVisitor : public boost::dfs_visitor<> {
         } else if (std::holds_alternative<RenderQueueData>(g[v].data)) {
             const auto& phaseName = getPhaseName(_g.impl()[v].name);
             auto& queueData = std::get<RenderQueueData>(_g.impl()[v].data);
+            auto zCmpOp = test(queueData.flags, RenderQueueFlags::REVERSE_Z) ? rhi::CompareOp::GREATER_OR_EQUAL : rhi::CompareOp::LESS_OR_EQUAL;
             scene::SlotMap perBatchBindings;
             for (auto& renderable : _rendererables) {
                 auto meshrenderer = std::static_pointer_cast<scene::MeshRenderer>(renderable);
+
+                // TODO: this is configed in editor
+                {
+                    auto& techs = meshrenderer->techniques();
+                    auto it = std::find_if(techs.begin(), techs.end(), [&phaseName](const auto& tech) {
+                        return tech->phaseName() == phaseName;
+                    });
+                    if (it == techs.end()) {
+                        auto embed = scene::EmbededTechniqueName.at(phaseName);
+                        meshrenderer->addTechnique(scene::makeEmbededTechnique(embed));
+                    }
+                }
+
                 for (auto& technique : meshrenderer->techniques()) {
+                    technique->depthStencilInfo().depthCompareOp = zCmpOp;
                     if (phaseName == technique->phaseName()) {
                         scene::SlotMap perInstanceBindings;
                         const auto& shaderResource = _shg.layout(technique->material()->shaderName());
@@ -43,6 +58,7 @@ struct WarmUpVisitor : public boost::dfs_visitor<> {
                                     perInstanceBindings.emplace(p.first, p.second.binding);
                                 }
                             });
+
 
                         meshrenderer->prepare(perInstanceBindings,
                                               shaderResource.descriptorLayouts[static_cast<uint32_t>(Rate::PER_INSTANCE)],

@@ -269,7 +269,7 @@ std::unordered_map<std::string_view, rhi::ShaderStage> str2ShaderStage = {
 };
 
 void deserialize(const std::filesystem::path& path, std::string_view name, ShaderGraph& shaderGraph) {
-    auto layoutPath = (path / name).concat(".layout");
+    auto layoutPath = path / name;
     assert(exists(layoutPath));
 
     ShaderResource resource{};

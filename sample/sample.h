@@ -42,8 +42,8 @@ public:
         _samples = {
             // std::make_shared<sample::GraphSample>(&_world->director()),
             // std::make_shared<sample::VirtualTextureSample>(&_world->director()),
-            std::make_shared<sample::ShadowMapSample>(&_world->director()),
-            // std::make_shared<sample::ContactShadowSample>(&_world->director()),
+            // std::make_shared<sample::ShadowMapSample>(&_world->director()),
+            std::make_shared<sample::ContactShadowSample>(&_world->director()),
 
         };
         _inited.resize(_samples.size(), 0);

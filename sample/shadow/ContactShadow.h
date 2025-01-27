@@ -61,6 +61,8 @@ private:
     const std::string _shadowSampler = "shadowSampler";
     const std::string _sssInfo = "uniformInfoBuffer";
     const std::string _sssOuput = "sssOuput";
+    const std::string _viewportSize = "ViewportSize";
+
     const std::string _name = "ContactShadowSample";
 
     std::array<std::string, 8> _waveOffsetBuffers;

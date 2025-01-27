@@ -45,6 +45,7 @@ void log(const T& t) {
 template<typename ...Args>
 void raum_error(fmt::format_string<Args...> s, Args&&... args) {
     spdlog::error(s, std::forward<Args>(args)...);
+    assert(false);
 }
 
 template<typename ...Args>

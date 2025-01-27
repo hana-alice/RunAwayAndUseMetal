@@ -37,17 +37,29 @@ void defaultResourceTransition(rhi::CommandBufferPtr commandBuffer, rhi::DeviceP
     commandBuffer->applyBarrier({});
 }
 
+namespace {
+
+void iterateLayout(graph::ShaderGraph& shaderGraph, std::filesystem::path dir) {
+    for (const auto& entry : std::filesystem::directory_iterator(dir)) {
+        if (entry.is_directory()) {
+            iterateLayout(shaderGraph, entry.path());
+        } else {
+            auto filename = entry.path().filename().string();
+            if (filename.ends_with(".layout")) {
+                graph::deserialize(dir, entry.path().filename().string(), shaderGraph);
+            }
+        }
+    }
+
+}
+
+}
+
 void BuiltinRes::initialize(graph::ShaderGraph& shaderGraph, rhi::DevicePtr device) {
     // deserialize layout(json): shader description
     const auto& resourcePath = utils::resourceDirectory();
-    graph::deserialize(resourcePath / "shader", "cook-torrance", shaderGraph);
-    graph::deserialize(resourcePath / "shader", "skybox", shaderGraph);
-    graph::deserialize(resourcePath / "shader", "simple", shaderGraph);
-    graph::deserialize(resourcePath / "shader", "sparse", shaderGraph);
-    graph::deserialize(resourcePath / "shader", "ShadowMap", shaderGraph);
-    graph::deserialize(resourcePath / "shader", "solidColor", shaderGraph);
-    graph::deserialize(resourcePath / "shader", "contactShadow", shaderGraph);
-    graph::deserialize(resourcePath / "shader", "DepthOnly", shaderGraph);
+
+    iterateLayout(shaderGraph, resourcePath);
     shaderGraph.compile("asset");
 
     auto cmdPool = rhi::CommandPoolPtr(device->createCoomandPool({}));
