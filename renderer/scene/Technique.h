@@ -60,8 +60,16 @@ enum class EmbededTechnique : uint8_t {
     SHADOWMAP,
     SOLID_COLOR,
     DEPTH_ONLY,
+    SOLID_COLOR_WITH_AO,
 
     COUNT,
+};
+
+const std::unordered_map<std::string_view, EmbededTechnique, hash_string, std::equal_to<>> EmbededTechniqueName{
+    {"shadowMap", EmbededTechnique::SHADOWMAP},
+    {"solidColor", EmbededTechnique::SOLID_COLOR},
+    {"DepthOnly", EmbededTechnique::DEPTH_ONLY},
+    {"solid_with_ao", EmbededTechnique::SOLID_COLOR_WITH_AO},
 };
 
 TechniquePtr makeEmbededTechnique(EmbededTechnique type);

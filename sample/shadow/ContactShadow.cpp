@@ -3,7 +3,7 @@
 
 namespace raum::sample {
 
-constexpr bool ENABLE_SHADOWMAP{false};
+constexpr bool ENABLE_SHADOWMAP{true};
 
 constexpr Vec4f LightPos{3.0, 3.0, 3.0, 0.0};
 
@@ -20,29 +20,36 @@ void ContactShadowSample::show() {
     auto& renderGraph = _ppl->renderGraph();
     _ppl->resourceGraph().updateImage("forwardDS", _swapchain->width(), _swapchain->height());
 
-    if constexpr (ENABLE_SHADOWMAP) {
-        // shadow buffer upload pass
-        {
-            auto uploadPass = renderGraph.addCopyPass("shadowCamUpdate");
-            auto& shadowEye = _shadowCam->eye();
-            const auto& shadowViewMat = shadowEye.inverseAttitude();
-            uploadPass.uploadBuffer(&shadowViewMat[0], 64, _shadowVPBuffer, 0);
-            const auto& shadowProjMat = shadowEye.projection();
-            uploadPass.uploadBuffer(&shadowProjMat[0], 64, _shadowVPBuffer, 64);
-            constexpr float invSize[2] = {1.0f / shadowMapWidth, 1.0f / shadowMapHeight};
-            uploadPass.uploadBuffer(&invSize[0], 8, _shadowVPBuffer, 128);
-        }
+    static bool firstTime = true;
+    if (firstTime) {
+        firstTime = false;
+        auto uploadPass = renderGraph.addCopyPass("viewportUpdate");
+        Vec2f viewportSize = {_swapchain->width(), _swapchain->height()};
+        uploadPass.uploadBuffer(&viewportSize[0], 8, _viewportSize, 0);
+    }
 
-        // shadow rendering pass
-        {
-            auto shadowPass = renderGraph.addRenderPass("shadowMap");
-            shadowPass.addColor(_shadowMapRT, graph::LoadOp::CLEAR, graph::StoreOp::STORE, {1.0f})
-                .addDepthStencil(_shadowMapDS, graph::LoadOp::CLEAR, graph::StoreOp::DONT_CARE, graph::LoadOp::DONT_CARE, graph::StoreOp::DONT_CARE, 1.0, 0);
-            auto shadowQ = shadowPass.addQueue("shadowMap");
-            shadowQ.setViewport(0, 0, shadowMapWidth, shadowMapHeight, 0.0f, 1.0f)
-                .addCamera(_shadowCam.get())
-                .addUniformBuffer(_shadowVPBuffer, "Mat");
-        }
+    // shadow buffer upload pass
+    {
+        auto uploadPass = renderGraph.addCopyPass("shadowCamUpdate");
+        auto& shadowEye = _shadowCam->eye();
+        const auto& shadowViewMat = shadowEye.inverseAttitude();
+        uploadPass.uploadBuffer(&shadowViewMat[0], 64, _shadowVPBuffer, 0);
+        const auto& shadowProjMat = shadowEye.projection();
+        uploadPass.uploadBuffer(&shadowProjMat[0], 64, _shadowVPBuffer, 64);
+        constexpr float invSize[2] = {1.0f / shadowMapWidth, 1.0f / shadowMapHeight};
+        uploadPass.uploadBuffer(&invSize[0], 8, _shadowVPBuffer, 128);
+    }
+
+    // shadow rendering pass
+    {
+        auto shadowPass = renderGraph.addRenderPass("shadowMap");
+        shadowPass.addColor(_shadowMapRT, graph::LoadOp::CLEAR, graph::StoreOp::STORE, {1.0f})
+            .addDepthStencil(_shadowMapDS, graph::LoadOp::CLEAR, graph::StoreOp::DONT_CARE, graph::LoadOp::DONT_CARE, graph::StoreOp::DONT_CARE, 0.0, 0);
+        auto shadowQ = shadowPass.addQueue("shadowMap");
+        shadowQ.setViewport(0, 0, shadowMapWidth, shadowMapHeight, 0.0f, 1.0f)
+            .addFlag(graph::RenderQueueFlags::REVERSE_Z)
+            .addCamera(_shadowCam.get())
+            .addUniformBuffer(_shadowVPBuffer, "Mat");
     }
 
     // main camera upload pass
@@ -66,9 +73,10 @@ void ContactShadowSample::show() {
     // depth pre-pass
     {
         auto depthPrePass = renderGraph.addRenderPass("depthPrePass");
-        depthPrePass.addDepthStencil(_forwardDS, graph::LoadOp::CLEAR, graph::StoreOp::STORE, graph::LoadOp::DONT_CARE, graph::StoreOp::DONT_CARE, 1.0, 0);
+        depthPrePass.addDepthStencil(_forwardDS, graph::LoadOp::CLEAR, graph::StoreOp::STORE, graph::LoadOp::DONT_CARE, graph::StoreOp::DONT_CARE, 0.0, 0);
         auto depthPrePassQ = depthPrePass.addQueue("DepthOnly");
         depthPrePassQ.setViewport(0, 0, width, height, 0.0f, 1.0f)
+            .addFlag(graph::RenderQueueFlags::REVERSE_Z)
             .addCamera(_cam.get())
             .addUniformBuffer(_camBuffer, "Mat");
     }
@@ -117,17 +125,20 @@ void ContactShadowSample::show() {
         auto renderPass = renderGraph.addRenderPass("forward");
 
         renderPass.addColor(_forwardRT, graph::LoadOp::CLEAR, graph::StoreOp::STORE, {0.2, 0.4, 0.4, 1.0})
-            .addDepthStencil(_forwardDS, graph::LoadOp::CLEAR, graph::StoreOp::DONT_CARE, graph::LoadOp::DONT_CARE, graph::StoreOp::DONT_CARE, 1.0, 0);
-        auto queue = renderPass.addQueue("solidColor");
+            .addDepthStencil(_forwardDS, graph::LoadOp::CLEAR, graph::StoreOp::DONT_CARE, graph::LoadOp::DONT_CARE, graph::StoreOp::DONT_CARE, 0.0, 0);
+        auto queue = renderPass.addQueue("solid_with_ao");
 
         auto width = _swapchain->width();
         auto height = _swapchain->height();
         queue.setViewport(0, 0, width, height, 0.0f, 1.0f)
             .addCamera(_cam.get())
+            .addFlag(graph::RenderQueueFlags::REVERSE_Z)
             .addUniformBuffer(_camBuffer, "Mat")
             .addUniformBuffer(_shadowVPBuffer, "ShadowView")
             .addSampledImage(_shadowMapRT, "shadowMap")
-            .addSampler(_shadowSampler, "shadowSampler");
+            .addSampler(_shadowSampler, "shadowSampler")
+            .addSampledImage(_sssOuput, "ao")
+            .addUniformBuffer(_viewportSize, "ViewportSize");
     }
 }
 
@@ -156,14 +167,14 @@ void ContactShadowSample::init() {
 
     auto width = _swapchain->width();
     auto height = _swapchain->height();
-    scene::PerspectiveFrustum frustum{45.0f, width / (float)height, 0.1f, 50.0f};
+    scene::PerspectiveFrustum frustum{45.0f, width / (float)height, 50.0f, 0.1f};
     _cam = std::make_shared<scene::Camera>(frustum);
     auto& eye = _cam->eye();
     eye.setPosition(0.0, 0.0f, 4.0);
     eye.lookAt({0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f});
     eye.update();
 
-    scene::OrthoFrustum shadowFrustum{-5.0f, 5.0f, -5.0f, 5.0f, 0.1f, 20.0f};
+    scene::OrthoFrustum shadowFrustum{-5.0f, 5.0f, -5.0f, 5.0f, 20.0f, 0.1f};
     _shadowCam = std::make_shared<scene::Camera>(shadowFrustum);
     auto& shadowEye = _shadowCam->eye();
     shadowEye.setPosition(5.0, 5.0, 5.0);
@@ -175,13 +186,13 @@ void ContactShadowSample::init() {
         resourceGraph.import(_forwardRT, _swapchain);
     }
     if (!resourceGraph.contains(_forwardDS)) {
-        resourceGraph.addImage(_forwardDS, rhi::ImageUsage::DEPTH_STENCIL_ATTACHMENT | rhi::ImageUsage::SAMPLED, width, height, rhi::Format::D24_UNORM_S8_UINT);
+        resourceGraph.addImage(_forwardDS, rhi::ImageUsage::DEPTH_STENCIL_ATTACHMENT | rhi::ImageUsage::SAMPLED, width, height, rhi::Format::D32_SFLOAT_S8_UINT);
     }
     if (!resourceGraph.contains(_shadowMapRT)) {
         resourceGraph.addImage(_shadowMapRT, rhi::ImageUsage::COLOR_ATTACHMENT | rhi::ImageUsage::SAMPLED, shadowMapWidth, shadowMapHeight, rhi::Format::R32_SFLOAT);
     }
     if (!resourceGraph.contains(_shadowMapDS)) {
-        resourceGraph.addImage(_shadowMapDS, rhi::ImageUsage::DEPTH_STENCIL_ATTACHMENT, shadowMapWidth, shadowMapHeight, rhi::Format::D24_UNORM_S8_UINT);
+        resourceGraph.addImage(_shadowMapDS, rhi::ImageUsage::DEPTH_STENCIL_ATTACHMENT, shadowMapWidth, shadowMapHeight, rhi::Format::D32_SFLOAT_S8_UINT);
     }
     if (!resourceGraph.contains(_camBuffer)) {
         resourceGraph.addBuffer(_camBuffer, 128, graph::BufferUsage::UNIFORM | graph::BufferUsage::TRANSFER_DST);
@@ -209,6 +220,9 @@ void ContactShadowSample::init() {
     }
     if (!resourceGraph.contains(_sssOuput)) {
         resourceGraph.addImage(_sssOuput, rhi::ImageUsage::STORAGE | rhi::ImageUsage::SAMPLED, width, height, rhi::Format::R32_SFLOAT);
+    }
+    if (!resourceGraph.contains(_viewportSize)) {
+        resourceGraph.addBuffer(_viewportSize, 8, graph::BufferUsage::UNIFORM | graph::BufferUsage::TRANSFER_DST);
     }
 }
 

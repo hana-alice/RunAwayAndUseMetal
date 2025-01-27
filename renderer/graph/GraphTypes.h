@@ -78,11 +78,20 @@ struct SubRenderPassData {
     std::vector<AttachmentResource> attachments;
 };
 
+enum class RenderQueueFlags: uint32_t {
+    NONE = 0,
+    OPAQUE = 1,
+    TRANSPARENT = 1 << 1,
+    REVERSE_Z = 1 << 2,
+};
+OPERABLE(RenderQueueFlags)
+
 struct RenderQueueData {
     scene::Camera* camera{nullptr};
     rhi::Viewport viewport{};
     std::vector<RenderingResource> resources;
     scene::BindGroupPtr bindGroup;
+    RenderQueueFlags flags{RenderQueueFlags::NONE};
 };
 
 struct ComputePassData {
@@ -199,13 +208,6 @@ struct ShaderResource {
 };
 
 using ShaderResources = std::unordered_map<std::string, ShaderResource, hash_string, std::equal_to<>>;
-
-enum class RenderQueueFlags: uint32_t {
-    NONE = 0,
-    OPAQUE = 1,
-    TRANSPARENT = 1 << 1,
-};
-
 using TransparentUnorderedSet = std::unordered_set<std::string, hash_string, std::equal_to<>>;
 
 } // namespace raum::graph

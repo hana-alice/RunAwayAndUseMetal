@@ -136,6 +136,12 @@ RenderQueue& RenderQueue::addSampler(std::string_view name, std::string_view bin
     return *this;
 }
 
+RenderQueue& RenderQueue::addFlag(RenderQueueFlags flag) {
+    auto& data = std::get<RenderQueueData>(_graph[_id].data);
+    data.flags |= flag;
+    return *this;
+}
+
 RenderQueue& RenderQueue::setViewport(int32_t x, int32_t y, uint32_t w, uint32_t h, float minDepth, float maxDepth) {
     auto& data = std::get<RenderQueueData>(_graph[_id].data);
     data.viewport = {{x, y, w, h}, minDepth, maxDepth};

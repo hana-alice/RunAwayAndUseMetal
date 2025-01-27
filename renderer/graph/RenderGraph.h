@@ -47,6 +47,7 @@ public:
     RenderQueue& addSampledDepth(std::string_view name, std::string_view bindingName);
     RenderQueue& addSampledStencil(std::string_view name, std::string_view bindingName);
     RenderQueue& addSampler(std::string_view name, std::string_view bindingName);
+    RenderQueue& addFlag(RenderQueueFlags flag);
 
 private:
     RenderGraphImpl::vertex_descriptor _id{0};
