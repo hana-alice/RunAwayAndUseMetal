@@ -165,7 +165,7 @@ void mousePressEvent(const SDL_MouseButtonEvent& btn) {
             btn.x,
             btn.y,
             button,
-            ButtonStatus::RELEASE));
+            ButtonStatus::PRESS));
 }
 
 void mouseButtonEvent(const SDL_MouseButtonEvent& btn) {
@@ -251,11 +251,11 @@ void Window::show() {
                     break;
                 }
                 case SDL_EVENT_MOUSE_BUTTON_UP: {
-                    mousePressEvent(evt.button);
+                    mouseReleaseEvent(evt.button);
                     break;
                 }
                 case SDL_EVENT_MOUSE_BUTTON_DOWN: {
-                    mouseReleaseEvent(evt.button);
+                    mousePressEvent(evt.button);
                     break;
                 }
                 case SDL_EVENT_MOUSE_MOTION: {

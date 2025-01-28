@@ -45,18 +45,27 @@ vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness) {
     return F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(1.0 - cosTheta, 5.0);
 }
 
-// https://hacksoflife.blogspot.com/2009/11/per-pixel-tangent-space-normal-mapping.html
 mat3x3 getTBN(vec3 pos, vec2 uv, vec3 normal) {
-    vec3 q0 = dFdx(pos);
-    vec3 q1 = dFdy(pos);
-    vec2 st0 = dFdx(uv);
-    vec2 st1 = dFdy(uv);
-
-    //    vec3 S = normalize(q0 * st1.t - q1 * st0.t);
-    vec3 B = normalize(-q0 * st1.s + q1 * st0.s);
-    vec3 N = normalize(normal);
-    vec3 T = cross(N, B);
-    return mat3x3(T, B, N);
+    // compute derivations of the world position
+    vec3 p_dx = dFdx(pos);
+    vec3 p_dy = dFdy(pos);
+    // compute derivations of the texture coordinate
+    vec2 tc_dx = dFdx(uv);
+    vec2 tc_dy = dFdy(uv);
+    // compute initial tangent and bi-tangent
+    vec3 t = normalize( tc_dy.y * p_dx - tc_dx.y * p_dy );
+    vec3 b = normalize( tc_dy.x * p_dx - tc_dx.x * p_dy ); // sign inversion
+    // get new tangent from a given mesh normal
+    vec3 n = normalize(normal);
+    vec3 x = cross(n, t);
+    t = cross(x, n);
+    t = normalize(t);
+    // get updated bi-tangent
+    x = cross(b, n);
+    b = cross(n, x);
+    b = normalize(b);
+    mat3 tbn = mat3(t, b, n);
+    return tbn;
 }
 
 layout (location = 0) out vec4 FragColor;
@@ -178,12 +187,12 @@ void main() {
     Lo += (KD * albedo / PI + specular) * radiance * NdotL;
     // accumulate end
 
-    
+
     F = fresnelSchlickRoughness(max(dot(N, V), 0.0), F0, roughness);
     Ks = F;
     KD = 1.0 - Ks;
     KD *= 1.0 - metallic;
-    
+
     vec3 irradiance = texture(samplerCube(diffuseEnvMap, linearSampler), N).rgb;
     albedo *= irradiance;
 

@@ -95,6 +95,8 @@ public:
         _mouseBtnListener.add(mouseHandler);
 
         auto mouseMovehandler = [&](float x, float y, float deltaXIn, float deltaYIn) {
+
+            if (!pressed) return;
             static float curDeg = 0.0f;
             auto deltaX = x - lastX;
             curDeg += deltaX * 0.1f;
@@ -115,6 +117,7 @@ public:
                 curRad -= 6.283186f;
             }
         };
+        _mouseMoveListener.add(mouseMovehandler);
     }
 
     ~GraphSample() {
