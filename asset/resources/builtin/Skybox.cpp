@@ -40,6 +40,7 @@ constexpr auto fragSource = R"(
         vec2 uv = vec2(atan(v.z, v.x), asin(v.y));
         uv *= invAtan;
         uv += 0.5;
+        uv.y = 1.0 - uv.y;
         return uv;
     }
 
