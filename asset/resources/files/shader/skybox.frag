@@ -9,9 +9,8 @@ void main()
 {
     vec3 envColor = texture(samplerCube(environmentMap, linearSampler), localPos).rgb;
 
-    vec3 mapped = vec3(1.0) - exp(-envColor * 1.0f);
-    // envColor = envColor / (envColor + vec3(1.0));
-    mapped = pow(mapped, vec3(1.0/2.2)); 
+    vec3 mapped = envColor / (envColor + vec3(1.0));
+    mapped = pow(mapped, vec3(1.0/2.2));
 
     FragColor = vec4(mapped, 1.0);
 }

@@ -10,7 +10,7 @@ layout(set = 0, binding = 0) uniform Mat {
 
 void main()
 {
-    WorldPos = vec3(aPos.x, aPos.y, aPos.z);
+    WorldPos = vec3(aPos.x, -aPos.y, aPos.z);
     mat4 rot = mat4(mat3(viewMat));
     vec4 pos = projectMat * rot * vec4(aPos, 1.0);
     gl_Position = pos.xyww;
