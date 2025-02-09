@@ -372,7 +372,7 @@ void loadMesh(const tinygltf::Model& rawModel,
             }
         }
 
-        scene::MaterialTemplatePtr matTemplate = std::make_shared<scene::MaterialTemplate>("asset/layout/cook-torrance");
+        scene::MaterialTemplatePtr matTemplate = std::make_shared<scene::MaterialTemplate>("asset/layout/gltfpbr");
 
         auto& vertexLayout = meshData.vertexLayout;
         uint32_t location{0};
