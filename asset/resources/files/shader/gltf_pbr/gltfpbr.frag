@@ -166,6 +166,16 @@ vec3 getIBLContributions(vec3 R, vec3 N, vec3 diffuseIn, vec3 specularIn, float 
     return diffuse + specular;
 }
 
+float getAOContributions(float factor) {
+    #ifdef OCCLUSION_MAP
+    float ao = texture(sampler2D(aoMap, linearSampler), f_uv).r;
+    ao = 1.0f + factor * (ao - 1.0f);
+    #else
+    float ao = 1.0f;
+    #endif
+    return ao;
+}
+
 void main() {
     vec4 albedo = texture(sampler2D(albedoMap, linearSampler), f_uv);
     vec4 baseColor = albedo * baseColorFactor;
@@ -213,6 +223,9 @@ void main() {
 
     vec3 ibl = getIBLContributions(reflect(-V, N), N, envDiffuseFactor, envSpecFactor, roughness, NdotV);
     outColor.rgb += ibl;
+
+    float ao = getAOContributions(mrno.w);
+    outColor.rgb *= ao;
 
     outColor.rgb += emissive.xyz;
 
