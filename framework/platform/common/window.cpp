@@ -289,13 +289,16 @@ void Window::removePollEvent(TickFunction* tickFunc) {
     }
 }
 
-bool getKeyPressedNative(Keyboard key) {
-    return keyMap[key].pressed;
-}
-
 Window::~Window() {
     if (_surface) {
         SDL_DestroyWindow(static_cast<SDL_Window*>(_surface));
     }
 }
 } // namespace raum::platform
+
+namespace raum::framework {
+bool getKeyPressedNative(Keyboard key) {
+    return platform::keyMap[key].pressed;
+}
+
+}
