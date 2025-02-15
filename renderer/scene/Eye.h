@@ -45,9 +45,9 @@ public:
 
     const Vec3f up() const;
 
-    const Mat4& inverseAttitude() const;
-
     void update();
+
+    const Mat4& inverseAttitude() const {return Mat4(1.0f);};
 
 private:
     Projection _projection{Projection::PERSPECTIVE};
@@ -58,7 +58,6 @@ private:
     Vec3f _up{0.0f, 1.0f, 0.0f};
     Quaternion _orientation{};
     Mat4 _attitude{1.0f};
-    Mat4 _attitudeInversed{1.0f};
     Mat4 _projectionMat{1.0f};
 };
 

@@ -22,7 +22,7 @@ void Eye::setPosition(float x, float y, float z) {
 void Eye::setOrientation(const raum::Quaternion& quat) {
     _orientation = quat;
     _up = quat * Vec3f{0.0f, 1.0f, 0.0f};
-    _forward = quat * _forward;
+    _forward = quat * Vec3f(0.0f, 0.0f, -1.0f);
 }
 
 void Eye::rotate(const Vec3f& axis, Degree degree) {
@@ -88,10 +88,6 @@ const Mat4& Eye::attitude() const {
     return _attitude;
 }
 
-const Mat4& Eye::inverseAttitude() const {
-    return _attitudeInversed;
-}
-
 const Mat4& Eye::projection() const {
     return _projectionMat;
 }
@@ -106,14 +102,12 @@ const Vec3f Eye::up() const {
 
 void Eye::setTransform(const Mat4& mat) {
     _attitude = mat;
-    _attitudeInversed = glm::inverse(_attitude);
 }
 
 void Eye::update() {
-    Mat4 rot(_orientation);
-    Mat4 trans(glm::translate(Mat4(1.0f), _position));
-    _attitude = trans * rot;
-    _attitudeInversed = glm::inverse(_attitude);
+    Mat4 rot(conjugate(_orientation));
+    Mat4 trans(glm::translate(Mat4(1.0f), -_position));
+    _attitude = rot * trans;
 }
 
 Eye::~Eye() {
