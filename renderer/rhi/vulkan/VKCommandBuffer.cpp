@@ -29,6 +29,10 @@ CommandBuffer::~CommandBuffer() {
     vkFreeCommandBuffers(_device->device(), _commandPool->commandPool(), 1, &_commandBuffer);
 }
 
+RHIRenderEncoder* CommandBuffer::makeRenderEncoder(RenderEncoderHint hint) {
+    return new RenderEncoder(this, hint);
+}
+
 RHIRenderEncoder* CommandBuffer::makeRenderEncoder() {
     return new RenderEncoder(this);
 }

@@ -26,20 +26,20 @@ public:
 
         auto width = _swapchain->width();
         auto height = _swapchain->height();
-        scene::PerspectiveFrustum frustum{45.0f, width / (float)height, 0.1f, 100.0};
+        scene::PerspectiveFrustum frustum{60.0f, width / (float)height, 1.f, 1000.0};
         _cam = std::make_shared<scene::Camera>(frustum);
 
         const auto& resourcePath = utils::resourceDirectory();
         auto& sceneGraph = _director->sceneGraph();
         asset::serialize::load(sceneGraph, resourcePath / "models" / "sponza" / "sponza.gltf", _device);
 
-        // auto& skybox = asset::BuiltinRes::skybox();
-        // graph::ModelNode& skyboxNode = sceneGraph.addModel("skybox");
-        // skyboxNode.model = skybox.model();
+        auto& skybox = asset::BuiltinRes::skybox();
+        graph::ModelNode& skyboxNode = sceneGraph.addModel("skybox");
+        skyboxNode.model = skybox.model();
         
 
         auto& eye = _cam->eye();
-        eye.setPosition(0.0, 0.0f, 20.0f);
+        eye.setPosition(0.0, 0.0f, 50.0f);
         eye.lookAt({0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f});
         eye.update();
 
@@ -62,7 +62,7 @@ public:
             front = glm::normalize(front);
             auto right = glm::cross(front, _cam->eye().up());
             right = glm::normalize(right);
-            float sensitivity = 0.1f;
+            float sensitivity = 1.1f;
             if (framework::keyPressed(framework::Keyboard::W)) {
                 _cam->eye().translate(front * Vec3f(sensitivity));
             }

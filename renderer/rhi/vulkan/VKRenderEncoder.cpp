@@ -17,6 +17,10 @@ RenderEncoder::RenderEncoder(CommandBuffer* commandBuffer)
 : _commandBuffer(commandBuffer) {
 }
 
+RenderEncoder::RenderEncoder(CommandBuffer* commandBuffer, RenderEncoderHint hint)
+: _commandBuffer(commandBuffer), _hint(hint) {
+}
+
 RenderEncoder::~RenderEncoder() {
 }
 
@@ -60,14 +64,21 @@ void RenderEncoder::bindPipeline(RHIGraphicsPipeline* pipeline) {
 void RenderEncoder::setViewport(const Viewport& viewport) {
     float y = viewport.rect.h - viewport.rect.y;
     float h = -static_cast<float>(viewport.rect.h);
+
     VkViewport vp{
-        static_cast<float>(viewport.rect.x), 
+        static_cast<float>(viewport.rect.x),
         y,
         static_cast<float>(viewport.rect.w),
         h,
         viewport.minDepth,
         viewport.maxDepth,
     };
+
+    if (test(_hint, RenderEncoderHint::NO_FLIP_Y)) [[unlikely]] {
+        vp.y = static_cast<float>(viewport.rect.y);
+        vp.height = static_cast<float>(viewport.rect.h);
+    }
+
     vkCmdSetViewport(_commandBuffer->commandBuffer(), 0, 1, &vp);
 }
 
@@ -164,6 +175,5 @@ void RenderEncoder::clearAttachment(uint32_t* attachmentIndices, uint32_t attach
     
     vkCmdClearAttachments(_commandBuffer->commandBuffer(), attachmentNum, attachments.data(), recNum, clearRects.data());
 }
-
 
 } // namespace raum::rhi

@@ -34,6 +34,9 @@
   }, {
     "name" : "sdl3",
     "version>=" : "3.1.6-preview"
+  }, {
+    "name" : "meshoptimizer",
+    "version>=" : "0.21"
   } ],
   "builtin-baseline" : "813a241fb83adad503a391facaa6aa634631accc"
 }
