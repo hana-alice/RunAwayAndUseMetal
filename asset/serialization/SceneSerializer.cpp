@@ -25,10 +25,11 @@ void loadTextures(std::vector<std::pair<std::string, scene::Texture>>& textures,
     for (const auto& res : rawModel.images) {
         rhi::ImageInfo info{};
         info.extent = {res.width, res.height, 1};
-        info.usage = rhi::ImageUsage::TRANSFER_DST | rhi::ImageUsage::SAMPLED;
+        info.usage = rhi::ImageUsage::TRANSFER_DST | rhi::ImageUsage::SAMPLED | rhi::ImageUsage::TRANSFER_SRC;
         raum_check(res.bits == 8, "image bits not supported");
         raum_check(res.component == 4, "image channel count not supported");
         info.format = rhi::Format::RGBA8_UNORM;
+        info.mipCount = std::floor(std::log2(std::min(res.width, res.height))) + 1;
         auto img = rhi::ImagePtr(device->createImage(info));
 
         rhi::ImageBarrierInfo barrierInfo{
@@ -69,12 +70,17 @@ void loadTextures(std::vector<std::pair<std::string, scene::Texture>>& textures,
                                        rhi::ImageLayout::TRANSFER_DST_OPTIMAL,
                                        &region,
                                        1);
-        barrierInfo.oldLayout = rhi::ImageLayout::TRANSFER_DST_OPTIMAL;
+
+        rhi::generateMipmaps(img, rhi::ImageLayout::TRANSFER_DST_OPTIMAL, cmdBuffer, device);
+
+        // genmipmap turn image layout to TRANSFER_SRC_OPTIMAL
+        barrierInfo.oldLayout = rhi::ImageLayout::TRANSFER_SRC_OPTIMAL;
         barrierInfo.newLayout = rhi::ImageLayout::SHADER_READ_ONLY_OPTIMAL;
         barrierInfo.srcAccessFlag = rhi::AccessFlags::TRANSFER_WRITE;
         barrierInfo.dstAccessFlag = rhi::AccessFlags::SHADER_READ;
         barrierInfo.srcStage = rhi::PipelineStage::TRANSFER;
         barrierInfo.dstStage = rhi::PipelineStage::VERTEX_SHADER;
+        barrierInfo.range.mipCount = info.mipCount;
         cmdBuffer->appendImageBarrier(barrierInfo);
         cmdBuffer->applyBarrier({});
 
@@ -85,9 +91,10 @@ void loadTextures(std::vector<std::pair<std::string, scene::Texture>>& textures,
         viewInfo.range = {
             .aspect = rhi::AspectMask::COLOR,
             .firstSlice = 0,
-            .sliceCount = 1,
+            .sliceCount = info.sliceCount,
             .firstMip = 0,
-            .mipCount = 1};
+            .mipCount = info.mipCount,
+        };
 
         auto imgView = rhi::ImageViewPtr(device->createImageView(viewInfo));
         textures.emplace_back(res.name, scene::Texture{img, imgView});
