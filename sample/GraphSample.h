@@ -25,7 +25,7 @@ public:
         _swapchain = _director->swapchain();
         const auto& resourcePath = utils::resourceDirectory();
         auto& sceneGraph = _director->sceneGraph();
-        asset::serialize::load(sceneGraph, resourcePath / "models" / "DamagedHelmet" / "DamagedHelmet.gltf", _device);
+        asset::serialize::load(sceneGraph, resourcePath / "models" / "sponza" / "sponza.gltf", _device);
 
         auto& skybox = asset::BuiltinRes::skybox();
         graph::ModelNode& skyboxNode = sceneGraph.addModel("skybox");
@@ -54,25 +54,27 @@ public:
         }
 
         // listeners
-        auto keyHandler = [&](framework::Keyboard key, framework::KeyboardType type) {
-            if (key != framework::Keyboard::OTHER && type == framework::KeyboardType::PRESS) {
-                auto front = _cam->eye().forward();
-                front = glm::normalize(front) * 0.1f;
-                auto right = glm::cross(front, _cam->eye().up());
-                right = glm::normalize(right) * 0.1f;
-                if (key == framework::Keyboard::W) {
-                    _cam->eye().translate(front);
-                } else if (key == framework::Keyboard::S) {
-                    _cam->eye().translate(-front);
-                } else if (key == framework::Keyboard::A) {
-                    _cam->eye().translate(-right);
-                } else if (key == framework::Keyboard::D) {
-                    _cam->eye().translate(right);
-                }
-                _cam->eye().update();
+        auto keyHandler = [&]() {
+            auto front = _cam->eye().forward();
+            front = glm::normalize(front);
+            auto right = glm::cross(front, _cam->eye().up());
+            right = glm::normalize(right);
+            float sensitivity = 10.1f;
+            if (framework::keyPressed(framework::Keyboard::W)) {
+                _cam->eye().translate(front * Vec3f(sensitivity));
             }
+            if (framework::keyPressed(framework::Keyboard::S)) {
+                _cam->eye().translate(-front * Vec3f(sensitivity));
+            }
+            if (framework::keyPressed(framework::Keyboard::A)) {
+                _cam->eye().translate(-right * Vec3f(sensitivity));
+            }
+            if (framework::keyPressed(framework::Keyboard::D)) {
+                _cam->eye().translate(right * Vec3f(sensitivity));
+            }
+            _cam->eye().update();
         };
-//        _keyListener.add(keyHandler);
+        _keyListener.add(keyHandler);
 
         static bool firstPress{true};
         static bool pressed{false};
@@ -80,13 +82,13 @@ public:
         static int32_t lastY = 0;
 
         auto mouseHandler = [&, width, height](float x, float y, framework::MouseButton btn, framework::ButtonStatus status) {
-            if(status == framework::ButtonStatus::RELEASE) {
+            if (status == framework::ButtonStatus::RELEASE) {
                 firstPress = true;
                 pressed = false;
-            } else if(status == framework::ButtonStatus::PRESS && btn != framework::MouseButton::OTHER) {
+            } else if (status == framework::ButtonStatus::PRESS && btn != framework::MouseButton::OTHER) {
                 pressed = true;
             }
-            if(pressed && firstPress) {
+            if (pressed && firstPress) {
                 firstPress = false;
                 lastX = x;
                 lastY = y;
@@ -95,27 +97,29 @@ public:
         _mouseBtnListener.add(mouseHandler);
 
         auto mouseMovehandler = [&](float x, float y, float deltaXIn, float deltaYIn) {
-
             if (!pressed) return;
-            static float curDeg = 0.0f;
+            static float curHDeg = 0.0f;
+            static float curVDeg = 0.0f;
             auto deltaX = x - lastX;
-            curDeg += deltaX * 0.1f;
-            auto radius = 4.0f;
-
-            auto curRad = curDeg / 180.0f * 3.141593f;
-            auto zpos = radius * cos(-curRad);
-            auto xpos = radius * sin(-curRad);
-
-            auto& eye = _cam->eye();
-            eye.setPosition(xpos, 0.0f,  zpos);
-            eye.lookAt({0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f});
-            eye.update();
+            auto deltaY = y - lastY;
             lastX = x;
             lastY = y;
+            curHDeg -= deltaX * 0.1f;
+            curVDeg -= deltaY * 0.1f;
+            auto curHRad = curHDeg / 180.0f * 3.141593f;
+            auto curVRad = curVDeg / 180.0f * 3.141593f;
 
-            if(curRad > 6.283186f) {
-                curRad -= 6.283186f;
-            }
+            glm::quat rotation(glm::angleAxis(curVRad, glm::vec3(1.0f, 0.0f, 0.0f)));
+            rotation = rotation * glm::angleAxis(curHRad, glm::vec3(0.0f, 1.0f, 0.0f));
+
+            Quaternion qx(Vec3f(curVRad, 0.0f, 0.0f));
+            Quaternion qy(Vec3f(0.0f, curHRad, 0.0f));
+
+            auto r = qx * qy;
+
+            auto& eye = _cam->eye();
+            eye.setOrientation(qy * qx);
+            eye.update();
         };
         _mouseMoveListener.add(mouseMovehandler);
     }

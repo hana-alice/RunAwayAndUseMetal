@@ -16,6 +16,8 @@ public:
 
     Eye& eye() { return _eye; }
 
+    const Eye& eye() const { return _eye; }
+
 private:
     Eye _eye;
 };

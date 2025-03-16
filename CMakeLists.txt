@@ -12,7 +12,9 @@ endif ()
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-set(CMAKE_AUTOMOC ON)
+#set(CMAKE_AUTOMOC ON)
+
+set(RAUM_DEFAULT_ASSET_DIR "${RAUM_DEFAULT_ASSET_DIR}")
 
 #add_compile_options(-fsanitize=address)
 #add_link_options(-fsanitize=address)
@@ -25,6 +27,7 @@ find_package(SDL3 CONFIG REQUIRED)
 set(dependency_dir ${CMAKE_CURRENT_SOURCE_DIR}/dependencies CACHE INTERNAL "dependency_dir")
 set(core_dir ${CMAKE_CURRENT_SOURCE_DIR}/core CACHE INTERNAL "core_dir")
 set(renderer_dir ${CMAKE_CURRENT_SOURCE_DIR}/renderer CACHE INTERNAL "renderer_dir")
+set(asset_dir ${CMAKE_CURRENT_SOURCE_DIR}/asset CACHE INTERNAL "asset_dir")
 
 # core
 find_package(spdlog CONFIG REQUIRED)
@@ -55,6 +58,7 @@ add_library(raum_core
         ${raum_thread_h}
         ${raum_thread_cpp}
 )
+
 target_include_directories(raum_core PUBLIC
         ./
 )
@@ -151,6 +155,7 @@ endforeach ()
 #asset
 find_package(Boost REQUIRED COMPONENTS graph json)
 find_package(stb REQUIRED)
+find_package(cereal CONFIG REQUIRED)
 find_path(TINYGLTF_INCLUDE_DIRS "tiny_gltf.h")
 
 file(GLOB_RECURSE raum_asset_loader_h ${CMAKE_CURRENT_LIST_DIR}/asset/loader/*.h)
@@ -185,6 +190,7 @@ target_include_directories(raum_asset PUBLIC
 )
 target_link_libraries(raum_asset PUBLIC
         Boost::json
+        cereal::cereal
         raum_core
         raum_renderer
 )
@@ -194,31 +200,35 @@ file(GLOB_RECURSE Sample
         ${CMAKE_CURRENT_SOURCE_DIR}/Sample/shadow/*.*
 )
 
-add_executable(raum_sample
-        ${Sample}
-)
+if (OFFLINE_TOOLS_MESHOPTIMIZER)
+    add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/tools/meshoptimize)
+else ()
+    add_executable(raum_sample
+            ${Sample}
+    )
 
-# if(WIN32)
-#     set_target_properties(raum_sample
-#     PROPERTIES 
-#         LINK_FLAGS_DEBUG "/SUBSYSTEM:WINDOWS /ENTRY:mainCRTStartup"
-#         LINK_FLAGS_RELEASE "/SUBSYSTEM:WINDOWS /ENTRY:mainCRTStartup"
-#         LINK_FLAGS_RELWITHDEBINFO "/SUBSYSTEM:WINDOWS /ENTRY:mainCRTStartup"
-#         LINK_FLAGS_MINSIZEREL "/SUBSYSTEM:WINDOWS /ENTRY:mainCRTStartup"
-#     )
-# endif(WIN32)
+    # if(WIN32)
+    #     set_target_properties(raum_sample
+    #     PROPERTIES
+    #         LINK_FLAGS_DEBUG "/SUBSYSTEM:WINDOWS /ENTRY:mainCRTStartup"
+    #         LINK_FLAGS_RELEASE "/SUBSYSTEM:WINDOWS /ENTRY:mainCRTStartup"
+    #         LINK_FLAGS_RELWITHDEBINFO "/SUBSYSTEM:WINDOWS /ENTRY:mainCRTStartup"
+    #         LINK_FLAGS_MINSIZEREL "/SUBSYSTEM:WINDOWS /ENTRY:mainCRTStartup"
+    #     )
+    # endif(WIN32)
+
+    add_definitions(-DRAUM_DEFAULT_ASSET_DIR="${RAUM_DEFAULT_ASSET_DIR}")
+    target_link_libraries(raum_sample PRIVATE
+            raum_renderer
+            raum_framework
+            raum_asset
+            raum_core
+    )
+
+    # set_target_properties(raum_sample PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
 
-target_link_libraries(raum_sample PRIVATE
-        raum_renderer
-        raum_framework
-        raum_asset
-        raum_core
-)
-
-# set_target_properties(raum_sample PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
-
-
-file(COPY asset/resources/files DESTINATION ${CMAKE_BINARY_DIR})
-#file(COPY framework/platform/windows/builds/qt6.conf DESTINATION ${CMAKE_BINARY_DIR})
-set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT raum_sample)
+    file(COPY asset/resources/files DESTINATION ${CMAKE_BINARY_DIR})
+    #file(COPY framework/platform/windows/builds/qt6.conf DESTINATION ${CMAKE_BINARY_DIR})
+    set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT raum_sample)
+endif ()

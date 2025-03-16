@@ -10,6 +10,9 @@ static std::filesystem::path resourceDirectory() {
     if (s_resourcePath.has_value()) {
         return s_resourcePath.value();
     } else {
+#if defined(RAUM_DEFAULT_ASSET_DIR)
+        return std::filesystem::path(RAUM_DEFAULT_ASSET_DIR) / "files";
+#endif //  defined(RAUM_DEFAULT_ASSET_DIR)
         // Debug/Release
         return std::filesystem::current_path() / "files";
     }

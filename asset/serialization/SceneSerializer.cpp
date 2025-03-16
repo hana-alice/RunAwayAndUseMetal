@@ -12,17 +12,36 @@
 #define TINYGLTF_IMPLEMENTATION
 #define STB_IMAGE_IMPLEMENTATION
 #define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "core/utils/utils.h"
 #include "tiny_gltf.h"
+
+#include "Archive.h"
 
 namespace raum::asset::serialize {
 
-void loadTextures(std::vector<std::pair<std::string, scene::Texture>>& textures,
+void loadTextures(const std::filesystem::path& cachePath,
+                  std::vector<std::pair<std::string, scene::Texture>>& textures,
                   const tinygltf::Model& rawModel,
                   rhi::CommandBufferPtr cmdBuffer,
                   rhi::DevicePtr device) {
+    auto texCachePath = cachePath / "textures";
     const auto& mats = rawModel.materials;
     auto blitEncoder = rhi::BlitEncoderPtr(cmdBuffer->makeBlitEncoder());
+    uint32_t count{0};
     for (const auto& res : rawModel.images) {
+        if (!std::filesystem::exists(texCachePath)) {
+            std::filesystem::create_directories(texCachePath);
+        }
+        
+        std::string resName = res.name;
+        if (resName.empty()) {
+            resName = std::to_string(count++);
+        }
+        auto imgPath = texCachePath / resName;
+        imgPath.replace_extension(".bin");
+        OutputArchive ar(imgPath);
+        ar << res.image;
+
         rhi::ImageInfo info{};
         info.extent = {res.width, res.height, 1};
         info.usage = rhi::ImageUsage::TRANSFER_DST | rhi::ImageUsage::SAMPLED | rhi::ImageUsage::TRANSFER_SRC;
@@ -278,14 +297,18 @@ void applyNodeTransform(const tinygltf::Node& rawNode, graph::SceneNode& node) {
     node.node.update();
 }
 
-void loadMesh(const tinygltf::Model& rawModel,
-              uint32_t nodeIndex,
-              graph::SceneGraph& sg,
-              std::string_view parentName,
-              std::map<int, scene::TechniquePtr>& techs,
-              std::vector<std::pair<std::string, scene::Texture>>& textures,
-              rhi::CommandBufferPtr cmdBuffer,
-              rhi::DevicePtr device) {
+void loadMesh(
+    const std::filesystem::path& cachePath,
+    const tinygltf::Model& rawModel,
+    uint32_t nodeIndex,
+    graph::SceneGraph& sg,
+    std::string_view parentName,
+    std::map<int, scene::TechniquePtr>& techs,
+    std::vector<std::pair<std::string, scene::Texture>>& textures,
+    rhi::CommandBufferPtr cmdBuffer,
+    rhi::DevicePtr device) {
+    auto meshCachePath = cachePath / std::to_string(nodeIndex);
+
     const auto& rawNode = rawModel.nodes[nodeIndex];
     const auto& rawMesh = rawModel.meshes[rawNode.mesh];
     auto& modelNode = sg.addModel(rawMesh.name, parentName);
@@ -549,7 +572,8 @@ void loadLights(const tinygltf::Model& rawModel, uint32_t index, graph::SceneGra
 void loadEmpty(const tinygltf::Model& rawModel, uint32_t index, graph::SceneGraph& sg, std::string_view parentName) {
 }
 
-void loadScene(graph::SceneGraph& sg,
+void loadScene(const std::filesystem::path& cachePath,
+               graph::SceneGraph& sg,
                const tinygltf::Model& rawModel,
                uint32_t index,
                rhi::CommandBufferPtr cmdBuffer,
@@ -559,7 +583,7 @@ void loadScene(graph::SceneGraph& sg,
     auto& root = sg.addEmpty(scene.name);
 
     std::vector<std::pair<std::string, scene::Texture>> textures;
-    loadTextures(textures, rawModel, cmdBuffer, device);
+    loadTextures(cachePath, textures, rawModel, cmdBuffer, device);
     std::map<int32_t, scene::TechniquePtr> techniques;
 
     std::function<void(uint32_t, uint32_t)> loadNodes;
@@ -572,7 +596,7 @@ void loadScene(graph::SceneGraph& sg,
             parentName = rawModel.nodes[parent].name;
         }
         if (node.mesh != -1) {
-            loadMesh(rawModel, nodeIndex, sg, parentName, techniques, textures, cmdBuffer, device);
+            loadMesh(cachePath, rawModel, nodeIndex, sg, parentName, techniques, textures, cmdBuffer, device);
         } else if (node.light != -1) {
             loadLights(rawModel, node.light, sg, parentName);
         } else if (node.camera != -1) {
@@ -612,7 +636,9 @@ void load(graph::SceneGraph& sg, const std::filesystem::path& filePath, rhi::Dev
     commandBuffer->enqueue(queue);
     commandBuffer->begin({});
 
-    loadScene(sg, rawModel, rawModel.defaultScene, commandBuffer, device);
+    std::filesystem::path cachePath = raum::utils::resourceDirectory() / "cache";
+    auto hash = std::hash<std::filesystem::path>{}(filePath);
+    loadScene(cachePath, sg, rawModel, rawModel.defaultScene, commandBuffer, device);
 
     commandBuffer->commit();
     queue->submit(false);
@@ -638,9 +664,11 @@ void load(graph::SceneGraph& sg, const std::filesystem::path& filePath, std::str
     commandBuffer->enqueue(queue);
     commandBuffer->begin({});
 
+    std::filesystem::path cachePath = raum::utils::resourceDirectory() / "cache";
+    auto hash = std::hash<std::filesystem::path>{}(filePath);
     for (const auto& s : rawModel.scenes) {
         if (s.name == sceneName) {
-            loadScene(sg, rawModel, &s - &rawModel.scenes[0], commandBuffer, device);
+            loadScene(cachePath, sg, rawModel, &s - &rawModel.scenes[0], commandBuffer, device);
             break;
         }
     }

@@ -8,6 +8,7 @@
 #include "common.h"
 #include "shadow/ContactShadow.h"
 #include "shadow/ShadowMap.h"
+#include "BistroSample.h"
 
 namespace raum {
 using platform::Window;
@@ -41,9 +42,10 @@ public:
 
         _samples = {
             // std::make_shared<sample::GraphSample>(&_world->director()),
+            std::make_shared<sample::BistroSample>(&_world->director()),
             // std::make_shared<sample::VirtualTextureSample>(&_world->director()),
             // std::make_shared<sample::ShadowMapSample>(&_world->director()),
-            std::make_shared<sample::ContactShadowSample>(&_world->director()),
+            // std::make_shared<sample::ContactShadowSample>(&_world->director()),
 
         };
         _inited.resize(_samples.size(), 0);
