@@ -254,11 +254,11 @@ void InputArchive::read(graph::SceneGraph& sg) {
 }
 
 OutputArchive::OutputArchive(const std::filesystem::path& filePath) {
-    os = std::ofstream(filePath.string(), std::ios::binary);
+    os = std::ofstream(filePath.string(), std::ios::binary | std::ios::trunc);
     oarchive = std::make_shared<cereal::BinaryOutputArchive>(os);
 }
 
-void OutputArchive::write(graph::SceneGraph& sg) {
+void OutputArchive::write(const graph::SceneGraph& sg) {
     const auto& graph = sg.impl();
     auto& ar = *oarchive;
     ar << boost::num_vertices(graph);
@@ -275,5 +275,11 @@ void OutputArchive::write(graph::SceneGraph& sg) {
         ar(e.m_source, e.m_target);
     }
 }
+
+void OutputArchive::write(const uint8_t* data, uint32_t size) {
+    auto& ar = *oarchive;
+    ar << cereal::binary_data(data, size);
+}
+
 
 } // namespace raum::asset::serialize

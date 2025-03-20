@@ -30,6 +30,8 @@ public:
 
     void read(graph::SceneGraph& arg);
 
+    void read(const uint8_t* data, size_t size);
+
 private:
     std::shared_ptr<cereal::BinaryInputArchive> iarchive;
     std::ifstream is;
@@ -41,8 +43,8 @@ public:
     explicit OutputArchive(const std::filesystem::path& filePath);
 
     template <typename T>
-    OutputArchive& operator<<(T&& arg) {
-        (*oarchive)(std::forward<T>(arg));
+    OutputArchive& operator<<(const T& arg) {
+        (*oarchive)(arg);
         return *this;
     }
 
@@ -52,17 +54,18 @@ public:
     }
 
     template <>
-    OutputArchive& operator<<(graph::SceneGraph& arg) {
+    OutputArchive& operator<<(const graph::SceneGraph& arg) {
         write(arg);
     }
 
     template <>
-    OutputArchive& operator<<(scene::Mesh& arg) {
+    OutputArchive& operator<<(const scene::Mesh& arg) {
         write(arg);
     }
 
-    void write(graph::SceneGraph& arg);
-    void write(scene::Mesh& arg);
+    void write(const graph::SceneGraph& arg);
+    void write(const uint8_t* data, uint32_t size);
+    void write(const scene::Mesh& arg);
 
 private:
     std::shared_ptr<cereal::BinaryOutputArchive> oarchive;
