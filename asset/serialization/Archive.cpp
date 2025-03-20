@@ -197,6 +197,9 @@ using boost::vertices;
 
 InputArchive::InputArchive(const std::filesystem::path& filePath) {
     is = std::ifstream(filePath.string(), std::ios::binary);
+    if (!is) {
+        raum_error("Could not find file: %s", filePath.string());
+    }
     iarchive = std::make_shared<cereal::BinaryInputArchive>(is);
 }
 
@@ -255,6 +258,9 @@ void InputArchive::read(graph::SceneGraph& sg) {
 
 OutputArchive::OutputArchive(const std::filesystem::path& filePath) {
     os = std::ofstream(filePath.string(), std::ios::binary | std::ios::trunc);
+    if (!os) {
+        raum_error("Failed to open file: %s", filePath.string());
+    }
     oarchive = std::make_shared<cereal::BinaryOutputArchive>(os);
 }
 

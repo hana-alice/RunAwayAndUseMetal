@@ -432,12 +432,12 @@ void loadMesh(
     const auto& rawBufferViews = rawModel.bufferViews;
 
     std::filesystem::path resPath = cachePath / "mesh" / meshName;
+    resPath.make_preferred();
     resPath.replace_extension(".mesh");
-    OutputArchive ar(resPath);
-
     if (!std::filesystem::exists(resPath.parent_path())) {
         std::filesystem::create_directories(resPath.parent_path());
     }
+    OutputArchive ar(resPath);
     ar << scale;
     ar << rot;
     ar << trans;
