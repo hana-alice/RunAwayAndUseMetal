@@ -3,20 +3,39 @@
     "configurePresets": [
         {
             "name": "debug",
+            "binaryDir": "${sourceDir}/build/",
+            "installDir": "${sourceDir}/build/",
+            "cacheVariables": {
+                "CMAKE_TOOLCHAIN_FILE": "vcpkg/scripts/buildsystems/vcpkg.cmake",
+                "VCPKG_MANIFEST_INSTALL": "ON",
+                "CMAKE_RUNTIME_OUTPUT_DIRECTORY": "${sourceDir}/build/",
+                "CMAKE_BUILD_TYPE": "Debug",
+                "RAUM_DEFAULT_ASSET_DIR":  "${sourceDir}/build/"
+            }
+        },
+        {
+            "name": "offline_tools_meshoptimizer_config",
             "binaryDir": "${sourceDir}/build",
             "installDir": "${sourceDir}/build",
             "cacheVariables": {
                 "CMAKE_TOOLCHAIN_FILE": "vcpkg/scripts/buildsystems/vcpkg.cmake",
-                "VCPKG_MANIFEST_INSTALL": "OFF"
+                "VCPKG_MANIFEST_INSTALL": "OFF",
+                "OFFLINE_TOOLS_MESHOPTIMIZER": "OFF"
             }
         }
     ],
     "buildPresets": [
         {
-            "name": "debug",
-            "description": "",
-            "displayName": "",
+            "name": "name_debug",
+            "description": "desc_debug",
+            "displayName": "display_debug",
             "configurePreset": "debug"
+        },
+        {
+            "name": "name_offline_tools",
+            "description": "desc_tools",
+            "displayName": "display_tools",
+            "configurePreset": "offline_tools_meshoptimizer_config"
         }
     ]
 }

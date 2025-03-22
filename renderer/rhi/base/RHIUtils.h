@@ -382,5 +382,6 @@ ImageViewPtr createDefaultView(ImagePtr image, DevicePtr device);
 
 bool isSparse(RHIImage* img);
 
+void generateMipmaps(ImagePtr image, ImageLayout oldLayout, CommandBufferPtr cmdBuffer, DevicePtr device);
 
 } // namespace raum::rhi

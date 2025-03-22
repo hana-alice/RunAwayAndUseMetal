@@ -1,6 +1,7 @@
 #pragma once
 #include "BuiltinRes.h"
 #include "Camera.h"
+#include "Director.h"
 #include "GraphScheduler.h"
 #include "KeyboardEvent.h"
 #include "Mesh.h"
@@ -13,16 +14,21 @@
 #include "common.h"
 #include "core/utils/utils.h"
 #include "math.h"
-#include "Director.h"
 namespace raum::sample {
-class GraphSample : public SampleBase {
+class BistroSample : public SampleBase {
 public:
-    explicit GraphSample(framework::Director* director) : _ppl(director->pipeline()), _director(director) {}
+    explicit BistroSample(framework::Director* director) : _ppl(director->pipeline()), _director(director) {}
 
     void init() override {
         // load scene from gltf
         _device = _director->device();
         _swapchain = _director->swapchain();
+
+        auto width = _swapchain->width();
+        auto height = _swapchain->height();
+        scene::PerspectiveFrustum frustum{60.0f, width / (float)height, 1.f, 1000.0};
+        _cam = std::make_shared<scene::Camera>(frustum);
+
         const auto& resourcePath = utils::resourceDirectory();
         auto& sceneGraph = _director->sceneGraph();
         asset::serialize::load(sceneGraph, resourcePath / "models" / "sponza" / "sponza.gltf", _device);
@@ -30,13 +36,10 @@ public:
         auto& skybox = asset::BuiltinRes::skybox();
         graph::ModelNode& skyboxNode = sceneGraph.addModel("skybox");
         skyboxNode.model = skybox.model();
+        
 
-        auto width = _swapchain->width();
-        auto height = _swapchain->height();
-        scene::PerspectiveFrustum frustum{45.0f, width / (float)height, 0.01f, 10.0f};
-        _cam = std::make_shared<scene::Camera>(frustum);
         auto& eye = _cam->eye();
-        eye.setPosition(0.0, 0.0f, 4.0);
+        eye.setPosition(0.0, 0.0f, 50.0f);
         eye.lookAt({0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f});
         eye.update();
 
@@ -59,7 +62,7 @@ public:
             front = glm::normalize(front);
             auto right = glm::cross(front, _cam->eye().up());
             right = glm::normalize(right);
-            float sensitivity = 10.1f;
+            float sensitivity = 1.1f;
             if (framework::keyPressed(framework::Keyboard::W)) {
                 _cam->eye().translate(front * Vec3f(sensitivity));
             }
@@ -124,7 +127,7 @@ public:
         _mouseMoveListener.add(mouseMovehandler);
     }
 
-    ~GraphSample() {
+    ~BistroSample() {
         _keyListener.remove();
         _mouseBtnListener.remove();
         _mouseMoveListener.remove();
@@ -137,7 +140,12 @@ public:
         _ppl->resourceGraph().updateImage("forwardDS", _swapchain->width(), _swapchain->height());
 
         auto& eye = _cam->eye();
+        auto p = eye.getPosition();
+        auto r = eye.getOrientation();
+        auto mm = glm::toMat4(r) * glm::translate(glm::mat4(1.0f), -p);
+
         auto viewMat = eye.attitude();
+
         uploadPass.uploadBuffer(&viewMat[0], 64, _camBuffer, 0);
         const auto& projMat = eye.projection();
         uploadPass.uploadBuffer(&projMat[0], 64, _camBuffer, 64);
@@ -188,7 +196,7 @@ private:
     const std::string _camPose = "camPose";
     const std::string _light = "light";
 
-    const std::string _name = "GraphSample";
+    const std::string _name = "BistroSample";
 
     framework::EventListener<framework::KeyboardEventTag> _keyListener;
     framework::EventListener<framework::MouseButtonEventTag> _mouseBtnListener;

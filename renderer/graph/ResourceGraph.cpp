@@ -271,7 +271,7 @@ struct UnmountVisitor : public boost::dfs_visitor<> {
 };
 
 void ResourceGraph::unmount(std::string_view name, uint64_t life) {
-    const auto& v = *find_vertex(name.data(), _graph);
+    const auto& v = *find_vertex(name, _graph);
     auto& resource = _graph[v];
     if (resource.life < life) {
         auto indexMap = boost::get(boost::vertex_index, _graph);

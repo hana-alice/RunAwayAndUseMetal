@@ -7,6 +7,7 @@ class GraphicsPipeline;
 class RenderPass;
 class RenderEncoder : public RHIRenderEncoder {
 public:
+    explicit RenderEncoder(CommandBuffer* commandBuffer, RenderEncoderHint hint);
     explicit RenderEncoder(CommandBuffer* commandBuffer);
     RenderEncoder(const RenderEncoder&) = delete;
     RenderEncoder& operator=(const RenderEncoder&) = delete;
@@ -40,6 +41,7 @@ private:
     CommandBuffer* _commandBuffer{nullptr};
     GraphicsPipeline* _graphicsPipeline{nullptr};
     RenderPass* _renderPass{nullptr};
+    RenderEncoderHint _hint{RenderEncoderHint::NONE};
 };
 
 } // namespace raum::rhi

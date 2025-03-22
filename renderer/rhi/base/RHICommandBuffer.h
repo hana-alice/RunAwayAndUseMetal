@@ -12,6 +12,7 @@ class RHICommandBuffer: public RHIResource  {
 public:
     virtual ~RHICommandBuffer() = 0;
 
+    virtual RHIRenderEncoder* makeRenderEncoder(RenderEncoderHint hint) = 0;
     virtual RHIRenderEncoder* makeRenderEncoder() = 0;
     virtual RHIBlitEncoder* makeBlitEncoder() = 0;
     virtual RHIComputeEncoder* makeComputeEncoder() = 0;

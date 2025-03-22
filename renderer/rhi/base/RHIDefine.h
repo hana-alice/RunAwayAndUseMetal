@@ -1243,4 +1243,10 @@ struct StagingBufferInfo {
     uint32_t size{0};
 };
 
+enum class RenderEncoderHint : uint8_t {
+    NONE,
+    NO_FLIP_Y,
+};
+OPERABLE(RenderEncoderHint)
+
 }; // namespace raum::rhi

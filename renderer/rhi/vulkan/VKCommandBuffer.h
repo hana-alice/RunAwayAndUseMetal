@@ -18,6 +18,7 @@ public:
 
     explicit CommandBuffer(const CommandBufferInfo& info, CommandPool*cmdPool, RHIDevice* device);
 
+    RHIRenderEncoder* makeRenderEncoder(RenderEncoderHint hint) override;
     RHIRenderEncoder* makeRenderEncoder() override;
     RHIBlitEncoder* makeBlitEncoder() override;
     RHIComputeEncoder* makeComputeEncoder() override;

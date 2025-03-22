@@ -54,6 +54,8 @@ using SceneGraphImpl = boost::adjacency_list<boost::vecS, boost::vecS, boost::di
 
 class SceneGraph {
 public:
+    using VertexType = SceneGraphImpl::vertex_descriptor;
+
     SceneGraph() = default;
     SceneGraph(const SceneGraph&) = delete;
     SceneGraph& operator=(const SceneGraph&) = delete;
@@ -74,19 +76,14 @@ public:
     void enable(std::string_view name);
     void disable(std::string_view name);
 
-    SceneNode& sceneRoot();
+    void reset() {};
 
-    void reset();
+    SceneGraphImpl& impl() { return _graph; }
 
     const SceneGraphImpl& impl() const { return _graph; }
 
-    // deprecated future
-    void updateModel(rhi::CommandBufferPtr cmdBuffer);
-
-
 private:
     SceneGraphImpl _graph;
-    uint32_t _root{0};
 };
 
 using SceneGraphPtr = std::shared_ptr<SceneGraph>;

@@ -40,7 +40,6 @@ constexpr auto fragSource = R"(
         vec2 uv = vec2(atan(v.z, v.x), asin(v.y));
         uv *= invAtan;
         uv += 0.5;
-        uv.y = 1.0 - uv.y;
         return uv;
     }
 
@@ -234,7 +233,7 @@ auto renderCube(rhi::ImagePtr cubeImage,
         glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f)),
         glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, -1.0f, 0.0f), glm::vec3(0.0f, 0.0f, -1.0f)),
         glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f), glm::vec3(0.0f, -1.0f, 0.0f)),
-        glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, -1.0f), glm::vec3(0.0f, -1.0f, 0.0f)), 
+        glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, -1.0f), glm::vec3(0.0f, -1.0f, 0.0f)),
     };
     uint32_t len = static_cast<uint32_t>(resolution * pow(0.5, mipLevel));
     for (uint32_t i = 0; i < 6; ++i) {
@@ -263,7 +262,7 @@ auto renderCube(rhi::ImagePtr cubeImage,
 
     auto captureProjection = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 10.0f);
 
-    auto renderEncoder = rhi::RenderEncoderPtr(cmdBuffer->makeRenderEncoder());
+    auto renderEncoder = rhi::RenderEncoderPtr(cmdBuffer->makeRenderEncoder(rhi::RenderEncoderHint::NO_FLIP_Y));
     rhi::ClearValue clear = {1.0f, 1.0f, 1.0f, 1.0f};
     rhi::Rect2D rect{0, 0, len, len};
     for (uint32_t i = 0; i < 6; ++i) {
@@ -606,7 +605,7 @@ void prefilterSpecular(rhi::ImagePtr& specular,
 
     std::vector<std::vector<rhi::ImageViewPtr>> views;
     std::vector<std::vector<rhi::FrameBufferPtr>> frameBuffers;
-    for(size_t i = 0; i < 8; ++i) {
+    for (size_t i = 0; i < 8; ++i) {
         float roughness = 1.0f / 7 * i;
         auto [vs, fbs] = renderCube(specular, 128, i, pso, descSet0, descSet, &roughness, 4, renderPass, cmdBuffer, device);
         views.emplace_back(vs);
@@ -694,9 +693,9 @@ void Skybox::init(scene::MeshRendererPtr meshRenderer, rhi::CommandBufferPtr cmd
     ds.depthCompareOp = rhi::CompareOp::LESS_OR_EQUAL;
     auto& bs = skyboxTech->blendInfo();
     bs.attachmentBlends.emplace_back();
-    //auto& rs = skyboxTech->rasterizationInfo();
-    //rs.frontFace = rhi::FrontFace::COUNTER_CLOCKWISE;
-    //rs.cullMode = rhi::FaceMode::BACK;
+    // auto& rs = skyboxTech->rasterizationInfo();
+    // rs.frontFace = rhi::FrontFace::COUNTER_CLOCKWISE;
+    // rs.cullMode = rhi::FaceMode::BACK;
 
     meshRenderer->addTechnique(skyboxTech);
     meshRenderer->setVertexInfo(0, 36, 0);
