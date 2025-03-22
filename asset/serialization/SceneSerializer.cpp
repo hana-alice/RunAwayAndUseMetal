@@ -1148,8 +1148,8 @@ void loadFromCache(graph::SceneGraph& sg, const std::filesystem::path& cachePath
 void load(graph::SceneGraph& sg, const std::filesystem::path& filePath, rhi::DevicePtr device) {
     std::filesystem::path cachePath = raum::utils::resourceDirectory() / "cache" / filePath.stem();
     if (std::filesystem::exists(cachePath)) {
-        //loadFromFile(sg, filePath, device);
-        loadFromCache(sg, cachePath, device);
+        loadFromFile(sg, filePath, device);
+        //loadFromCache(sg, cachePath, device);
     } else {
         loadFromFile(sg, filePath, device);
     }

@@ -250,7 +250,7 @@ public:
         auto& eye = _cam->eye();
         Mat4 modelMat = Mat4(1.0f);
         uploadPass.uploadBuffer(&modelMat[0], 64, _mvp, 0);
-        auto viewMat = eye.inverseAttitude();
+        auto viewMat = eye.attitude();
         uploadPass.uploadBuffer(&viewMat[0], 64, _mvp, 64);
         const auto& projMat = eye.projection();
         uploadPass.uploadBuffer(&projMat[0], 64, _mvp, 128);

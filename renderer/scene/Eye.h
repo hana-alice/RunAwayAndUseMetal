@@ -47,8 +47,6 @@ public:
 
     void update();
 
-    const Mat4& inverseAttitude() const {return Mat4(1.0f);};
-
 private:
     Projection _projection{Projection::PERSPECTIVE};
     PerspectiveFrustum _perspectiveFrustum{};

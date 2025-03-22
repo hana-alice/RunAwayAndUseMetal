@@ -108,7 +108,7 @@ public:
         {
             auto uploadPass = renderGraph.addCopyPass("shadowCamUpdate");
             auto& shadowEye = _shadowCam->eye();
-            const auto& shadowViewMat = shadowEye.inverseAttitude();
+            const auto& shadowViewMat = shadowEye.attitude();
             uploadPass.uploadBuffer(&shadowViewMat[0], 64, _shadowVPBuffer, 0);
             const auto& shadowProjMat = shadowEye.projection();
             uploadPass.uploadBuffer(&shadowProjMat[0], 64, _shadowVPBuffer, 64);
@@ -131,7 +131,7 @@ public:
         {
             auto uploadPass = renderGraph.addCopyPass("cambufferUpdate");
             auto& eye = _cam->eye();
-            auto viewMat = eye.inverseAttitude();
+            auto viewMat = eye.attitude();
             uploadPass.uploadBuffer(&viewMat[0], 64, _camBuffer, 0);
             const auto& projMat = eye.projection();
             uploadPass.uploadBuffer(&projMat[0], 64, _camBuffer, 64);

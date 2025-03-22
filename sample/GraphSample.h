@@ -137,7 +137,7 @@ public:
         _ppl->resourceGraph().updateImage("forwardDS", _swapchain->width(), _swapchain->height());
 
         auto& eye = _cam->eye();
-        auto viewMat = eye.inverseAttitude();
+        auto viewMat = eye.attitude();
         uploadPass.uploadBuffer(&viewMat[0], 64, _camBuffer, 0);
         const auto& projMat = eye.projection();
         uploadPass.uploadBuffer(&projMat[0], 64, _camBuffer, 64);
