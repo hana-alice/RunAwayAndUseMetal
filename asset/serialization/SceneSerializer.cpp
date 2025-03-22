@@ -797,11 +797,10 @@ void loadTexturesFromCache(
         files.emplace_back(entry.path());
     }
 
-    std::ranges::sort(files, [](const std::filesystem::path& lhs, const std::filesystem::path rhs ) {
+    std::ranges::sort(files, [](const std::filesystem::path& lhs, const std::filesystem::path rhs) {
         return std::stoi(lhs.filename().stem()) < std::stoi(rhs.filename().stem());
-        });
-    for (auto& entry : files)
-    {
+    });
+    for (auto& entry : files) {
         std::string texName = entry.filename().string();
         std::string texIndex = texName.substr(0, texName.find_last_of('.'));
         InputArchive ar(entry);
@@ -1139,7 +1138,7 @@ void loadFromCache(graph::SceneGraph& sg, const std::filesystem::path& cachePath
     commandBuffer->enqueue(queue);
     commandBuffer->begin({});
 
-    loadSceneFromCache(cachePath, sg, commandBuffer,device);
+    loadSceneFromCache(cachePath, sg, commandBuffer, device);
 
     commandBuffer->commit();
     queue->submit(false);
@@ -1148,8 +1147,7 @@ void loadFromCache(graph::SceneGraph& sg, const std::filesystem::path& cachePath
 void load(graph::SceneGraph& sg, const std::filesystem::path& filePath, rhi::DevicePtr device) {
     std::filesystem::path cachePath = raum::utils::resourceDirectory() / "cache" / filePath.stem();
     if (std::filesystem::exists(cachePath)) {
-        loadFromFile(sg, filePath, device);
-        //loadFromCache(sg, cachePath, device);
+        loadFromCache(sg, cachePath, device);
     } else {
         loadFromFile(sg, filePath, device);
     }
