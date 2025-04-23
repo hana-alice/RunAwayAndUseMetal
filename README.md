@@ -19,10 +19,7 @@ For the first time, you may need to set `VCPKG_MANIFEST_INSTALL` to `ON` in `CMa
 ![pcf_shadowmap](./sample/shadow/WithContactShadow.png)
 
 ### What is going on:
-1. Seperate rendering thread for Editor(Human :,)
-2. Bistro
-3. SSAO - GTAO
-4. Soft shadow
+- raytracing pass
 
 TODO:
  - [ ] InputSystem
