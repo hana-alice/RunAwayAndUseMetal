@@ -32,7 +32,7 @@ set(asset_dir ${CMAKE_CURRENT_SOURCE_DIR}/asset CACHE INTERNAL "asset_dir")
 # core
 find_package(spdlog CONFIG REQUIRED)
 
-add_definitions(-DGLM_ENABLE_EXPERIMENTAL -DGLM_FORCE_DEPTH_ZERO_TO_ONE)
+add_definitions(-DGLM_ENABLE_EXPERIMENTAL -DGLM_FORCE_DEPTH_ZERO_TO_ONE -DGLM_FORCE_LEFT_HANDED)
 find_package(glm CONFIG REQUIRED)
 
 file(GLOB_RECURSE raum_utils_h ${CMAKE_CURRENT_LIST_DIR}/core/utils/*.h)

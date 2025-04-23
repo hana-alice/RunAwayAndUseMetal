@@ -60,8 +60,6 @@ rhi::RenderPassPtr getOrCreateRenderPass(const RenderGraph::VertexType v, Access
     return nullptr;
 }
 
-
-
 rhi::FrameBufferPtr getOrCreateFrameBuffer(
     rhi::RenderPassPtr renderpass,
     const RenderGraph::VertexType v,
@@ -69,7 +67,6 @@ rhi::FrameBufferPtr getOrCreateFrameBuffer(
     ResourceGraph& resg,
     rhi::DevicePtr device,
     rhi::SwapchainPtr swapchain) {
-
     static FrameBufferManager fbManager(device.get(), swapchain.get());
 
     auto* framebufferInfo = ag.getFrameBufferInfo(v);
@@ -78,7 +75,7 @@ rhi::FrameBufferPtr getOrCreateFrameBuffer(
         auto& rhiFbInfo = framebufferInfo->info;
         rhiFbInfo.images.resize(framebufferInfo->images.size());
         rhiFbInfo.renderPass = renderpass.get();
-        for(size_t i = 0; i < framebufferInfo->images.size(); ++i) {
+        for (size_t i = 0; i < framebufferInfo->images.size(); ++i) {
             auto resName = framebufferInfo->images[i];
             auto imgView = resg.getImageView(resName);
             rhiFbInfo.images[i] = imgView.get();
@@ -114,8 +111,21 @@ rhi::PipelineLayoutPtr getOrCreatePipelineLayout(const rhi::PipelineLayoutInfo& 
     return _pplLayoutMap.at(seed);
 }
 
-bool culling(const ModelNode& node) {
-    return true;
+bool culled(const scene::Mesh& mesh, const SceneGraph& sg) {
+    bool culled = false;
+
+    const auto& graph = sg.impl();
+    // todo: Traits camera only.
+    for (auto v : boost::make_iterator_range(boost::vertices(graph))) {
+        if (std::holds_alternative<CameraNode>(graph[v].sceneNodeData)) {
+            const auto& camNode = std::get<CameraNode>(graph[v].sceneNodeData);
+            auto cam = camNode.camera;
+            if (cam->cullingEnabled()) {
+                culled |= !scene::frustumCulling(cam->frustumPlanes(), mesh.aabb());
+            }
+        }
+    }
+    return culled;
 }
 
 void collectRenderables(std::vector<scene::RenderablePtr>& renderables, const SceneGraph& sg, bool enableCullling) {
@@ -123,9 +133,11 @@ void collectRenderables(std::vector<scene::RenderablePtr>& renderables, const Sc
     for (auto v : boost::make_iterator_range(boost::vertices(graph))) {
         if (std::holds_alternative<ModelNode>(graph[v].sceneNodeData)) {
             const auto& modelNode = std::get<ModelNode>(graph[v].sceneNodeData);
-            if ((culling(modelNode) || !enableCullling) && graph[v].node.enabled()) {
+            if (graph[v].node.enabled()) {
                 for (auto& meshRenderer : modelNode.model->meshRenderers()) {
-                    renderables.emplace_back(meshRenderer);
+                    if (!enableCullling || test(modelNode.hint, ModelHint::NO_CULLING) || !culled(*meshRenderer->mesh(), sg)) {
+                        renderables.emplace_back(meshRenderer);
+                    }
                 }
             }
         }
@@ -140,6 +152,5 @@ std::string_view getPhaseName(std::string_view queueName) {
         return {};
     }
 }
-
 
 } // namespace raum::graph

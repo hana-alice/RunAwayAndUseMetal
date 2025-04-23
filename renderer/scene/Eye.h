@@ -15,19 +15,15 @@ public:
 
     void setTransform(const Mat4& mat);
 
-    void rotate(const Vec3f& axis, Degree degree);
+    void rotate(const Vec3f& axis, utils::Degree degree);
 
-    void rotate(const Vec3f& axis, Radian radian);
+    void rotate(const Vec3f& axis, utils::Radian radian);
 
     void translate(const Vec3f& delta);
 
     void translate(float x, float y, float z);
 
     void lookAt(const Vec3f& pos, const Vec3f& up);
-
-    void setFrustum(const PerspectiveFrustum& frustum);
-
-    void setFrustum(const OrthoFrustum& frustum);
 
     const PerspectiveFrustum& getPerspectiveFrustum() const;
 
@@ -45,10 +41,15 @@ public:
 
     const Vec3f up() const;
 
-    void update();
+    bool update();
+
+    Projection projectionType() const;
+
+    static constexpr Vec3f InitialUp{0.0f, 1.0f, 0.0f};
+    static constexpr Vec3f InitialForward{0.0f, 0.0f, 1.0f};
 
 private:
-    Projection _projection{Projection::PERSPECTIVE};
+    Projection _projectionType{Projection::PERSPECTIVE};
     PerspectiveFrustum _perspectiveFrustum{};
     OrthoFrustum _orthoFrustum{};
     Vec3f _position{0.0f};
@@ -57,6 +58,7 @@ private:
     Quaternion _orientation{};
     Mat4 _attitude{1.0f};
     Mat4 _projectionMat{1.0f};
+    bool _dirty{false};
 };
 
 } // namespace raum::scene

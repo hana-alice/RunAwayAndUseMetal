@@ -33,6 +33,12 @@ void serialize(Archive& ar, raum::rhi::VertexLayout& rhiVertexLayout) {
     ar(rhiVertexLayout.vertexAttrs);
     ar(rhiVertexLayout.vertexBufferAttrs);
 }
+
+template <class Archive>
+void serialize(Archive& ar, raum::scene::AABB& aabb) {
+    ar(aabb.minBound, aabb.maxBound);
+}
+
 } // namespace cereal
 
 namespace raum::asset::serialize {
@@ -443,6 +449,10 @@ void loadMesh(
     ar << trans;
     ar << rawMesh.primitives.size();
 
+    scene::AABB aabb;
+    aabb.maxBound = Vec3f{-std::numeric_limits<float>::max(), -std::numeric_limits<float>::max(), -std::numeric_limits<float>::max()};
+    aabb.minBound = Vec3f{std::numeric_limits<float>::max(), std::numeric_limits<float>::max(), std::numeric_limits<float>::max()};
+
     // TODO: Morph.
     for (const auto& prim : rawMesh.primitives) {
         auto mesh = std::make_shared<scene::Mesh>();
@@ -459,6 +469,16 @@ void loadMesh(
                 const auto& buffer = rawBuffers[rawBufferViews[viewIndex].buffer];
                 position = reinterpret_cast<const float*>(buffer.data.data() + accessors[accessorIndex].byteOffset + rawBufferViews[viewIndex].byteOffset);
                 meshData.vertexCount = accessors[accessorIndex].count;
+
+                const auto& maxBound = accessors[accessorIndex].maxValues;
+                const auto& minBound = accessors[accessorIndex].minValues;
+                aabb.maxBound.x = std::max(static_cast<float>(maxBound[0]), aabb.maxBound.x);
+                aabb.maxBound.y = std::max(static_cast<float>(maxBound[1]), aabb.maxBound.y);
+                aabb.maxBound.z = std::max(static_cast<float>(maxBound[2]), aabb.maxBound.z);
+
+                aabb.minBound.x = std::min(static_cast<float>(minBound[0]), aabb.minBound.x);
+                aabb.minBound.y = std::min(static_cast<float>(minBound[1]), aabb.minBound.y);
+                aabb.minBound.z = std::min(static_cast<float>(minBound[2]), aabb.minBound.z);
             } else if (attrName == "NORMAL") {
                 auto viewIndex = accessors[accessorIndex].bufferView;
                 const auto& buffer = rawBuffers[rawBufferViews[viewIndex].buffer];
@@ -480,6 +500,11 @@ void loadMesh(
                 raum_warn("ignored vertex attribute: {}", attrName);
             }
         }
+
+        const auto& transform = sceneNode.node.transform();
+        aabb.maxBound = transform * Vec4f(aabb.maxBound, 1.0f);
+        aabb.minBound = transform * Vec4f(aabb.minBound, 1.0f);
+
         std::vector<float> data;
         auto eleNum = (!!position) * 3 + (!!normal) * 3 + (!!uv) * 2 + (!!tangent) * 4 + (!!color * 4);
         data.resize(eleNum * 4 * meshData.vertexCount);
@@ -672,6 +697,7 @@ void loadMesh(
 
         ar << localMatIndex;
         ar << prim.mode;
+        ar << aabb;
     }
 }
 
@@ -787,30 +813,31 @@ void loadTexturesFromCache(
     rhi::DevicePtr device,
     rhi::CommandBufferPtr cmdBuffer) {
     const auto texCachePath = cachePath / "textures";
-    raum_check(std::filesystem::exists(texCachePath), "textures cache not found: %s", texCachePath.string());
-
-    std::vector<std::filesystem::path> files;
-    for (const auto& entry : std::filesystem::directory_iterator(texCachePath)) {
-        if (!entry.is_regular_file()) {
-            continue;
+    // raum_check(std::filesystem::exists(texCachePath), "textures cache not found: %s", texCachePath.string());
+    if (std::filesystem::exists(texCachePath)) {
+        std::vector<std::filesystem::path> files;
+        for (const auto& entry : std::filesystem::directory_iterator(texCachePath)) {
+            if (!entry.is_regular_file()) {
+                continue;
+            }
+            files.emplace_back(entry.path());
         }
-        files.emplace_back(entry.path());
-    }
 
-    std::ranges::sort(files, [](const std::filesystem::path& lhs, const std::filesystem::path rhs) {
-        return std::stoi(lhs.filename().stem()) < std::stoi(rhs.filename().stem());
-    });
-    for (auto& entry : files) {
-        std::string texName = entry.filename().string();
-        std::string texIndex = texName.substr(0, texName.find_last_of('.'));
-        InputArchive ar(entry);
-        std::vector<uint8_t> imgData;
-        uint32_t width{0}, height{0};
-        ar >> width;
-        ar >> height;
-        ar >> imgData;
+        std::ranges::sort(files, [](const std::filesystem::path& lhs, const std::filesystem::path rhs) {
+            return std::stoi(lhs.filename().stem()) < std::stoi(rhs.filename().stem());
+        });
+        for (auto& entry : files) {
+            std::string texName = entry.filename().string();
+            std::string texIndex = texName.substr(0, texName.find_last_of('.'));
+            InputArchive ar(entry);
+            std::vector<uint8_t> imgData;
+            uint32_t width{0}, height{0};
+            ar >> width;
+            ar >> height;
+            ar >> imgData;
 
-        loadTexture(texIndex, width, height, imgData.data(), device, cmdBuffer, textures);
+            loadTexture(texIndex, width, height, imgData.data(), device, cmdBuffer, textures);
+        }
     }
 }
 
@@ -1083,6 +1110,7 @@ void loadMeshFromCache(
             ar >> localMatIndex;
             int primMode{0};
             ar >> primMode;
+            ar >> mesh->aabb();
 
             if (!techs.contains(localMatIndex)) {
                 loadMaterialFromCache(cachePath, cachePath.filename().string(), localMatIndex, textures, matTemplate, techs, device);

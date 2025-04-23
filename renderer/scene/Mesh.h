@@ -33,8 +33,12 @@ public:
     MeshData& meshData();
     const MeshData& meshData() const;
 
+    AABB& aabb();
+    const AABB& aabb() const;
+
 private:
     MeshData _data;
+    AABB _aabb;
 };
 
 using MeshPtr = std::shared_ptr<Mesh>;

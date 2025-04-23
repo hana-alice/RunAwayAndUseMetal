@@ -1,5 +1,7 @@
 #pragma once
 #include <glm/glm.hpp>
+
+#include "framework/event/KeyboardEvent.h"
 namespace raum {
 using Vec2i = glm::ivec2;
 using Vec3i = glm::ivec3;
@@ -15,5 +17,28 @@ using Mat3 = glm::mat3;
 using Mat4 = glm::mat4;
 
 using Quaternion = glm::quat;
+
+const float FloatEpsilon = 1e-5f;
+const double DoubleEpsilon = 1e-10;
+
+template <typename T>
+struct Epsilon {
+    constexpr static T value = std::numeric_limits<T>::epsilon();
+};
+
+template<>
+struct Epsilon<float> {
+    constexpr static float value = FloatEpsilon;
+};
+
+template<>
+struct Epsilon<double> {
+    constexpr static double value = DoubleEpsilon;
+};
+
+template <typename T>
+bool realEqual(T a, T b) {
+    return std::abs(a - b) < Epsilon<T>::value;
+}
 
 }

@@ -3,6 +3,7 @@
 #include <glm/gtx/quaternion.hpp>
 #include <memory>
 #include "core/math.h"
+#include "core/utils/utils.h"
 
 namespace raum::scene {
 
@@ -22,21 +23,13 @@ private:
 };
 using RenderablePtr = std::shared_ptr<Renderable>;
 
-struct Degree {
-    float value{0.0};
-};
-
-struct Radian {
-    float value{0.0};
-};
-
 enum class Projection {
     PERSPECTIVE,
     ORTHOGRAPHIC,
 };
 
 struct PerspectiveFrustum {
-    float fov{45.0f};   // radians
+    utils::Degree fov{45.0f};   // degree
     float aspect{0.0f}; // eg. 900.0f/600.0f = 1.5f
     float near{0.1f};
     float far{1000.0f};

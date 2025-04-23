@@ -80,7 +80,7 @@ void BuiltinRes::initialize(graph::ShaderGraph& shaderGraph, rhi::DevicePtr devi
     // skybox, quad
     {
         int width, height, nrComponents;
-        auto imgFile = resourcePath / "skies" / "wrestling_gym_4k.hdr";
+        auto imgFile = resourcePath / "skies" / "belfast_sunset_puresky_2k.hdr";
         float* data = stbi_loadf(imgFile.string().c_str(), &width, &height, &nrComponents, 4);
         rhi::BufferSourceInfo bufInfo{
             .bufferUsage = rhi::BufferUsage::TRANSFER_DST | rhi::BufferUsage::TRANSFER_SRC,
