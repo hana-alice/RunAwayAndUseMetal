@@ -101,8 +101,8 @@ void loadTexture(
 
     rhi::generateMipmaps(img, rhi::ImageLayout::TRANSFER_DST_OPTIMAL, cmdBuffer, device);
 
-    // genmipmap turn image layout to TRANSFER_SRC_OPTIMAL
-    barrierInfo.oldLayout = rhi::ImageLayout::TRANSFER_SRC_OPTIMAL;
+    // genmipmap turn image layout to TRANSFER_SRC_OPTIMAL, if mipcount > 1
+    barrierInfo.oldLayout = info.mipCount > 1 ? rhi::ImageLayout::TRANSFER_SRC_OPTIMAL : rhi::ImageLayout::TRANSFER_DST_OPTIMAL;
     barrierInfo.newLayout = rhi::ImageLayout::SHADER_READ_ONLY_OPTIMAL;
     barrierInfo.srcAccessFlag = rhi::AccessFlags::TRANSFER_WRITE;
     barrierInfo.dstAccessFlag = rhi::AccessFlags::SHADER_READ;
@@ -147,10 +147,7 @@ void loadTextures(const std::filesystem::path& cachePath,
             std::filesystem::create_directories(texCachePath);
         }
 
-        std::string resName = res.name;
-        if (resName.empty()) {
-            resName = std::to_string(count++);
-        }
+        std::string resName = std::to_string(count++);
 
         auto imgPath = texCachePath / resName;
         imgPath.replace_extension(".bin");
@@ -319,9 +316,10 @@ void loadMaterial(
     rhi::SamplerInfo linearInfo{
         .magFilter = rhi::Filter::LINEAR,
         .minFilter = rhi::Filter::LINEAR,
+        .maxLod = 16.0f,
     };
     pbrMat->set("linearSampler", {linearInfo});
-    pbrMat->set("pointSampler", {rhi::SamplerInfo{}});
+    pbrMat->set("pointSampler", {rhi::SamplerInfo{.maxLod = 16.0f}});
 
     scene::Texture diffuseIrradiance{
         .texture = BuiltinRes::skybox().diffuseIrradianceImage(),
@@ -401,14 +399,10 @@ void loadMesh(
     std::vector<std::pair<std::string, scene::Texture>>& textures,
     rhi::CommandBufferPtr cmdBuffer,
     rhi::DevicePtr device) {
-    auto meshCachePath = cachePath / std::to_string(nodeIndex);
 
     const auto& rawNode = rawModel.nodes[nodeIndex];
     const auto& rawMesh = rawModel.meshes[rawNode.mesh];
-    auto meshName = rawMesh.name;
-    if (meshName.empty()) {
-        meshName = std::to_string(nodeIndex);
-    }
+    auto meshName = std::to_string(nodeIndex);
 
     auto& modelNode = sg.addModel(meshName, parentName);
     auto& sceneNode = sg.get(meshName);
@@ -988,9 +982,10 @@ void loadMaterialFromCache(
     rhi::SamplerInfo linearInfo{
         .magFilter = rhi::Filter::LINEAR,
         .minFilter = rhi::Filter::LINEAR,
+        .maxLod = 16.0f,
     };
     pbrMat->set("linearSampler", {linearInfo});
-    pbrMat->set("pointSampler", {rhi::SamplerInfo{}});
+    pbrMat->set("pointSampler", {rhi::SamplerInfo{.maxLod = 16.0f}});
 
     scene::Texture diffuseIrradiance{
         .texture = BuiltinRes::skybox().diffuseIrradianceImage(),

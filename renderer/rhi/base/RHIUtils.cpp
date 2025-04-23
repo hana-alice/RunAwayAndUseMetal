@@ -624,58 +624,60 @@ void generateMipmaps(ImagePtr image, ImageLayout oldLayout, CommandBufferPtr cmd
     const auto& info = image->info();
 
     auto mipLevels = info.mipCount;
-    ImageBarrierInfo readBarrier{
-        .image = image.get(),
-        .dstStage = PipelineStage::TRANSFER,
-        .oldLayout = oldLayout,
-        .newLayout = ImageLayout::TRANSFER_SRC_OPTIMAL,
-        .dstAccessFlag = AccessFlags::TRANSFER_READ,
-        .range = {
-            .aspect = AspectMask::COLOR,
-            .sliceCount = info.sliceCount,
-            .firstMip = 0,
-            .mipCount = 1,
-        }};
+    if (mipLevels > 1) {
+        ImageBarrierInfo readBarrier{
+            .image = image.get(),
+            .dstStage = PipelineStage::TRANSFER,
+            .oldLayout = oldLayout,
+            .newLayout = ImageLayout::TRANSFER_SRC_OPTIMAL,
+            .dstAccessFlag = AccessFlags::TRANSFER_READ,
+            .range = {
+                .aspect = AspectMask::COLOR,
+                .sliceCount = info.sliceCount,
+                .firstMip = 0,
+                .mipCount = 1,
+            }};
 
-    ImageBarrierInfo writeBarrier{
-        .image = image.get(),
-        .dstStage = PipelineStage::TRANSFER,
-        .oldLayout = ImageLayout::UNDEFINED,
-        .newLayout = ImageLayout::TRANSFER_DST_OPTIMAL,
-        .dstAccessFlag = AccessFlags::TRANSFER_WRITE,
-        .range = {
-            .aspect = AspectMask::COLOR,
-            .sliceCount = info.sliceCount,
-            .firstMip = 1,
-            .mipCount = 1,
-        }};
+        ImageBarrierInfo writeBarrier{
+            .image = image.get(),
+            .dstStage = PipelineStage::TRANSFER,
+            .oldLayout = ImageLayout::UNDEFINED,
+            .newLayout = ImageLayout::TRANSFER_DST_OPTIMAL,
+            .dstAccessFlag = AccessFlags::TRANSFER_WRITE,
+            .range = {
+                .aspect = AspectMask::COLOR,
+                .sliceCount = info.sliceCount,
+                .firstMip = 1,
+                .mipCount = 1,
+            }};
 
-    cmdBuffer->appendImageBarrier(readBarrier);
-    cmdBuffer->appendImageBarrier(writeBarrier);
-    cmdBuffer->applyBarrier({});
-
-    auto width = info.extent.x;
-    auto height = info.extent.y;
-
-    auto blitEncoder = cmdBuffer->makeBlitEncoder();
-    for (uint32_t i = 1; i < mipLevels; ++i) {
-        ImageBlit region{
-            .srcBaseMip = i - 1,
-            .dstBaseMip = i,
-            .sliceCount = info.sliceCount,
-            .srcExtent = {width >> (i - 1), height >> (i - 1), 1},
-            .dstExtent = {width >> i, height >> i, 1},
-        };
-
-        blitEncoder->blitImage(image.get(), ImageLayout::TRANSFER_SRC_OPTIMAL, image.get(), ImageLayout::TRANSFER_DST_OPTIMAL, &region, 1, Filter::LINEAR);
-
-        readBarrier.range.firstMip = i;
-        if (i < mipLevels - 1) {
-            writeBarrier.range.firstMip = i + 1;
-            cmdBuffer->appendImageBarrier(writeBarrier);
-        }
         cmdBuffer->appendImageBarrier(readBarrier);
+        cmdBuffer->appendImageBarrier(writeBarrier);
         cmdBuffer->applyBarrier({});
+
+        auto width = info.extent.x;
+        auto height = info.extent.y;
+
+        auto blitEncoder = cmdBuffer->makeBlitEncoder();
+        for (uint32_t i = 1; i < mipLevels; ++i) {
+            ImageBlit region{
+                .srcBaseMip = i - 1,
+                .dstBaseMip = i,
+                .sliceCount = info.sliceCount,
+                .srcExtent = {width >> (i - 1), height >> (i - 1), 1},
+                .dstExtent = {width >> i, height >> i, 1},
+            };
+
+            blitEncoder->blitImage(image.get(), ImageLayout::TRANSFER_SRC_OPTIMAL, image.get(), ImageLayout::TRANSFER_DST_OPTIMAL, &region, 1, Filter::LINEAR);
+
+            readBarrier.range.firstMip = i;
+            if (i < mipLevels - 1) {
+                writeBarrier.range.firstMip = i + 1;
+                cmdBuffer->appendImageBarrier(writeBarrier);
+            }
+            cmdBuffer->appendImageBarrier(readBarrier);
+            cmdBuffer->applyBarrier({});
+        }
     }
 }
 
