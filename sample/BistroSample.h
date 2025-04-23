@@ -36,12 +36,15 @@ public:
         auto& skybox = asset::BuiltinRes::skybox();
         graph::ModelNode& skyboxNode = sceneGraph.addModel("skybox");
         skyboxNode.model = skybox.model();
-        
+        skyboxNode.hint = graph::ModelHint::NO_CULLING;
 
         auto& eye = _cam->eye();
         eye.setPosition(0.0, 0.0f, 50.0f);
         eye.lookAt({0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f});
-        eye.update();
+        _cam->update();
+
+        graph::CameraNode& camNode = sceneGraph.addCamera("mainCamera");
+        camNode.camera = _cam;
 
         auto& resourceGraph = _ppl->resourceGraph();
         if (!resourceGraph.contains(_forwardRT)) {
@@ -60,7 +63,7 @@ public:
         auto keyHandler = [&]() {
             auto front = _cam->eye().forward();
             front = glm::normalize(front);
-            auto right = glm::cross(front, _cam->eye().up());
+            auto right = glm::cross(_cam->eye().up(), front);
             right = glm::normalize(right);
             float sensitivity = 1.1f;
             if (framework::keyPressed(framework::Keyboard::W)) {
@@ -75,7 +78,7 @@ public:
             if (framework::keyPressed(framework::Keyboard::D)) {
                 _cam->eye().translate(right * Vec3f(sensitivity));
             }
-            _cam->eye().update();
+            _cam->update();
         };
         _keyListener.add(keyHandler);
 
@@ -101,7 +104,7 @@ public:
 
         auto mouseMovehandler = [&](float x, float y, float deltaXIn, float deltaYIn) {
             if (!pressed) return;
-            static float curHDeg = 0.0f;
+            static float curHDeg = 180.0f;
             static float curVDeg = 0.0f;
             auto deltaX = x - lastX;
             auto deltaY = y - lastY;
@@ -112,17 +115,19 @@ public:
             auto curHRad = curHDeg / 180.0f * 3.141593f;
             auto curVRad = curVDeg / 180.0f * 3.141593f;
 
-            glm::quat rotation(glm::angleAxis(curVRad, glm::vec3(1.0f, 0.0f, 0.0f)));
-            rotation = rotation * glm::angleAxis(curHRad, glm::vec3(0.0f, 1.0f, 0.0f));
+            deltaX = -deltaX / 180.0f * 3.141593f;
+            deltaY = -deltaY / 180.0f * 3.141593f;
 
             Quaternion qx(Vec3f(curVRad, 0.0f, 0.0f));
             Quaternion qy(Vec3f(0.0f, curHRad, 0.0f));
 
-            auto r = qx * qy;
+            Vec3f xAxis{1.0f, 0.0f, 0.0f};
+            Vec3f yAxis{0.0f, 1.0f, 0.0f};
 
             auto& eye = _cam->eye();
             eye.setOrientation(qy * qx);
-            eye.update();
+            _cam->update();
+
         };
         _mouseMoveListener.add(mouseMovehandler);
     }

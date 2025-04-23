@@ -20,4 +20,11 @@ private:
 };
 using ModelPtr = std::shared_ptr<Model>;
 
+struct Plane {
+    Vec3f point;
+    Vec3f normal;
+};
+
+using FrustumPlanes = std::array<Plane, 6>;
+
 } // namespace raum::scene

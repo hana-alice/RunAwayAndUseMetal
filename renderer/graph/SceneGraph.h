@@ -12,8 +12,15 @@ namespace raum::graph {
 struct EmptyNode {
 };
 
+enum class ModelHint:uint32_t {
+    NONE = 0,
+    NO_CULLING = 1,
+};
+OPERABLE(ModelHint)
+
 struct ModelNode {
     scene::ModelPtr model;
+    ModelHint hint{ModelHint::NONE};
 };
 
 struct CameraNode {

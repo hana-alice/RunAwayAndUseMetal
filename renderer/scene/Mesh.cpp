@@ -11,6 +11,14 @@ const MeshData& Mesh::meshData() const {
     return _data;
 }
 
+AABB& Mesh::aabb() {
+    return _aabb;
+}
+
+const AABB& Mesh::aabb() const {
+    return _aabb;
+}
+
 MeshRenderer::MeshRenderer(MeshPtr mesh) : _mesh(mesh) {}
 
 void MeshRenderer::addTechnique(TechniquePtr tech) {

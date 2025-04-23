@@ -24,8 +24,18 @@ void serialize(Archive& ar, raum::scene::Node& node) {
 }
 
 template <class Archive>
+void serialize(Archive& ar, raum::utils::Degree& degree) {
+    ar(degree.value);
+}
+
+template <class Archive>
+void serialize(Archive& ar, raum::utils::Radian& rad) {
+    ar(rad.value);
+}
+
+template <class Archive>
 void serialize(Archive& ar, raum::scene::PerspectiveFrustum& frustum) {
-    ar(frustum.fov);
+    ar(frustum.fov.value);
     ar(frustum.aspect);
     ar(frustum.near);
     ar(frustum.far);
@@ -132,6 +142,7 @@ void save(Archive& ar, const raum::scene::Camera& camera) {
 template <class Archive>
 void serialize(Archive& ar, raum::graph::ModelNode& modelNode) {
     ar(modelNode.model);
+    ar(modelNode.hint);
 }
 
 template <class Archive>
@@ -196,6 +207,9 @@ using boost::edges;
 using boost::vertices;
 
 InputArchive::InputArchive(const std::filesystem::path& filePath) {
+    if (!std::filesystem::exists(filePath.parent_path())) {
+        std::filesystem::create_directories(filePath.parent_path());
+    }
     is = std::ifstream(filePath.string(), std::ios::binary);
     if (!is) {
         raum_error("Could not find file: %s", filePath.string());
@@ -257,6 +271,9 @@ void InputArchive::read(graph::SceneGraph& sg) {
 }
 
 OutputArchive::OutputArchive(const std::filesystem::path& filePath) {
+    if (!std::filesystem::exists(filePath.parent_path())) {
+        std::filesystem::create_directories(filePath.parent_path());
+    }
     os = std::ofstream(filePath.string(), std::ios::binary | std::ios::trunc);
     if (!os) {
         raum_error("Failed to open file: %s", filePath.string());

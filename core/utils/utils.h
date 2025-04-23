@@ -1,6 +1,7 @@
 #pragma once
 #include <filesystem>
 #include <optional>
+#include <numbers>
 
 namespace raum::utils {
 
@@ -33,5 +34,21 @@ public:
 private:
     std::function<void(Args... args)> _tickFunc;
 };
+
+struct Degree {
+    float value{0.0};
+};
+
+struct Radian {
+    float value{0.0};
+};
+
+inline Radian toRadian(const Degree& deg) {
+    return Radian{deg.value * static_cast<float>(std::numbers::pi) / 180.0f};
+};
+
+inline Degree toDegree(const Radian& radian) {
+    return Degree{radian.value * 180.0f / static_cast<float>(std::numbers::pi)};
+}
 
 } // namespace raum::utils

@@ -2,49 +2,55 @@
 
 namespace raum::scene {
 Eye::Eye(const PerspectiveFrustum& frustum)
-    : _perspectiveFrustum(frustum), _projection(Projection::PERSPECTIVE) {
-    _projectionMat = glm::perspective(glm::radians(frustum.fov), frustum.aspect, frustum.near, frustum.far);
+    : _perspectiveFrustum(frustum), _projectionType(Projection::PERSPECTIVE) {
+    _projectionMat = glm::perspective(glm::radians(frustum.fov.value), frustum.aspect, frustum.near, frustum.far);
 }
 
 Eye::Eye(const OrthoFrustum& frustum)
-    : _orthoFrustum(frustum), _projection(Projection::ORTHOGRAPHIC) {
+    : _orthoFrustum(frustum), _projectionType(Projection::ORTHOGRAPHIC) {
     _projectionMat = glm::ortho(frustum.left, frustum.right, frustum.bottom, frustum.top, frustum.near, frustum.far);
 }
 
 void Eye::setPosition(const Vec3f& pos) {
     _position = pos;
+    _dirty = true;
 }
 
 void Eye::setPosition(float x, float y, float z) {
     _position = {x, y, z};
+    _dirty = true;
 }
 
 void Eye::setOrientation(const raum::Quaternion& quat) {
     _orientation = quat;
-    _up = quat * Vec3f{0.0f, 1.0f, 0.0f};
-    _forward = quat * Vec3f(0.0f, 0.0f, -1.0f);
+    _up = quat * InitialUp;
+    _forward = quat * InitialForward;
+    _dirty = true;
 }
 
-void Eye::rotate(const Vec3f& axis, Degree degree) {
-    Radian rad{glm::radians(degree.value)};
+void Eye::rotate(const Vec3f& axis, utils::Degree degree) {
+    utils::Radian rad{glm::radians(degree.value)};
     rotate(axis, rad);
 }
 
-void Eye::rotate(const Vec3f& axis, Radian radian) {
+void Eye::rotate(const Vec3f& axis, utils::Radian radian) {
     auto q = glm::angleAxis(radian.value, axis);
     _orientation = q * _orientation;
-    _forward = q * forward();
-    _up = q * _up;
+    _forward = _orientation * InitialForward;
+    _up = _orientation * InitialUp;
+    _dirty = true;
 }
 
 void Eye::translate(const Vec3f& delta) {
     _position += delta;
+    _dirty = true;
 }
 
 void Eye::translate(float x, float y, float z) {
     _position.x += x;
     _position.y += y;
     _position.z += z;
+    _dirty = true;
 }
 
 void Eye::lookAt(const Vec3f& pos, const Vec3f& up) {
@@ -52,20 +58,9 @@ void Eye::lookAt(const Vec3f& pos, const Vec3f& up) {
     auto upN = glm::normalize(up);
     _orientation = glm::quatLookAt(dir, upN);
     _forward = dir;
-    auto right = glm::cross(_forward, upN);
-    _up = glm::cross(right, _forward);
-}
-
-void Eye::setFrustum(const PerspectiveFrustum& frustum) {
-    _perspectiveFrustum = frustum;
-    _projection = Projection::PERSPECTIVE;
-    _projectionMat = glm::perspective(glm::radians(frustum.fov), frustum.aspect, frustum.near, frustum.far);
-}
-
-void Eye::setFrustum(const OrthoFrustum& frustum) {
-    _orthoFrustum = frustum;
-    _projection = Projection::ORTHOGRAPHIC;
-    _projectionMat = glm::ortho(frustum.left, frustum.right, frustum.bottom, frustum.top, frustum.near, frustum.far);
+    auto right = glm::cross(upN, _forward);
+    _up = glm::cross(_forward, right);
+    _dirty = true;
 }
 
 const PerspectiveFrustum& Eye::getPerspectiveFrustum() const {
@@ -102,12 +97,22 @@ const Vec3f Eye::up() const {
 
 void Eye::setTransform(const Mat4& mat) {
     _attitude = mat;
+    _dirty = true;
 }
 
-void Eye::update() {
-    Mat4 rot(conjugate(_orientation));
-    Mat4 trans(glm::translate(Mat4(1.0f), -_position));
-    _attitude = rot * trans;
+Projection Eye::projectionType() const {
+    return _projectionType;
+}
+
+bool Eye::update() {
+    bool dirty = _dirty;
+    if (dirty) {
+        Mat4 rot(conjugate(_orientation));
+        Mat4 trans(glm::translate(Mat4(1.0f), -_position));
+        _attitude = rot * trans;
+        _dirty = false;
+    }
+    return dirty;
 }
 
 Eye::~Eye() {
