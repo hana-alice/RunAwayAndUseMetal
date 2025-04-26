@@ -443,13 +443,14 @@ void loadMesh(
     ar << trans;
     ar << rawMesh.primitives.size();
 
-    scene::AABB aabb;
-    aabb.maxBound = Vec3f{-std::numeric_limits<float>::max(), -std::numeric_limits<float>::max(), -std::numeric_limits<float>::max()};
-    aabb.minBound = Vec3f{std::numeric_limits<float>::max(), std::numeric_limits<float>::max(), std::numeric_limits<float>::max()};
-
     // TODO: Morph.
     for (const auto& prim : rawMesh.primitives) {
         auto mesh = std::make_shared<scene::Mesh>();
+
+        auto& aabb = mesh->aabb();
+        aabb.maxBound = Vec3f{-std::numeric_limits<float>::max(), -std::numeric_limits<float>::max(), -std::numeric_limits<float>::max()};
+        aabb.minBound = Vec3f{std::numeric_limits<float>::max(), std::numeric_limits<float>::max(), std::numeric_limits<float>::max()};
+
         auto& meshData = mesh->meshData();
         const float* position{nullptr};
         const float* normal{nullptr};
@@ -466,13 +467,19 @@ void loadMesh(
 
                 const auto& maxBound = accessors[accessorIndex].maxValues;
                 const auto& minBound = accessors[accessorIndex].minValues;
-                aabb.maxBound.x = std::max(static_cast<float>(maxBound[0]), aabb.maxBound.x);
-                aabb.maxBound.y = std::max(static_cast<float>(maxBound[1]), aabb.maxBound.y);
-                aabb.maxBound.z = std::max(static_cast<float>(maxBound[2]), aabb.maxBound.z);
 
-                aabb.minBound.x = std::min(static_cast<float>(minBound[0]), aabb.minBound.x);
-                aabb.minBound.y = std::min(static_cast<float>(minBound[1]), aabb.minBound.y);
-                aabb.minBound.z = std::min(static_cast<float>(minBound[2]), aabb.minBound.z);
+                Vec4f transformedMax = sceneNode.node.transform() * Vec4f(maxBound[0], maxBound[1], maxBound[2], 1.0f);
+                Vec4f transformedMin = sceneNode.node.transform() * Vec4f(minBound[0], minBound[1], minBound[2], 1.0f);
+
+                aabb.maxBound.x = std::max(transformedMax.x, std::max(aabb.maxBound.x, transformedMin.x));
+                aabb.maxBound.y = std::max(transformedMax.y, std::max(aabb.maxBound.y, transformedMin.y));
+                aabb.maxBound.z = std::max(transformedMax.z, std::max(aabb.maxBound.z, transformedMin.z));
+
+                aabb.minBound.x = std::min(transformedMin.x, std::min(aabb.minBound.x, transformedMax.x));
+                aabb.minBound.y = std::min(transformedMin.y, std::min(aabb.minBound.y, transformedMax.y));
+                aabb.minBound.z = std::min(transformedMin.z, std::min(aabb.minBound.z, transformedMax.z));
+
+
             } else if (attrName == "NORMAL") {
                 auto viewIndex = accessors[accessorIndex].bufferView;
                 const auto& buffer = rawBuffers[rawBufferViews[viewIndex].buffer];
@@ -494,10 +501,6 @@ void loadMesh(
                 raum_warn("ignored vertex attribute: {}", attrName);
             }
         }
-
-        const auto& transform = sceneNode.node.transform();
-        aabb.maxBound = transform * Vec4f(aabb.maxBound, 1.0f);
-        aabb.minBound = transform * Vec4f(aabb.minBound, 1.0f);
 
         std::vector<float> data;
         auto eleNum = (!!position) * 3 + (!!normal) * 3 + (!!uv) * 2 + (!!tangent) * 4 + (!!color * 4);
