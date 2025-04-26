@@ -514,7 +514,7 @@ void GraphScheduler::needWarmUp() {
 
 void GraphScheduler::execute(rhi::CommandBufferPtr cmd) {
     std::vector<scene::RenderablePtr> renderables;
-    collectRenderables(renderables, *_sceneGraph, false);
+    collectRenderables(renderables, *_sceneGraph, _warmed);
 
     _accessGraph->analyze();
 
