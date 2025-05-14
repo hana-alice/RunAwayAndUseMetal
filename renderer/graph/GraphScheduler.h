@@ -38,6 +38,11 @@ private:
     bool _warmed{false};
 
     std::unordered_map<std::string, scene::BindGroupPtr, hash_string, std::equal_to<>> _perPhaseBindGroups;
+
+    scene::BVHNode* _bvhRoot{nullptr};
+    std::vector<scene::RenderablePtr> _renderables;
+    std::span<scene::RenderablePtr> _noCullRenderables;
+    std::span<scene::RenderablePtr> _cullableRenderables;
 };
 
 using GraphSchedulerPtr = std::shared_ptr<GraphScheduler>;

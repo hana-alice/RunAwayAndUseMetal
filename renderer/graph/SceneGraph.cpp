@@ -22,6 +22,7 @@ CameraNode& SceneGraph::addCamera(std::string_view name, std::string_view parent
     _graph[id].sceneNodeData = CameraNode{};
     add_edge(parent.data(), id, _graph);
     auto& camNode = std::get<CameraNode>(_graph[id].sceneNodeData);
+    _cameras.emplace_back(&camNode);
     return camNode;
 }
 
@@ -29,6 +30,7 @@ CameraNode& SceneGraph::addCamera(std::string_view name) {
     auto id = add_vertex(name.data(), _graph);
     _graph[id].sceneNodeData = CameraNode{};
     auto& camNode = std::get<CameraNode>(_graph[id].sceneNodeData);
+    _cameras.emplace_back(&camNode);
     return camNode;
 }
 

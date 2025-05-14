@@ -35,5 +35,12 @@ bool frustumCulling(const scene::FrustumPlanes& frustum, const AABB& aabb) {
     return !outside;
 }
 
+void buildBVH(BVHNode* node, std::vector<scene::ModelPtr>& models) {
+    raum_check(node, "");
+
+
+}
+
+
 
 }

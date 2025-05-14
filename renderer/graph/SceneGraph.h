@@ -89,7 +89,13 @@ public:
 
     const SceneGraphImpl& impl() const { return _graph; }
 
+    const std::vector<CameraNode*>& cameras() const {
+        return _cameras;
+    }
+
 private:
+    std::vector<CameraNode*> _cameras;
+
     SceneGraphImpl _graph;
 };
 

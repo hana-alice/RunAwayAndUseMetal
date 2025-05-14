@@ -128,19 +128,106 @@ bool culled(const scene::Mesh& mesh, const SceneGraph& sg) {
     return culled;
 }
 
-void collectRenderables(std::vector<scene::RenderablePtr>& renderables, const SceneGraph& sg, bool enableCullling) {
+void collectRenderables(
+    std::vector<scene::RenderablePtr>& renderables,
+    std::span<scene::RenderablePtr>& cullableRenderables,
+    std::span<scene::RenderablePtr>& nocullRenderables,
+    const SceneGraph& sg) {
     const auto& graph = sg.impl();
+    std::vector<scene::MeshRendererPtr> noCullings;
+    std::vector<scene::MeshRendererPtr> cullables;
     for (auto v : boost::make_iterator_range(boost::vertices(graph))) {
         if (std::holds_alternative<ModelNode>(graph[v].sceneNodeData)) {
             const auto& modelNode = std::get<ModelNode>(graph[v].sceneNodeData);
             if (graph[v].node.enabled()) {
                 for (auto& meshRenderer : modelNode.model->meshRenderers()) {
-                    if (!enableCullling || test(modelNode.hint, ModelHint::NO_CULLING) || !culled(*meshRenderer->mesh(), sg)) {
-                        renderables.emplace_back(meshRenderer);
+                    if (!test(modelNode.hint, ModelHint::NO_CULLING)) {
+                        cullables.emplace_back(meshRenderer);
+                    } else {
+                        noCullings.emplace_back(meshRenderer);
                     }
                 }
             }
         }
+    }
+    std::ranges::sort(cullableRenderables, [](const auto& lhs, const auto& rhs) {
+        return std::static_pointer_cast<scene::MeshRenderer>(lhs)->mesh()->aabb().minBound.x <
+               std::static_pointer_cast<scene::MeshRenderer>(rhs)->mesh()->aabb().minBound.x;
+    });
+    std::ranges::copy(cullables, std::back_inserter(renderables));
+    std::ranges::copy(noCullings, std::back_inserter(renderables));
+    cullableRenderables = std::span(renderables).subspan(0, cullables.size());
+    nocullRenderables = std::span(renderables).subspan(cullables.size());
+}
+
+namespace {
+// Helper function to build a BVH node
+scene::AABB getAABB(const std::span<scene::RenderablePtr>& renderables) {
+    scene::AABB aabb{};
+    aabb.minBound = Vec3f(std::numeric_limits<float>::max());
+    aabb.maxBound = Vec3f(std::numeric_limits<float>::lowest());
+    for (const auto& renderable : renderables) {
+        auto meshRenderer = std::static_pointer_cast<const scene::MeshRenderer>(renderable);
+        const auto& meshAABB = meshRenderer->mesh()->aabb();
+        aabb.minBound = glm::min(aabb.minBound, meshAABB.minBound);
+        aabb.maxBound = glm::max(aabb.maxBound, meshAABB.maxBound);
+    }
+    return aabb;
+}
+
+} // namespace
+
+scene::BVHNode* buildBVH(std::span<scene::RenderablePtr>& renderables, uint32_t maxObjectsPerNode) {
+    // expect renderables to be sorted
+
+    if (renderables.size() <= maxObjectsPerNode) {
+        scene::BVHNode* leafNode = new scene::BVHNode();
+        leafNode->aabb = getAABB(renderables);
+        leafNode->children = renderables;
+        return leafNode;
+    }
+
+    std::span<scene::RenderablePtr> lefts = renderables.subspan(0, renderables.size() / 2);
+    std::span<scene::RenderablePtr> rights = renderables.subspan(renderables.size() / 2);
+
+    scene::BVHNode* node = new scene::BVHNode();
+    node->aabb = getAABB(renderables);
+    if (!lefts.empty()) {
+        node->left = buildBVH(lefts, maxObjectsPerNode);
+    }
+    if (!rights.empty()) {
+        node->right = buildBVH(rights, maxObjectsPerNode);
+    }
+    return node;
+}
+
+void BVHCulling(const scene::FrustumPlanes& frustumPlanes,
+                const scene::BVHNode* node,
+                std::vector<scene::RenderablePtr>& renderables) {
+    if (!node) {
+        return;
+    }
+    if (scene::frustumCulling(frustumPlanes, node->aabb)) {
+        if (!node->children.empty()) {
+            for (const auto& renderable : node->children) {
+                const auto meshRenderer = std::static_pointer_cast<const scene::MeshRenderer>(renderable);
+                if (scene::frustumCulling(frustumPlanes, meshRenderer->mesh()->aabb())) {
+                    renderables.emplace_back(renderable);
+                }
+            }
+        } else {
+            BVHCulling(frustumPlanes, node->left, renderables);
+            BVHCulling(frustumPlanes, node->right, renderables);
+        }
+    }
+}
+
+void BVHCulling(const std::vector<CameraNode*>& cameras,
+                const scene::BVHNode* node,
+                std::vector<scene::RenderablePtr>& renderables) {
+    for (const auto& camera : cameras) {
+        const auto& frustum = camera->camera->frustumPlanes();
+        BVHCulling(frustum, node, renderables);
     }
 }
 

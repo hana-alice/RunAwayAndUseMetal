@@ -514,11 +514,11 @@ void GraphScheduler::needWarmUp() {
 
 void GraphScheduler::execute(rhi::CommandBufferPtr cmd) {
     std::vector<scene::RenderablePtr> renderables;
-    collectRenderables(renderables, *_sceneGraph, _warmed);
-
     _accessGraph->analyze();
 
     if (!_warmed) {
+        collectRenderables(_renderables, _cullableRenderables, _noCullRenderables, *_sceneGraph);
+
         _warmed = true;
         WarmUpVisitor warmUpVisitor{
             {},
@@ -528,11 +528,15 @@ void GraphScheduler::execute(rhi::CommandBufferPtr cmd) {
             *_shaderGraph,
             *_resourceGraph,
             _device,
-            renderables,
+            _renderables,
             _perPhaseBindGroups};
 
         visitRenderGraph(warmUpVisitor, *_renderGraph);
+
+        _bvhRoot = buildBVH(_cullableRenderables, 1);
     }
+
+    BVHCulling(_sceneGraph->cameras(), _bvhRoot, renderables);
 
     PreProcessVisitor preProcessVisitor{
         {},
