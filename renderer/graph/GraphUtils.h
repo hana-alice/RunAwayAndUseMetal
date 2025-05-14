@@ -1,13 +1,13 @@
 #pragma once
+#include <span>
+#include "AccessGraph.h"
+#include "Material.h"
 #include "RHIDevice.h"
 #include "RenderGraph.h"
-#include "Material.h"
-#include "ShaderGraph.h"
-#include "AccessGraph.h"
 #include "SceneGraph.h"
+#include "ShaderGraph.h"
 namespace raum::graph {
 
-	
 rhi::RenderPassPtr getOrCreateRenderPass(const RenderGraph::VertexType v, AccessGraph& ag, rhi::DevicePtr device);
 
 rhi::FrameBufferPtr getOrCreateFrameBuffer(rhi::RenderPassPtr renderpass,
@@ -23,10 +23,19 @@ rhi::GraphicsPipelinePtr getOrCreateGraphicsPipeline(rhi::RenderPassPtr renderPa
 
 bool culling(const ModelNode& node);
 
-void collectRenderables(std::vector<scene::RenderablePtr>& renderables, const SceneGraph& sg, bool enableCullling);
+void collectRenderables(std::vector<scene::RenderablePtr>& renderables,
+                        std::span<scene::RenderablePtr>& cullableRenderables,
+                        std::span<scene::RenderablePtr>& nocullRenderables,
+                        const SceneGraph& sg);
+
+void BVHCulling(const std::vector<CameraNode*>& cameras,
+                const scene::BVHNode* node,
+                std::vector<scene::RenderablePtr>& renderables);
+
+scene::BVHNode* buildBVH(std::span<scene::RenderablePtr>& renderables, uint32_t maxObjectsPerNode = 4);
 
 void warmUp(SceneGraph& sg, ShaderGraph& shg, rhi::DevicePtr device);
 
 std::string_view getPhaseName(std::string_view queueName);
 
-}
+} // namespace raum::graph
