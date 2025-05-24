@@ -2,7 +2,7 @@
     "version": 3,
     "configurePresets": [
         {
-            "name": "debug",
+            "name": "Debug",
             "binaryDir": "${sourceDir}/build/",
             "installDir": "${sourceDir}/build/",
             "cacheVariables": {
@@ -29,7 +29,7 @@
             "name": "name_debug",
             "description": "desc_debug",
             "displayName": "display_debug",
-            "configurePreset": "debug"
+            "configurePreset": "Debug"
         },
         {
             "name": "name_offline_tools",
