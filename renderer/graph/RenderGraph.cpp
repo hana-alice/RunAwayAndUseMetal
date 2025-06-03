@@ -142,6 +142,13 @@ RenderQueue& RenderQueue::addFlag(RenderQueueFlags flag) {
     return *this;
 }
 
+RenderQueue& RenderQueue:: setQuadTech(const scene::TechniquePtr& tech) {
+    auto& data = std::get<RenderQueueData>(_graph[_id].data);
+    raum_check(!test(data.flags, RenderQueueFlags::GEOMETRY), "Can't set quad tech to geometry pass");
+    data.technique = tech;
+    return *this;
+}
+
 RenderQueue& RenderQueue::setViewport(int32_t x, int32_t y, uint32_t w, uint32_t h, float minDepth, float maxDepth) {
     auto& data = std::get<RenderQueueData>(_graph[_id].data);
     data.viewport = {{x, y, w, h}, minDepth, maxDepth};

@@ -76,6 +76,7 @@ enum class RenderQueueFlags: uint32_t {
     OPAQUE = 1,
     TRANSPARENT = 1 << 1,
     REVERSE_Z = 1 << 2,
+    GEOMETRY = 1 << 3,
 };
 OPERABLE(RenderQueueFlags)
 
@@ -83,8 +84,9 @@ struct RenderQueueData {
     scene::Camera* camera{nullptr};
     rhi::Viewport viewport{};
     std::vector<RenderingResource> resources;
-    scene::BindGroupPtr bindGroup;
+    scene::BindGroupPtr bindGroup; // per pass binding
     RenderQueueFlags flags{RenderQueueFlags::NONE};
+    scene::TechniquePtr technique; // quad tech
 };
 
 struct ComputePassData {

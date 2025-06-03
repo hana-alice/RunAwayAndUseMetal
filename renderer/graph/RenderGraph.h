@@ -39,7 +39,6 @@ public:
     RenderQueue(RenderGraphImpl ::vertex_descriptor renderPassID, RenderGraphImpl& graph) : _id(renderPassID), _graph(graph){};
 
     RenderQueue& addCamera(scene::Camera* camera);
-    //    RenderQueue& addQuad();
     //RenderQueue& addScene(scene::DIrector* scene);
     RenderQueue& setViewport(int32_t x, int32_t y, uint32_t w, uint32_t h, float minDepth, float maxDepth);
     RenderQueue& addUniformBuffer(std::string_view name, std::string_view bindingName);
@@ -48,6 +47,7 @@ public:
     RenderQueue& addSampledStencil(std::string_view name, std::string_view bindingName);
     RenderQueue& addSampler(std::string_view name, std::string_view bindingName);
     RenderQueue& addFlag(RenderQueueFlags flag);
+    RenderQueue& setQuadTech(const scene::TechniquePtr& tech);
 
 private:
     RenderGraphImpl::vertex_descriptor _id{0};

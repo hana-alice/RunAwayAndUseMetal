@@ -8,8 +8,67 @@
 #include "RHIDevice.h"
 #include "RHIRenderEncoder.h"
 #include "RHIUtils.h"
+#include "asset/resources/builtin/BuiltinRes.h"
+#include "asset/resources/builtin/Quad.h"
 
 namespace raum::graph {
+
+namespace {
+
+void prepareBindings(
+    std::string_view phaseName,
+    scene::TechniquePtr technique,
+    scene::MeshRendererPtr meshrenderer,
+    rhi::CompareOp zCmpOp,
+    scene::SlotMap& perPassBindings,
+    rhi::DescriptorSetLayoutInfo& perPassLayoutInfo,
+    ShaderGraph& shg,
+    rhi::DevicePtr device) {
+    scene::SlotMap perBatchBindings;
+    technique->depthStencilInfo().depthCompareOp = zCmpOp;
+    if (phaseName == technique->phaseName()) {
+        scene::SlotMap perInstanceBindings;
+        const auto& shaderResource = shg.layout(technique->material()->shaderName());
+        std::for_each(
+            shaderResource.bindings.begin(),
+            shaderResource.bindings.end(),
+            [&perBatchBindings, &perInstanceBindings, &perPassBindings](const auto& p) {
+                if (p.second.rate == Rate::PER_BATCH) {
+                    perBatchBindings.emplace(p.first, p.second.binding);
+                } else if (p.second.rate == Rate::PER_PASS) {
+                    perPassBindings.emplace(p.first, p.second.binding);
+                } else if (p.second.rate == Rate::PER_INSTANCE) {
+                    perInstanceBindings.emplace(p.first, p.second.binding);
+                }
+            });
+
+        if (meshrenderer) {
+            meshrenderer->prepare(perInstanceBindings,
+                                  shaderResource.descriptorLayouts[static_cast<uint32_t>(Rate::PER_INSTANCE)],
+                                  device);
+        }
+
+        if (!perBatchBindings.empty()) {
+            technique->bakeMaterial(perBatchBindings,
+                                    shaderResource.descriptorLayouts[static_cast<uint32_t>(Rate::PER_BATCH)],
+                                    device);
+        }
+
+        auto perPassLayout = shaderResource.descriptorLayouts[static_cast<uint32_t>(Rate::PER_PASS)];
+        for (const auto& binding : perPassLayout->info().descriptorBindings) {
+            auto iter = std::find_if(perPassLayoutInfo.descriptorBindings.begin(),
+                                     perPassLayoutInfo.descriptorBindings.end(),
+                                     [&binding](const rhi::DescriptorBinding& bd) {
+                                         return bd.binding == binding.binding;
+                                     });
+            if (iter == perPassLayoutInfo.descriptorBindings.end()) {
+                perPassLayoutInfo.descriptorBindings.emplace_back(binding);
+            }
+        }
+    }
+}
+
+} // namespace
 
 struct WarmUpVisitor : public boost::dfs_visitor<> {
     void discover_vertex(const RenderGraph::VertexType v, const RenderGraphImpl& g) {
@@ -25,62 +84,27 @@ struct WarmUpVisitor : public boost::dfs_visitor<> {
             const auto& phaseName = getPhaseName(_g.impl()[v].name);
             auto& queueData = std::get<RenderQueueData>(_g.impl()[v].data);
             auto zCmpOp = test(queueData.flags, RenderQueueFlags::REVERSE_Z) ? rhi::CompareOp::GREATER_OR_EQUAL : rhi::CompareOp::LESS_OR_EQUAL;
-            scene::SlotMap perBatchBindings;
-            for (auto& renderable : _rendererables) {
-                auto meshrenderer = std::static_pointer_cast<scene::MeshRenderer>(renderable);
-
-                // TODO: this is configed in editor
-                {
-                    auto& techs = meshrenderer->techniques();
-                    auto it = std::find_if(techs.begin(), techs.end(), [&phaseName](const auto& tech) {
-                        return tech->phaseName() == phaseName;
-                    });
-                    if (it == techs.end()) {
-                        auto embed = scene::EmbededTechniqueName.at(phaseName);
-                        meshrenderer->addTechnique(scene::makeEmbededTechnique(embed));
-                    }
-                }
-
-                for (auto& technique : meshrenderer->techniques()) {
-                    technique->depthStencilInfo().depthCompareOp = zCmpOp;
-                    if (phaseName == technique->phaseName()) {
-                        scene::SlotMap perInstanceBindings;
-                        const auto& shaderResource = _shg.layout(technique->material()->shaderName());
-                        std::for_each(
-                            shaderResource.bindings.begin(),
-                            shaderResource.bindings.end(),
-                            [&perBatchBindings, &perInstanceBindings, this](const auto& p) {
-                                if (p.second.rate == Rate::PER_BATCH) {
-                                    perBatchBindings.emplace(p.first, p.second.binding);
-                                } else if (p.second.rate == Rate::PER_PASS) {
-                                    _perPassBindings.emplace(p.first, p.second.binding);
-                                } else if (p.second.rate == Rate::PER_INSTANCE) {
-                                    perInstanceBindings.emplace(p.first, p.second.binding);
-                                }
-                            });
-
-
-                        meshrenderer->prepare(perInstanceBindings,
-                                              shaderResource.descriptorLayouts[static_cast<uint32_t>(Rate::PER_INSTANCE)],
-                                              _device);
-
-                        technique->bakeMaterial(perBatchBindings,
-                                                shaderResource.descriptorLayouts[static_cast<uint32_t>(Rate::PER_BATCH)],
-                                                _device);
-
-                        auto perPassLayout = shaderResource.descriptorLayouts[static_cast<uint32_t>(Rate::PER_PASS)];
-                        for (const auto& binding : perPassLayout->info().descriptorBindings) {
-                            auto iter = std::find_if(_perPassLayoutInfo.descriptorBindings.begin(),
-                                                     _perPassLayoutInfo.descriptorBindings.end(),
-                                                     [&binding](const rhi::DescriptorBinding& bd) {
-                                                         return bd.binding == binding.binding;
-                                                     });
-                            if (iter == _perPassLayoutInfo.descriptorBindings.end()) {
-                                _perPassLayoutInfo.descriptorBindings.emplace_back(binding);
-                            }
+            if (test(queueData.flags, RenderQueueFlags::GEOMETRY)) {
+                for (auto& renderable : _rendererables) {
+                    auto meshrenderer = std::static_pointer_cast<scene::MeshRenderer>(renderable);
+                    // TODO: this is configed in editor
+                    {
+                        auto& techs = meshrenderer->techniques();
+                        auto it = std::find_if(techs.begin(), techs.end(), [&phaseName](const auto& tech) {
+                            return tech->phaseName() == phaseName;
+                        });
+                        if (it == techs.end()) {
+                            auto embed = scene::EmbededTechniqueName.at(phaseName);
+                            meshrenderer->addTechnique(scene::makeEmbededTechnique(embed));
                         }
                     }
+                    for (auto& tech : meshrenderer->techniques()) {
+                        prepareBindings(phaseName, tech, meshrenderer, zCmpOp, _perPassBindings, _perPassLayoutInfo, _shg, _device);
+                    }
                 }
+            } else {
+                // render screen quad
+                prepareBindings(phaseName, queueData.technique, nullptr, zCmpOp, _perPassBindings, _perPassLayoutInfo, _shg, _device);
             }
         }
     }
@@ -100,24 +124,40 @@ struct WarmUpVisitor : public boost::dfs_visitor<> {
             _perPhaseBindGroups.emplace(g[v].name, queueData.bindGroup);
 
             const auto& phaseName = getPhaseName(_g.impl()[v].name);
-            for (auto& renderable : _rendererables) {
-                auto meshrenderer = std::static_pointer_cast<scene::MeshRenderer>(renderable);
-                for (auto& technique : meshrenderer->techniques()) {
-                    if (phaseName == technique->phaseName()) {
-                        const auto& shaderResource = _shg.layout(technique->material()->shaderName());
-                        technique->bakePipeline(
-                            _renderpass,
-                            descLayout,
-                            shaderResource.descriptorLayouts[static_cast<uint32_t>(Rate::PER_BATCH)],
-                            shaderResource.descriptorLayouts[static_cast<uint32_t>(Rate::PER_INSTANCE)],
-                            shaderResource.descriptorLayouts[static_cast<uint32_t>(Rate::PER_DRAW)],
-                            shaderResource.constants,
-                            meshrenderer->mesh()->meshData().vertexLayout,
-                            shaderResource.shaderSources,
-                            _device);
+            if (test(queueData.flags, RenderQueueFlags::GEOMETRY)) {
+                for (auto& renderable : _rendererables) {
+                    auto meshrenderer = std::static_pointer_cast<scene::MeshRenderer>(renderable);
+                    for (auto& technique : meshrenderer->techniques()) {
+                        if (phaseName == technique->phaseName()) {
+                            const auto& shaderResource = _shg.layout(technique->material()->shaderName());
+                            technique->bakePipeline(
+                                _renderpass,
+                                descLayout,
+                                shaderResource.descriptorLayouts[static_cast<uint32_t>(Rate::PER_BATCH)],
+                                shaderResource.descriptorLayouts[static_cast<uint32_t>(Rate::PER_INSTANCE)],
+                                shaderResource.descriptorLayouts[static_cast<uint32_t>(Rate::PER_DRAW)],
+                                shaderResource.constants,
+                                meshrenderer->mesh()->meshData().vertexLayout,
+                                shaderResource.shaderSources,
+                                _device);
+                        }
                     }
                 }
+            } else {
+                auto& technique = queueData.technique;
+                const auto& shaderResource = _shg.layout(technique->material()->shaderName());
+                technique->bakePipeline(
+                    _renderpass,
+                    descLayout,
+                    shaderResource.descriptorLayouts[static_cast<uint32_t>(Rate::PER_BATCH)],
+                    shaderResource.descriptorLayouts[static_cast<uint32_t>(Rate::PER_INSTANCE)],
+                    shaderResource.descriptorLayouts[static_cast<uint32_t>(Rate::PER_DRAW)],
+                    shaderResource.constants,
+                    {},
+                    shaderResource.shaderSources,
+                    _device);
             }
+
         } else if (std::holds_alternative<ComputePassData>(g[v].data)) {
             auto& computeData = std::get<ComputePassData>(_g.impl()[v].data);
             const auto& programName = computeData.programName;
@@ -342,39 +382,59 @@ struct RenderGraphVisitor : public boost::dfs_visitor<> {
                            std::string_view phase = getPhaseName(g[v].name);
                            _renderEncoder->setViewport(data.viewport);
                            _renderEncoder->setScissor(data.viewport.rect);
-                           for (const auto& renderable : _renderables) {
-                               const auto& meshRenderer = std::static_pointer_cast<scene::MeshRenderer>(renderable);
-                               uint32_t phaseIndex = -1;
-                               for (const auto& tech : meshRenderer->techniques()) {
-                                   if (tech->phaseName() == phase) {
-                                       phaseIndex = &tech - &meshRenderer->techniques()[0];
+                           if (test(data.flags, RenderQueueFlags::GEOMETRY)) {
+                               for (const auto& renderable : _renderables) {
+                                   const auto& meshRenderer = std::static_pointer_cast<scene::MeshRenderer>(renderable);
+                                   uint32_t phaseIndex = -1;
+                                   for (const auto& tech : meshRenderer->techniques()) {
+                                       if (tech->phaseName() == phase) {
+                                           phaseIndex = &tech - &meshRenderer->techniques()[0];
+                                       }
+                                   }
+                                   raum_check(phaseIndex != -1, "Phase %s not found", phase);
+                                   const auto& technique = meshRenderer->technique(phaseIndex);
+                                   _renderEncoder->bindPipeline(technique->pipelineState().get());
+                                   if (technique->hasPassBinding()) {
+                                       _renderEncoder->bindDescriptorSet(data.bindGroup->descriptorSet().get(), 0, nullptr, 0);
+                                   }
+                                   if (technique->hasBatchBinding()) [[likely]] {
+                                       _renderEncoder->bindDescriptorSet(technique->material()->bindGroup()->descriptorSet().get(),
+                                                                         1, nullptr, 0);
+                                   }
+                                   if (technique->hasInstanceBinding()) {
+                                       _renderEncoder->bindDescriptorSet(meshRenderer->bindGroup()->descriptorSet().get(), 2, nullptr, 0);
+                                   }
+                                   const auto& drawInfo = meshRenderer->drawInfo();
+                                   const auto& meshData = meshRenderer->mesh()->meshData();
+                                   const auto& indexBuffer = meshData.indexBuffer;
+                                   const auto& vertexBuffer = meshData.vertexBuffer;
+                                   if (drawInfo.indexCount) {
+                                       _renderEncoder->bindIndexBuffer(indexBuffer.buffer.get(), indexBuffer.offset, indexBuffer.type);
+                                       _renderEncoder->bindVertexBuffer(vertexBuffer.buffer.get(), 0);
+                                       _renderEncoder->drawIndexed(drawInfo.indexCount, drawInfo.instanceCount, drawInfo.firstVertex, drawInfo.vertexOffset, drawInfo.firstInstance);
+                                   } else {
+                                       _renderEncoder->bindVertexBuffer(vertexBuffer.buffer.get(), 0);
+                                       _renderEncoder->draw(drawInfo.vertexCount, drawInfo.instanceCount, drawInfo.firstVertex, drawInfo.firstInstance);
                                    }
                                }
-                               raum_check(phaseIndex != -1, "Phase %s not found", phase);
-                               const auto& technique = meshRenderer->technique(phaseIndex);
-                               _renderEncoder->bindPipeline(technique->pipelineState().get());
-                               if (technique->hasPassBinding()) {
+                           } else {
+                               const auto& quadTech = data.technique;
+                               if (phase != quadTech->phaseName()) {
+                                   return;
+                               }
+                               _renderEncoder->bindPipeline(quadTech->pipelineState().get());
+                               if (quadTech->hasPassBinding()) [[likely]] {
                                    _renderEncoder->bindDescriptorSet(data.bindGroup->descriptorSet().get(), 0, nullptr, 0);
                                }
-                               if (technique->hasBatchBinding()) [[likely]] {
-                                   _renderEncoder->bindDescriptorSet(technique->material()->bindGroup()->descriptorSet().get(),
+                               if (quadTech->hasBatchBinding()) {
+                                   _renderEncoder->bindDescriptorSet(quadTech->material()->bindGroup()->descriptorSet().get(),
                                                                      1, nullptr, 0);
                                }
-                               if (technique->hasInstanceBinding()) {
-                                   _renderEncoder->bindDescriptorSet(meshRenderer->bindGroup()->descriptorSet().get(), 2, nullptr, 0);
+                               if (quadTech->hasInstanceBinding()) {
+                                   // _renderEncoder->bindDescriptorSet(quadTech->bindGroup()->descriptorSet().get(), 2, nullptr, 0);
                                }
-                               const auto& drawInfo = meshRenderer->drawInfo();
-                               const auto& meshData = meshRenderer->mesh()->meshData();
-                               const auto& indexBuffer = meshData.indexBuffer;
-                               const auto& vertexBuffer = meshData.vertexBuffer;
-                               if (drawInfo.indexCount) {
-                                   _renderEncoder->bindIndexBuffer(indexBuffer.buffer.get(), indexBuffer.offset, indexBuffer.type);
-                                   _renderEncoder->bindVertexBuffer(vertexBuffer.buffer.get(), 0);
-                                   _renderEncoder->drawIndexed(drawInfo.indexCount, drawInfo.instanceCount, drawInfo.firstVertex, drawInfo.vertexOffset, drawInfo.firstInstance);
-                               } else {
-                                   _renderEncoder->bindVertexBuffer(vertexBuffer.buffer.get(), 0);
-                                   _renderEncoder->draw(drawInfo.vertexCount, drawInfo.instanceCount, drawInfo.firstVertex, drawInfo.firstInstance);
-                               }
+
+                               _renderEncoder->draw(3, 1, 0, 0);
                            }
                        },
                        [&](const CopyPassData& copy) {
@@ -490,6 +550,7 @@ GraphScheduler::GraphScheduler(
   _taskGraph(taskGraph),
   _sceneGraph(sceneGraph),
   _shaderGraph(shaderGraph) {
+    _fullscreenMeshRenderer = std::make_shared<scene::MeshRenderer>(std::make_shared<scene::Mesh>());
 }
 
 template <typename T>

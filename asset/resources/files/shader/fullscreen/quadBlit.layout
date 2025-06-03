@@ -1,0 +1,27 @@
+{
+    "path": "asset/layout/fullscreen/rasterBlit",
+    "vertex": {
+        "source": "fullscreen",
+        "bindings": []
+    },
+    "fragment": {
+        "source": "rasterBlit",
+        "bindings": [
+            {
+                "resource": "image",
+                "slot": 0,
+                "rate": "per_pass",
+                "count": 1,
+                "usage": "sampled",
+                "type": "2d"
+            },
+            {
+                "resource": "sampler",
+                "slot": 1,
+                "rate": "per_pass",
+                "count": 1,
+                "immutable": false
+            }
+        ]
+    }
+}

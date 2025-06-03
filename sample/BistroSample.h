@@ -3,6 +3,7 @@
 #include "Camera.h"
 #include "Director.h"
 #include "GraphScheduler.h"
+#include "GraphUtils.h"
 #include "KeyboardEvent.h"
 #include "Mesh.h"
 #include "MouseEvent.h"
@@ -14,6 +15,7 @@
 #include "common.h"
 #include "core/utils/utils.h"
 #include "math.h"
+#include "RHIUtils.h"
 namespace raum::sample {
 class BistroSample : public SampleBase {
 public:
@@ -33,6 +35,29 @@ public:
         auto& sceneGraph = _director->sceneGraph();
         asset::serialize::load(sceneGraph, resourcePath / "models" / "sponza" / "sponza.gltf", _device);
 
+        {
+            scene::MaterialTemplatePtr matTemplate = std::make_shared<scene::MaterialTemplate>("asset/layout/fullscreen/rasterBlit");
+            auto quadMat = matTemplate->instantiate("asset/layout/fullscreen/rasterBlit", scene::MaterialType::CUSTOM);
+
+            scene::Texture tex{
+                .texture = rhi::defaultSampledImage(_device),
+                .textureView = rhi::defaultSampledImageView(_device),
+            };
+            quadMat->set("mainTexture", tex);
+            scene::Sampler sampler{
+                rhi::SamplerInfo{
+                    .magFilter = rhi::Filter::LINEAR,
+                    .minFilter = rhi::Filter::LINEAR,
+                },
+            };
+            quadMat->set("mainSampler", sampler);
+
+            _rasterBlitTech = std::make_shared<scene::Technique>(quadMat, "default");
+            _rasterBlitTech->setPrimitiveType(rhi::PrimitiveType::TRIANGLE_LIST);
+            auto& bs = _rasterBlitTech->blendInfo();
+            bs.attachmentBlends.emplace_back();
+        }
+
         auto& skybox = asset::BuiltinRes::skybox();
         graph::ModelNode& skyboxNode = sceneGraph.addModel("skybox");
         skyboxNode.model = skybox.model();
@@ -47,11 +72,12 @@ public:
         camNode.camera = _cam;
 
         auto& resourceGraph = _ppl->resourceGraph();
-        if (!resourceGraph.contains(_forwardRT)) {
-            resourceGraph.import(_forwardRT, _swapchain);
+        if (!resourceGraph.contains(_presentBuffer)) {
+            resourceGraph.import(_presentBuffer, _swapchain);
         }
         if (!resourceGraph.contains(_forwardDS)) {
             resourceGraph.addImage(_forwardDS, rhi::ImageUsage::DEPTH_STENCIL_ATTACHMENT, width, height, rhi::Format::D24_UNORM_S8_UINT);
+            resourceGraph.addImage(_forwardRT, rhi::ImageUsage::COLOR_ATTACHMENT | rhi::ImageUsage::SAMPLED, width, height, rhi::Format::BGRA8_UNORM);
         }
         if (!resourceGraph.contains(_camBuffer)) {
             resourceGraph.addBuffer(_camBuffer, 128, graph::BufferUsage ::UNIFORM | graph::BufferUsage ::TRANSFER_DST);
@@ -127,7 +153,6 @@ public:
             auto& eye = _cam->eye();
             eye.setOrientation(qy * qx);
             _cam->update();
-
         };
         _mouseMoveListener.add(mouseMovehandler);
     }
@@ -161,18 +186,26 @@ public:
         uploadPass.uploadBuffer(&lightPos[0], 16, _light, 0);
         uploadPass.uploadBuffer(&color[0], 16, _light, 16);
 
-        auto renderPass = renderGraph.addRenderPass("forward");
-        renderPass.addColor(_forwardRT, graph::LoadOp::CLEAR, graph::StoreOp::STORE, {0.3, 0.3, 0.3, 1.0})
+        auto basePass = renderGraph.addRenderPass("forward");
+        basePass.addColor(_forwardRT, graph::LoadOp::CLEAR, graph::StoreOp::STORE, {0.3, 0.3, 0.3, 1.0})
             .addDepthStencil(_forwardDS, graph::LoadOp::CLEAR, graph::StoreOp::STORE, graph::LoadOp::CLEAR, graph::StoreOp::STORE, 1.0, 0);
-        auto queue = renderPass.addQueue("default");
+        auto queue = basePass.addQueue("default");
 
         auto width = _swapchain->width();
         auto height = _swapchain->height();
         queue.setViewport(0, 0, width, height, 0.0f, 1.0f)
+            .addFlag(graph::RenderQueueFlags::GEOMETRY)
             .addCamera(_cam.get())
             .addUniformBuffer(_camBuffer, "Mat")
             .addUniformBuffer(_camPose, "CamPos")
             .addUniformBuffer(_light, "Light");
+
+        auto rasterBlitPass = renderGraph.addRenderPass("quad");
+        rasterBlitPass.addColor(_presentBuffer, graph::LoadOp::CLEAR, graph::StoreOp::STORE, {0.3, 0.3, 0.3, 1.0});
+        auto rasterBlitQ = rasterBlitPass.addQueue("default");
+        rasterBlitQ.setViewport(0, 0, width, height, 0.0f, 1.0f)
+            .setQuadTech(_rasterBlitTech)
+            .addSampledImage(_forwardRT, "mainTexture");
     }
 
     void hide() override {
@@ -195,6 +228,9 @@ private:
     std::shared_ptr<scene::Camera> _cam;
     std::shared_ptr<scene::Scene> _scene;
 
+    scene::TechniquePtr _rasterBlitTech;
+
+    const std::string _presentBuffer = "presentBuffer";
     const std::string _forwardRT = "forwardRT";
     const std::string _forwardDS = "forwardDS";
     const std::string _camBuffer = "camBuffer";
