@@ -38,4 +38,8 @@ void warmUp(SceneGraph& sg, ShaderGraph& shg, rhi::DevicePtr device);
 
 std::string_view getPhaseName(std::string_view queueName);
 
+void bindResourceToMaterial(std::string_view resourceName, std::string_view slotName, scene::MaterialPtr mat, ResourceGraph& resg);
+
+scene::MeshRendererPtr getLocalQuad(rhi::DevicePtr device);
+
 } // namespace raum::graph
