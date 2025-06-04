@@ -99,6 +99,10 @@ layout (set = 0, binding = 2) uniform Light {
     vec4 lightColor;
 };
 
+layout(push_constant) uniform AlphaCutoff {
+    float alphaCutoff;
+};
+
 layout (set = 1, binding = 0) uniform texture2D albedoMap;
 layout (set = 1, binding = 1) uniform texture2D normalMap;
 layout (set = 1, binding = 2) uniform texture2D metallicRoughnessMap;
@@ -178,6 +182,11 @@ float getAOContributions(float factor) {
 
 void main() {
     vec4 albedo = texture(sampler2D(albedoMap, linearSampler), f_uv);
+
+    if (albedo.a < alphaCutoff) {
+       discard;
+    }
+
     vec4 baseColor = albedo * baseColorFactor;
 
     vec4 em = texture(sampler2D(emissiveMap, linearSampler), f_uv);

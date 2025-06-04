@@ -1,8 +1,8 @@
 #pragma once
 #include <boost/container/flat_map.hpp>
+#include <map>
 #include <set>
 #include "BindGroup.h"
-#include <map>
 namespace raum::scene {
 
 enum class TextureType : uint32_t {
@@ -40,6 +40,7 @@ public:
     Material() = delete;
     Material(std::string_view matName,
              const std::string& shader,
+             const MaterialType materialType,
              const std::set<std::string>& defines);
     void set(std::string_view name, const Texture& tex);
     void set(std::string_view name, const Buffer& buf);
@@ -54,6 +55,8 @@ public:
 
     void update();
     BindGroupPtr bindGroup();
+
+    const MaterialType type() const { return _type; }
 
 protected:
     bool _dirty{false};

@@ -24,10 +24,10 @@ void MaterialTemplate::addDefine(std::string_view define) {
 MaterialPtr MaterialTemplate::instantiate(std::string_view name, MaterialType type) {
     switch (type) {
         case MaterialType::PBR:
-            return std::make_shared<PBRMaterial>(name, _shaderPath, _defines);
+            return std::make_shared<PBRMaterial>(name, _shaderPath, type, _defines);
         case MaterialType::NPR:
         case MaterialType::CUSTOM:
-            return std::make_shared<Material>(name, _shaderPath, _defines);
+            return std::make_shared<Material>(name, _shaderPath, type, _defines);
     }
     raum_unreachable();
     return nullptr;
@@ -37,8 +37,9 @@ static uint32_t materialID = 0;
 
 Material::Material(std::string_view matName,
                    const std::string &shader,
+                   const MaterialType materialType,
                    const std::set<std::string> &defines)
-: _shaderName(shader), _matName(matName), _defines(defines) {
+: _shaderName(shader), _matName(matName), _defines(defines), _type(materialType) {
 }
 
 void Material::set(std::string_view name, const Texture &tex) {

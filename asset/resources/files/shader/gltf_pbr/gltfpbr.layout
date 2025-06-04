@@ -168,6 +168,12 @@
         ],
         "count": 1
       }
+    ],
+    "constants":[
+        {
+            "size": 4,
+            "offset": 0
+        }
     ]
   }
 }

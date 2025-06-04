@@ -43,8 +43,6 @@ private:
     std::vector<scene::RenderablePtr> _renderables;
     std::span<scene::RenderablePtr> _noCullRenderables;
     std::span<scene::RenderablePtr> _cullableRenderables;
-
-    scene::MeshRendererPtr _fullscreenMeshRenderer{nullptr};
 };
 
 using GraphSchedulerPtr = std::shared_ptr<GraphScheduler>;
