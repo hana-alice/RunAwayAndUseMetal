@@ -8,8 +8,7 @@
 #include "RHIDevice.h"
 #include "RHIRenderEncoder.h"
 #include "RHIUtils.h"
-#include "asset/resources/builtin/BuiltinRes.h"
-#include "asset/resources/builtin/Quad.h"
+#include "PBRMaterial.h"
 
 namespace raum::graph {
 
@@ -394,6 +393,12 @@ struct RenderGraphVisitor : public boost::dfs_visitor<> {
                                    raum_check(phaseIndex != -1, "Phase %s not found", phase);
                                    const auto& technique = meshRenderer->technique(phaseIndex);
                                    _renderEncoder->bindPipeline(technique->pipelineState().get());
+                                   const auto& mat = technique->material();
+                                   if (mat->type() == scene::MaterialType::PBR) {
+                                       const auto& pbrMat = static_pointer_cast<scene::PBRMaterial>(mat);
+                                       float alphCutoff = pbrMat->alphaCutoff();
+                                       _renderEncoder->pushConstants(ShaderStage::FRAGMENT, 0, &alphCutoff, sizeof(float));
+                                   }
                                    if (technique->hasPassBinding()) {
                                        _renderEncoder->bindDescriptorSet(data.bindGroup->descriptorSet().get(), 0, nullptr, 0);
                                    }
@@ -550,7 +555,6 @@ GraphScheduler::GraphScheduler(
   _taskGraph(taskGraph),
   _sceneGraph(sceneGraph),
   _shaderGraph(shaderGraph) {
-    _fullscreenMeshRenderer = std::make_shared<scene::MeshRenderer>(std::make_shared<scene::Mesh>());
 }
 
 template <typename T>

@@ -1,5 +1,7 @@
 #include "PBRMaterial.h"
 
+#include <tiny_gltf.h>
+
 namespace raum::scene {
 
 //void PBRMaterial::setBaseColorSlot(std::string_view slot) {

@@ -132,34 +132,44 @@ Rate tag_invoke(value_to_tag<Rate>, value const& jv) {
 }
 
 void deserializeBinding(const object& obj, const rhi::ShaderStage stage, ShaderResource& resource, const BindingMap& bindingMap) {
-    if (!obj.contains("bindings")) {
-        return;
+    if (obj.contains("bindings")) {
+        raum_check(obj.at("bindings").is_array(), "layout parsing error: bindings not written in array");
+        const auto& bindings = obj.at("bindings").as_array();
+        for (const auto& binding : bindings) {
+            auto rate = value_to<Rate>(binding);
+            const auto& slotValue = binding.at("slot");
+            auto slot = slotValue.to_number<uint32_t>();
+            const auto& name = bindingMap[static_cast<uint32_t>(rate)].at(slot);
+            auto& resDesc = resource.bindings[name.data()];
+            resDesc.binding = slot;
+            resDesc.visibility = resDesc.visibility | stage;
+            resDesc.type = value_to<BindingType>(binding);
+            resDesc.rate = rate;
+            switch (resDesc.type) {
+                case BindingType::BUFFER:
+                    resDesc.buffer = value_to<BufferBinding>(binding);
+                    break;
+                case BindingType::IMAGE:
+                    resDesc.image = value_to<ImageBinding>(binding);
+                    break;
+                case BindingType::SAMPLER:
+                    resDesc.sampler = value_to<SamplerBinding>(binding);
+                    break;
+                default:
+                    raum_check(false, "unsupport binding type");
+                    break;
+            }
+        }
     }
-    raum_check(obj.at("bindings").is_array(), "layout parsing error: bindings not written in array");
-    const auto& bindings = obj.at("bindings").as_array();
-    for (const auto& binding : bindings) {
-        auto rate = value_to<Rate>(binding);
-        const auto& slotValue = binding.at("slot");
-        auto slot = slotValue.to_number<uint32_t>();
-        const auto& name = bindingMap[static_cast<uint32_t>(rate)].at(slot);
-        auto& resDesc = resource.bindings[name.data()];
-        resDesc.binding = slot;
-        resDesc.visibility = resDesc.visibility | stage;
-        resDesc.type = value_to<BindingType>(binding);
-        resDesc.rate = rate;
-        switch (resDesc.type) {
-            case BindingType::BUFFER:
-                resDesc.buffer = value_to<BufferBinding>(binding);
-                break;
-            case BindingType::IMAGE:
-                resDesc.image = value_to<ImageBinding>(binding);
-                break;
-            case BindingType::SAMPLER:
-                resDesc.sampler = value_to<SamplerBinding>(binding);
-                break;
-            default:
-                raum_check(false, "unsupport binding type");
-                break;
+
+    if (obj.contains("constants")) {
+        raum_check(obj.at("constants").is_array(), "layout parsing error: constants not written in array");
+        const auto& constants = obj.at("constants").as_array();
+        for (const auto& constant : constants) {
+            auto& c = resource.constants.emplace_back();
+            c.offset = constant.at("offset").to_number<uint32_t>();
+            c.size = constant.at("size").to_number<uint32_t>();
+            c.stage = stage;
         }
     }
 }

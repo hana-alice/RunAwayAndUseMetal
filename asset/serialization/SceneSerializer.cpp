@@ -209,12 +209,6 @@ void loadMaterial(
         pbrMat->setAlphaMode(scene::PBRMaterial::AlphaMode::AM_OPAQUE);
     } else if (res.alphaMode == "MASK") {
         pbrMat->setAlphaMode(scene::PBRMaterial::AlphaMode::AM_MASK);
-        auto& colorBlend = bs.attachmentBlends.back();
-        colorBlend.blendEnable = true;
-        colorBlend.srcColorBlendFactor = rhi::BlendFactor::SRC_ALPHA;
-        colorBlend.dstColorBlendFactor = rhi::BlendFactor::ONE_MINUS_SRC_ALPHA;
-        colorBlend.srcAlphaBlendFactor = rhi::BlendFactor::ONE;
-        colorBlend.dstAlphaBlendFactor = rhi::BlendFactor::ZERO;
     } else if (res.alphaMode == "BLEND") {
         pbrMat->setAlphaMode(scene::PBRMaterial::AlphaMode::AM_BLEND);
         auto& colorBlend = bs.attachmentBlends.back();
@@ -914,12 +908,6 @@ void loadMaterialFromCache(
         pbrMat->setAlphaMode(scene::PBRMaterial::AlphaMode::AM_OPAQUE);
     } else if (alphaMode == "MASK") {
         pbrMat->setAlphaMode(scene::PBRMaterial::AlphaMode::AM_MASK);
-        auto& colorBlend = bs.attachmentBlends.back();
-        colorBlend.blendEnable = true;
-        colorBlend.srcColorBlendFactor = rhi::BlendFactor::SRC_ALPHA;
-        colorBlend.dstColorBlendFactor = rhi::BlendFactor::ONE_MINUS_SRC_ALPHA;
-        colorBlend.srcAlphaBlendFactor = rhi::BlendFactor::ONE;
-        colorBlend.dstAlphaBlendFactor = rhi::BlendFactor::ZERO;
     } else if (alphaMode == "BLEND") {
         pbrMat->setAlphaMode(scene::PBRMaterial::AlphaMode::AM_BLEND);
         auto& colorBlend = bs.attachmentBlends.back();
