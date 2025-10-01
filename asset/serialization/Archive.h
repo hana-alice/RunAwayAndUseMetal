@@ -14,13 +14,13 @@ public:
 
     template <typename T>
     InputArchive& operator>>(T&& arg) {
-        (*iarchive)(std::forward<T>(arg));
+        (*iarchive)(std::forward<T&&>(arg));
         return *this;
     }
 
     template <typename... Args>
     void operator()(Args&&... args) {
-        (*iarchive)(std::forward<Args>(args)...);
+        (*iarchive)(std::forward<Args&&>(args)...);
     }
 
     template <>

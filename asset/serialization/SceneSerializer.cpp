@@ -8,6 +8,7 @@
 #include "RHIUtils.h"
 #include "Technique.h"
 #include "core/define.h"
+#include "core/utils/containers.h"
 
 #define TINYGLTF_IMPLEMENTATION
 #define STB_IMAGE_IMPLEMENTATION
@@ -134,11 +135,8 @@ void loadTexture(
     });
 }
 
-void loadTextures(const std::filesystem::path& cachePath,
-                  std::vector<std::pair<std::string, scene::Texture>>& textures,
-                  const tinygltf::Model& rawModel,
-                  rhi::CommandBufferPtr cmdBuffer,
-                  rhi::DevicePtr device) {
+void texturePreprocess(const std::filesystem::path& cachePath,
+                  const tinygltf::Model& rawModel) {
     auto texCachePath = cachePath / "textures";
     const auto& mats = rawModel.materials;
     uint32_t count{0};
@@ -158,68 +156,18 @@ void loadTextures(const std::filesystem::path& cachePath,
 
         raum_check(res.bits == 8, "image bits not supported");
         raum_check(res.component == 4, "image channel count not supported");
-
-        loadTexture(res.name, res.width, res.height, res.image.data(), device, cmdBuffer, textures);
     }
 }
 
-void loadMaterial(
+void materialPreprocess(
     const std::filesystem::path& cachePath,
     const tinygltf::Model& rawModel,
-    int32_t index,
-    std::vector<std::pair<std::string, scene::Texture>>& textures,
-    scene::MaterialTemplatePtr matTemplate,
-    std::map<int32_t, scene::TechniquePtr>& techs,
-    rhi::DevicePtr device) {
+    int32_t index) {
     const auto& rawTextures = rawModel.textures;
     const auto& res = rawModel.materials[index];
 
-    if (res.pbrMetallicRoughness.baseColorTexture.index != -1) {
-        matTemplate->addDefine("BASE_COLOR_MAP");
-    }
-    if (res.pbrMetallicRoughness.metallicRoughnessTexture.index != -1) {
-        matTemplate->addDefine("MATALLIC_ROUGHNESS_MAP");
-    }
-    if (res.normalTexture.index != -1) {
-        matTemplate->addDefine("NORMAL_MAP");
-    }
-    if (res.occlusionTexture.index != -1) {
-        matTemplate->addDefine("OCCLUSION_MAP");
-    }
-    if (res.emissiveTexture.index != -1) {
-        matTemplate->addDefine("EMISSIVE_MAP");
-    }
-
-    scene::MaterialPtr mat = matTemplate->instantiate(res.name, scene::MaterialType::PBR);
-    auto pbrMat = std::static_pointer_cast<scene::PBRMaterial>(mat);
-    auto tech = std::make_shared<scene::Technique>(mat, "default");
-    techs.emplace(index, tech);
-    auto& ds = tech->depthStencilInfo();
-    ds.depthTestEnable = true;
-    ds.depthWriteEnable = true;
-    auto& bs = tech->blendInfo();
-    bs.attachmentBlends.emplace_back();
-
     const auto& ef = res.emissiveFactor;
     raum_check(ef.size() == 3, "Unexpected emissive factor components!");
-    pbrMat->setEmissiveFactor(ef[0], ef[1], ef[2]);
-
-    if (res.alphaMode == "OPAQUE") {
-        // TODO: cmake introduce <wingdi.h> cause `OPAQUE` was preprocessed by macro.
-        pbrMat->setAlphaMode(scene::PBRMaterial::AlphaMode::AM_OPAQUE);
-    } else if (res.alphaMode == "MASK") {
-        pbrMat->setAlphaMode(scene::PBRMaterial::AlphaMode::AM_MASK);
-    } else if (res.alphaMode == "BLEND") {
-        pbrMat->setAlphaMode(scene::PBRMaterial::AlphaMode::AM_BLEND);
-        auto& colorBlend = bs.attachmentBlends.back();
-        colorBlend.blendEnable = true;
-        colorBlend.srcColorBlendFactor = rhi::BlendFactor::SRC_ALPHA;
-        colorBlend.dstColorBlendFactor = rhi::BlendFactor::ONE_MINUS_SRC_ALPHA;
-        colorBlend.srcAlphaBlendFactor = rhi::BlendFactor::ONE;
-        colorBlend.dstAlphaBlendFactor = rhi::BlendFactor::ZERO;
-    }
-    pbrMat->setDoubleSided(res.doubleSided);
-    pbrMat->setAlphaCutoff(res.alphaCutoff);
 
     std::vector<float> mrno(12); // metallic, roughness, normalscale, occlusionscale
 
@@ -231,17 +179,13 @@ void loadMaterial(
     int bcuvIndex{-1};
     if (bc.index != -1) {
         auto imageIndex = rawTextures[bc.index].source;
-        auto& baseColor = textures[imageIndex].second;
-        baseColor.uvIndex = pmr.baseColorTexture.texCoord;
-        pbrMat->set("albedoMap", baseColor);
-        pbrMat->setBaseColorFactor(bcf[0], bcf[1], bcf[2], bcf[3]);
         mrno[0] = bcf[0];
         mrno[1] = bcf[1];
         mrno[2] = bcf[2];
         mrno[3] = bcf[3];
 
         bcSourceIndex = imageIndex;
-        bcuvIndex = baseColor.uvIndex;
+        bcuvIndex = pmr.baseColorTexture.texCoord;
     }
 
     const auto& mr = pmr.metallicRoughnessTexture;
@@ -249,16 +193,11 @@ void loadMaterial(
     int mruvIndex{-1};
     if (mr.index != -1) {
         auto imageIndex = rawTextures[mr.index].source;
-        auto& metallicRoughness = textures[imageIndex].second;
-        metallicRoughness.uvIndex = pmr.metallicRoughnessTexture.texCoord;
-        pbrMat->set("metallicRoughnessMap", metallicRoughness);
-        pbrMat->setMetallicFactor(pmr.metallicFactor);
-        pbrMat->setRoughnessFactor(pmr.roughnessFactor);
         mrno[8] = pmr.metallicFactor;
         mrno[9] = pmr.roughnessFactor;
 
         mrSourceIndex = imageIndex;
-        mruvIndex = metallicRoughness.uvIndex;
+        mruvIndex = pmr.metallicRoughnessTexture.texCoord;
     }
 
     const auto& nt = res.normalTexture;
@@ -266,14 +205,9 @@ void loadMaterial(
     int ntuIndex{-1};
     if (nt.index != -1) {
         auto imageIndex = rawTextures[nt.index].source;
-        auto& normal = textures[imageIndex].second;
-        normal.uvIndex = nt.texCoord;
-        pbrMat->set("normalMap", normal);
-        pbrMat->setNormalScale(nt.scale);
         mrno[10] = nt.scale;
-
         ntSourceIndex = imageIndex;
-        ntuIndex = normal.uvIndex;
+        ntuIndex = nt.texCoord;
     }
 
     const auto& ot = res.occlusionTexture;
@@ -281,14 +215,9 @@ void loadMaterial(
     int otuvIndex{-1};
     if (ot.index != -1) {
         auto imageIndex = rawTextures[ot.index].source;
-        auto& occlusion = textures[imageIndex].second;
-        occlusion.uvIndex = ot.texCoord;
-        pbrMat->set("aoMap", occlusion);
-        pbrMat->setOcclusionStrength(ot.strength);
         mrno[11] = ot.strength;
-
         otSourceIndex = imageIndex;
-        otuvIndex = occlusion.uvIndex;
+        otuvIndex = ot.texCoord;
     }
 
     const auto& et = res.emissiveTexture;
@@ -296,9 +225,6 @@ void loadMaterial(
     int etuvIndex{-1};
     if (et.index != -1) {
         auto imageIndex = rawTextures[et.index].source;
-        auto& emissive = textures[imageIndex].second;
-        emissive.uvIndex = et.texCoord;
-        pbrMat->set("emissiveMap", emissive);
         mrno[4] = res.emissiveFactor[0];
         mrno[5] = res.emissiveFactor[1];
         mrno[6] = res.emissiveFactor[2];
@@ -308,42 +234,8 @@ void loadMaterial(
             mrno[7] = 1.0f;
         }
         etSourceIndex = imageIndex;
-        etuvIndex = emissive.uvIndex;
+        etuvIndex = et.texCoord;
     }
-
-    rhi::BufferSourceInfo bufferInfo{
-        .bufferUsage = rhi::BufferUsage::UNIFORM | rhi::BufferUsage::TRANSFER_DST,
-        .size = static_cast<uint32_t>(mrno.size() * sizeof(float)),
-        .data = mrno.data(),
-    };
-    auto mrnoBuffer = rhi::BufferPtr(device->createBuffer(bufferInfo));
-    pbrMat->set("PBRParams", scene::Buffer{mrnoBuffer});
-
-    rhi::SamplerInfo linearInfo{
-        .magFilter = rhi::Filter::LINEAR,
-        .minFilter = rhi::Filter::LINEAR,
-        .maxLod = 16.0f,
-    };
-    pbrMat->set("linearSampler", {linearInfo});
-    pbrMat->set("pointSampler", {rhi::SamplerInfo{.maxLod = 16.0f}});
-
-    scene::Texture diffuseIrradiance{
-        .texture = BuiltinRes::skybox().diffuseIrradianceImage(),
-        .textureView = BuiltinRes::skybox().diffuseIrradianceView(),
-    };
-    pbrMat->set("diffuseEnvMap", diffuseIrradiance);
-
-    scene::Texture prefilteredSpecular{
-        .texture = BuiltinRes::skybox().prefilteredSpecularImage(),
-        .textureView = BuiltinRes::skybox().prefilteredSpecularView(),
-    };
-    pbrMat->set("specularMap", prefilteredSpecular);
-
-    scene::Texture brdfLUT{
-        .texture = BuiltinRes::iblBrdfLUT(),
-        .textureView = BuiltinRes::iblBrdfLUTView(),
-    };
-    pbrMat->set("brdfLUT", brdfLUT);
 
     auto matCachePath = cachePath / "material" / std::to_string(index);
     matCachePath.replace_extension(".mat");
@@ -395,16 +287,13 @@ void applyNodeTransform(
     node.node.update();
 }
 
-void loadMesh(
+void meshPreprocess(
     const std::filesystem::path& cachePath,
     const tinygltf::Model& rawModel,
     uint32_t nodeIndex,
     graph::SceneGraph& sg,
     std::string_view parentName,
-    std::map<int, scene::TechniquePtr>& techs,
-    std::vector<std::pair<std::string, scene::Texture>>& textures,
-    rhi::CommandBufferPtr cmdBuffer,
-    rhi::DevicePtr device) {
+    std::map<int, scene::TechniquePtr>& techs) {
 
     const auto& rawNode = rawModel.nodes[nodeIndex];
     const auto& rawMesh = rawModel.meshes[rawNode.mesh];
@@ -611,12 +500,7 @@ void loadMesh(
             meshData.shaderAttrs |= scene::ShaderAttribute::COLOR;
             matTemplate->addDefine("VERTEX_COLOR");
         }
-        rhi::BufferSourceInfo bufferSourceInfo{
-            .bufferUsage = rhi::BufferUsage::VERTEX,
-            .size = static_cast<uint32_t>(data.size() * sizeof(float)),
-            .data = data.data(),
-        };
-        meshData.vertexBuffer.buffer = rhi::BufferPtr(device->createBuffer(bufferSourceInfo));
+
         auto& bufferAttribute = vertexLayout.vertexBufferAttrs.emplace_back();
         bufferAttribute.binding = 0;
         bufferAttribute.rate = rhi::InputRate::PER_VERTEX;
@@ -654,36 +538,10 @@ void loadMesh(
                 break;
             }
         }
-        meshData.indexBuffer.buffer = rhi::BufferPtr(device->createBuffer(indexBufferSource));
 
         auto localMatIndex = prim.material;
         if (!techs.contains(localMatIndex)) {
-            loadMaterial(cachePath, rawModel, localMatIndex, textures, matTemplate, techs, device);
-        }
-        auto tech = techs.at(localMatIndex);
-        if (prim.mode == TINYGLTF_MODE_TRIANGLES) {
-            techs[localMatIndex]->setPrimitiveType(rhi::PrimitiveType::TRIANGLE_LIST);
-        } else if (prim.mode == TINYGLTF_MODE_TRIANGLE_STRIP) {
-            techs[localMatIndex]->setPrimitiveType(rhi::PrimitiveType::TRIANGLE_STRIP);
-        } else if (prim.mode == TINYGLTF_MODE_POINTS) {
-            techs[localMatIndex]->setPrimitiveType(rhi::PrimitiveType::POINT_LIST);
-        } else if (prim.mode == TINYGLTF_MODE_LINE) {
-            techs[localMatIndex]->setPrimitiveType(rhi::PrimitiveType::LINE_LIST);
-        } else if (prim.mode == TINYGLTF_MODE_LINE_STRIP) {
-            techs[localMatIndex]->setPrimitiveType(rhi::PrimitiveType::LINE_STRIP);
-        } else {
-            raum_error("primitive:{} not supported.", prim.mode);
-        }
-
-        auto meshRenderer = model.meshRenderers().emplace_back(std::make_shared<scene::MeshRenderer>(mesh));
-        meshRenderer->addTechnique(tech);
-        meshRenderer->setVertexInfo(0, meshData.vertexCount, meshData.indexCount);
-        meshRenderer->setTransform(sceneNode.node.transform());
-        meshRenderer->setTransformSlot("LocalMat");
-
-        auto embededTechSize = static_cast<uint32_t>(scene::EmbededTechnique::COUNT);
-        for (size_t i = 0; i < embededTechSize; ++i) {
-            meshRenderer->addTechnique(scene::makeEmbededTechnique(static_cast<scene::EmbededTechnique>(i)));
+            materialPreprocess(cachePath, rawModel, localMatIndex);
         }
 
         std::vector<char> indexData(indexBufferData, indexBufferData + indexBufferSource.size);
@@ -738,18 +596,15 @@ void loadLights(const tinygltf::Model& rawModel, uint32_t index, graph::SceneGra
 void loadEmpty(uint32_t index, graph::SceneGraph& sg, std::string_view parentName) {
 }
 
-void loadScene(const std::filesystem::path& cachePath,
+void scenePreprocess(const std::filesystem::path& cachePath,
                graph::SceneGraph& sg,
                const tinygltf::Model& rawModel,
-               uint32_t index,
-               rhi::CommandBufferPtr cmdBuffer,
-               rhi::DevicePtr device) {
+               uint32_t index) {
     raum_check(index < rawModel.scenes.size(), "incorrect index of scene");
     const auto& scene = rawModel.scenes[index];
     auto& root = sg.addEmpty(scene.name);
 
-    std::vector<std::pair<std::string, scene::Texture>> textures;
-    loadTextures(cachePath, textures, rawModel, cmdBuffer, device);
+    texturePreprocess(cachePath, rawModel);
     std::map<int32_t, scene::TechniquePtr> techniques;
 
     std::function<void(uint32_t, uint32_t)> loadNodes;
@@ -762,7 +617,7 @@ void loadScene(const std::filesystem::path& cachePath,
             parentName = rawModel.nodes[parent].name;
         }
         if (node.mesh != -1) {
-            loadMesh(cachePath, rawModel, nodeIndex, sg, parentName, techniques, textures, cmdBuffer, device);
+            meshPreprocess(cachePath, rawModel, nodeIndex, sg, parentName, techniques);
         } else if (node.light != -1) {
             loadLights(rawModel, node.light, sg, parentName);
         } else if (node.camera != -1) {
@@ -782,7 +637,7 @@ void loadScene(const std::filesystem::path& cachePath,
     }
 }
 
-void loadFromFile(graph::SceneGraph& sg, const std::filesystem::path& filePath, rhi::DevicePtr device) {
+void assetPreprocess(graph::SceneGraph& sg, const std::filesystem::path& filePath) {
     std::filesystem::path cachePath = raum::utils::resourceDirectory() / "cache" / filePath.stem();
 
     std::string err;
@@ -797,17 +652,7 @@ void loadFromFile(graph::SceneGraph& sg, const std::filesystem::path& filePath, 
             raum_warn("tinyGLTF: {}", warn);
         }
     }
-
-    auto commandPool = rhi::CommandPoolPtr(device->createCoomandPool({}));
-    auto commandBuffer = rhi::CommandBufferPtr(commandPool->makeCommandBuffer({}));
-    auto* queue = device->getQueue({rhi::QueueType::GRAPHICS});
-    commandBuffer->enqueue(queue);
-    commandBuffer->begin({});
-
-    loadScene(cachePath, sg, rawModel, rawModel.defaultScene, commandBuffer, device);
-
-    commandBuffer->commit();
-    queue->submit(false);
+    scenePreprocess(cachePath, sg, rawModel, rawModel.defaultScene);
 }
 
 void loadTexturesFromCache(
@@ -829,11 +674,15 @@ void loadTexturesFromCache(
         std::ranges::sort(files, [](const std::filesystem::path& lhs, const std::filesystem::path rhs) {
             return std::stoi(lhs.filename().stem()) < std::stoi(rhs.filename().stem());
         });
+
+        std::vector<uint8_t> buf(4096*4096*4);
+        monotonic_resource pool{buf.data(), buf.size()};
+
         for (auto& entry : files) {
             std::string texName = entry.filename().string();
             std::string texIndex = texName.substr(0, texName.find_last_of('.'));
             InputArchive ar(entry);
-            std::vector<uint8_t> imgData;
+            PmrVector<uint8_t> imgData{&pool};
             uint32_t width{0}, height{0};
             ar >> width;
             ar >> height;
@@ -1184,11 +1033,12 @@ void loadFromCache(graph::SceneGraph& sg, const std::filesystem::path& cachePath
 
 void load(graph::SceneGraph& sg, const std::filesystem::path& filePath, rhi::DevicePtr device) {
     std::filesystem::path cachePath = raum::utils::resourceDirectory() / "cache" / filePath.stem();
-    if (std::filesystem::exists(cachePath)) {
-        loadFromCache(sg, cachePath, device);
-    } else {
-        loadFromFile(sg, filePath, device);
+    if (!std::filesystem::exists(cachePath)) {
+        graph::SceneGraph offlineSg;
+        assetPreprocess(offlineSg, filePath);
     }
+    raum_expect(std::filesystem::exists(cachePath), "Failed to store cache file");
+    loadFromCache(sg, cachePath, device);
 }
 
 void load(graph::SceneGraph& sg, const std::filesystem::path& filePath, std::string_view sceneName, rhi::DevicePtr device) {
@@ -1214,7 +1064,7 @@ void load(graph::SceneGraph& sg, const std::filesystem::path& filePath, std::str
     std::filesystem::path cachePath = raum::utils::resourceDirectory() / "cache" / filePath.filename();
     for (const auto& s : rawModel.scenes) {
         if (s.name == sceneName) {
-            loadScene(cachePath, sg, rawModel, &s - &rawModel.scenes[0], commandBuffer, device);
+            scenePreprocess(cachePath, sg, rawModel, &s - &rawModel.scenes[0]);
             break;
         }
     }

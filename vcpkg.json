@@ -22,10 +22,6 @@
     "name" : "stb",
     "version>=" : "2023-04-11#1"
   }, {
-    "name" : "qtbase",
-    "version>=" : "6.6.1#10",
-    "features" : [ "vulkan" ]
-  }, {
     "name" : "entt",
     "version>=" : "3.13.1"
   }, {
