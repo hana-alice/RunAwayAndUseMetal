@@ -32,6 +32,8 @@ set(asset_dir ${CMAKE_CURRENT_SOURCE_DIR}/asset CACHE INTERNAL "asset_dir")
 # core
 find_package(spdlog CONFIG REQUIRED)
 
+find_package(stdexec REQUIRED)
+
 add_definitions(-DGLM_ENABLE_EXPERIMENTAL -DGLM_FORCE_DEPTH_ZERO_TO_ONE -DGLM_FORCE_LEFT_HANDED)
 find_package(glm CONFIG REQUIRED)
 
@@ -65,6 +67,15 @@ target_include_directories(raum_core PUBLIC
 target_link_libraries(raum_core PUBLIC
         spdlog::spdlog
 )
+
+if (MSVC)
+    set(MSVC_CONFORMANCE_FLAGS
+            /Zc:__cplusplus
+            /Zc:preprocessor
+    )
+
+    target_compile_options(raum_core PUBLIC $<$<CXX_COMPILER_ID:MSVC>:${MSVC_CONFORMANCE_FLAGS}>)
+endif()
 # framework
 #file(GLOB_RECURSE raum_framework_platform_h ${CMAKE_CURRENT_LIST_DIR}/framework/platform/windows/*.h)
 #file(GLOB_RECURSE raum_framework_platform_cpp ${CMAKE_CURRENT_LIST_DIR}/framework/platform/windows/*.cpp)
@@ -224,6 +235,9 @@ else ()
             raum_asset
             raum_core
     )
+
+#     set_target_properties(raum_sample PROPERTIES LINK_FLAGS "/PROFILE")
+
 
     # set_target_properties(raum_sample PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 

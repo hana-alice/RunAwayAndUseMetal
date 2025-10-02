@@ -1,8 +1,16 @@
 #pragma once
 #include <memory_resource>
 #include <boost/container/flat_map.hpp>
+#include <map>
+#include <set>
+#include <string>
+#include <vector>
+#include <unordered_map>
+#include <unordered_set>
+#include <boost/container/pmr/flat_map.hpp>
+#include <boost/container/pmr/flat_set.hpp>
+#include "log.h"
 namespace raum {
-    auto* DefaultResource = std::pmr::get_default_resource();
 
     using memory_resource = std::pmr::memory_resource;
     using synchronized_pool_resource = std::pmr::synchronized_pool_resource;
@@ -29,5 +37,33 @@ namespace raum {
     template <typename K, typename V>
     using FlatMap = boost::container::flat_map<K, V>;
 
+class TrackedResource : public std::pmr::memory_resource {
+public:
+    TrackedResource(const std::string& name, std::pmr::memory_resource* resource)
+        :_name(name), _resource(resource) {}
+    void* do_allocate(size_t bytes, size_t alignment) override {
+        void* p = _resource->allocate(bytes, alignment);
+        raum_info("[Alloc] {0}: {1} bytes at {2}", _name, bytes, p);
+        return p;
+    }
+
+    void do_deallocate(void* p, size_t bytes, size_t alignment) override {
+        raum_info("[Dealloc] {0}: {1} bytes at {2}", _name, bytes,  p);
+        _resource->deallocate(p, bytes, alignment);
+    }
+
+    bool do_is_equal(const std::pmr::memory_resource& other) const noexcept override {
+        return this == &other;
+    }
+
+private:
+    std::string _name;
+    std::pmr::memory_resource* _resource = nullptr;
+};
+
+TrackedResource* getGlobalTrackedResource();
+
+// auto* DefaultResource = std::pmr::get_default_resource();
+inline auto* DefaultResource = getGlobalTrackedResource();
 
 }
