@@ -8,6 +8,7 @@
 #include "RHIUtils.h"
 #include "Technique.h"
 #include "core/define.h"
+#include "core/thread/execution.h"
 #include "core/utils/containers.h"
 
 #define TINYGLTF_IMPLEMENTATION
@@ -126,7 +127,8 @@ void loadTexture(
     };
 
     auto imgView = rhi::ImageViewPtr(device->createImageView(viewInfo));
-    textures.emplace_back(name, scene::Texture{img, imgView});
+    std::string index{name};
+    textures[std::stoi(index)] = {index, scene::Texture{img, imgView}};
 
     cmdBuffer->onComplete([stagingBuffer, img, imgView]() mutable {
         stagingBuffer.reset();
@@ -136,7 +138,7 @@ void loadTexture(
 }
 
 void texturePreprocess(const std::filesystem::path& cachePath,
-                  const tinygltf::Model& rawModel) {
+                       const tinygltf::Model& rawModel) {
     auto texCachePath = cachePath / "textures";
     const auto& mats = rawModel.materials;
     uint32_t count{0};
@@ -294,7 +296,6 @@ void meshPreprocess(
     graph::SceneGraph& sg,
     std::string_view parentName,
     std::map<int, scene::TechniquePtr>& techs) {
-
     const auto& rawNode = rawModel.nodes[nodeIndex];
     const auto& rawMesh = rawModel.meshes[rawNode.mesh];
     auto meshName = std::to_string(nodeIndex);
@@ -373,7 +374,6 @@ void meshPreprocess(
                 aabb.minBound.x = std::min(transformedMin.x, std::min(aabb.minBound.x, transformedMax.x));
                 aabb.minBound.y = std::min(transformedMin.y, std::min(aabb.minBound.y, transformedMax.y));
                 aabb.minBound.z = std::min(transformedMin.z, std::min(aabb.minBound.z, transformedMax.z));
-
 
             } else if (attrName == "NORMAL") {
                 auto viewIndex = accessors[accessorIndex].bufferView;
@@ -597,9 +597,9 @@ void loadEmpty(uint32_t index, graph::SceneGraph& sg, std::string_view parentNam
 }
 
 void scenePreprocess(const std::filesystem::path& cachePath,
-               graph::SceneGraph& sg,
-               const tinygltf::Model& rawModel,
-               uint32_t index) {
+                     graph::SceneGraph& sg,
+                     const tinygltf::Model& rawModel,
+                     uint32_t index) {
     raum_check(index < rawModel.scenes.size(), "incorrect index of scene");
     const auto& scene = rawModel.scenes[index];
     auto& root = sg.addEmpty(scene.name);
@@ -675,10 +675,17 @@ void loadTexturesFromCache(
             return std::stoi(lhs.filename().stem()) < std::stoi(rhs.filename().stem());
         });
 
-        std::vector<uint8_t> buf(4096*4096*4);
-        monotonic_resource pool{buf.data(), buf.size()};
+        textures.resize(files.size());
 
-        for (auto& entry : files) {
+        synchronized_pool_resource pool{std::pmr::get_default_resource()};
+        auto& threadPool = getIOThreadPool();
+        auto sched = threadPool.get_scheduler();
+
+        std::mutex taskMutex;
+
+        auto imgTask = [&](int i) {
+            // load image data
+            auto& entry = files[i];
             std::string texName = entry.filename().string();
             std::string texIndex = texName.substr(0, texName.find_last_of('.'));
             InputArchive ar(entry);
@@ -688,8 +695,12 @@ void loadTexturesFromCache(
             ar >> height;
             ar >> imgData;
 
+            std::lock_guard<std::mutex> lock(taskMutex);
             loadTexture(texIndex, width, height, imgData.data(), device, cmdBuffer, textures);
-        }
+        };
+
+        auto sender = stdexec::schedule(sched) | stdexec::bulk(files.size(), std::move(imgTask));
+        stdexec::sync_wait(std::move(sender));
     }
 }
 
