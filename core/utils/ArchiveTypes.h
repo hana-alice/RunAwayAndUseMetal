@@ -1,11 +1,12 @@
-#include "cereal/cereal.hpp"
+#pragma once
+
 #include "core/math.h"
+
+#include "cereal/cereal.hpp"
 #include "cereal/types/string.hpp"
 #include "cereal/types/vector.hpp"
-
 #include "cereal/types/variant.hpp"
 #include "cereal/types/memory.hpp"
-
 #include <cereal/archives/binary.hpp>
 namespace cereal {
 
@@ -59,6 +60,16 @@ void serialize(Archive& ar, raum::Vec4f& vec4f) { ar(vec4f.x, vec4f.y, vec4f.z, 
 
 template <class Archive>
 void serialize(Archive& ar, raum::Quaternion& quat) { ar(quat.x, quat.y, quat.z, quat.w); }
+
+template <class Archive>
+void serialize(Archive& ar, raum::utils::Degree& degree) {
+    ar(degree.value);
+}
+
+template <class Archive>
+void serialize(Archive& ar, raum::utils::Radian& rad) {
+    ar(rad.value);
+}
 
 // template <class Archive, typename Enum>
 // void serialize(Archive& ar, Enum& e)

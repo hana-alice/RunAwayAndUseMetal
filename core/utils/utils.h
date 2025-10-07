@@ -2,6 +2,8 @@
 #include <filesystem>
 #include <optional>
 #include <numbers>
+#include <functional>
+#include <boost/container_hash/hash.hpp>
 
 namespace raum::utils {
 

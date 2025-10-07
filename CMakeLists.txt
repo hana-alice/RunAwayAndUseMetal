@@ -47,6 +47,11 @@ source_group("raum_thread_h" FILES ${raum_thread_h})
 file(GLOB_RECURSE raum_thread_cpp ${CMAKE_CURRENT_LIST_DIR}/core/thread/*.cpp)
 source_group("raum_thread_cpp" FILES ${raum_thread_cpp})
 
+file(GLOB_RECURSE raum_serialize_h ${CMAKE_CURRENT_LIST_DIR}/core/serialization/*.h)
+file(GLOB_RECURSE raum_serialize_cpp ${CMAKE_CURRENT_LIST_DIR}/core/serialization/*.cpp)
+source_group("raum_serialize_h" FILES ${raum_serialize_h})
+source_group("raum_serialize_cpp" FILES ${raum_serialize_cpp})
+
 file(GLOB_RECURSE raum_core_h ${CMAKE_CURRENT_LIST_DIR}/core/*.h)
 source_group("raum_core_h" FILES ${raum_core_h})
 file(GLOB_RECURSE raum_core_cpp ${CMAKE_CURRENT_LIST_DIR}/core/*.cpp)
@@ -59,6 +64,8 @@ add_library(raum_core
         ${raum_core_cpp}
         ${raum_thread_h}
         ${raum_thread_cpp}
+        ${raum_serialize_h}
+        ${raum_serialize_cpp}
 )
 
 target_include_directories(raum_core PUBLIC
@@ -187,15 +194,12 @@ source_group("raum_asset_builtinres_cpp" FILES ${raum_asset_builtinres_cpp})
 add_library(raum_asset
         ${raum_asset_loader_h}
         ${raum_asset_loader_cpp}
-        ${raum_asset_serialize_h}
-        ${raum_asset_serialize_cpp}
         ${raum_asset_builtinres_h}
         ${raum_asset_builtinres_cpp}
 )
 target_include_directories(raum_asset PUBLIC
         ${Stb_INCLUDE_DIR}
         ${CMAKE_CURRENT_LIST_DIR}/asset/loader
-        ${CMAKE_CURRENT_LIST_DIR}/asset/serialization
         ${CMAKE_CURRENT_LIST_DIR}/asset/resources/builtin
         ${TINYGLTF_INCLUDE_DIRS}
 )

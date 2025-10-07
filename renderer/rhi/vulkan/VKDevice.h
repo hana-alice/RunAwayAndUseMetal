@@ -58,6 +58,7 @@ private:
 
     void initInstance();
     void initDevice();
+    void validateCache();
 
     VkInstance _instance;
     VkDebugUtilsMessengerEXT _debugMessenger;
