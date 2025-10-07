@@ -39,6 +39,12 @@ public:
     virtual RHIFrameBuffer* createFrameBuffer(const FrameBufferInfo&) = 0;
     virtual RHISparseImage* createSparseImage(const SparseImageInfo&) = 0;
 
+    virtual RHIAccelerationStructure* createAccelerationStructure(const AccelerationStructureInfo&) = 0;
+    virtual void buildAccelerationStructure(
+        const std::vector<AccelerationStructureBuildGeometryInfo>&,
+        const std::vector<AccelerationStructureBuildRangeInfo>&) = 0;
+
+
     virtual StagingBufferInfo allocateStagingBuffer(uint32_t size, uint8_t queueIndex) = 0;
 
     // internal holds

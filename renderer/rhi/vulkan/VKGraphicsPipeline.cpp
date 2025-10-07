@@ -13,9 +13,10 @@ namespace {
 }
 
 GraphicsPipeline::GraphicsPipeline(const GraphicsPipelineInfo& pipelineInfo, Device* device)
-: RHIGraphicsPipeline(pipelineInfo, device), 
-_device(static_cast<Device*>(device)), 
-_layout(static_cast<PipelineLayout*>(pipelineInfo.pipelineLayout)) {
+    : RHIGraphicsPipeline(pipelineInfo, device),
+    _device(static_cast<Device*>(device)),
+    _layout(static_cast<PipelineLayout*>(pipelineInfo.pipelineLayout)) {
+
     RAUM_ERROR_IF(pipelineInfo.shaders.size() < 2, "At least two shaders are required!");
 
     VkGraphicsPipelineCreateInfo pipelineCreateInfo = {};

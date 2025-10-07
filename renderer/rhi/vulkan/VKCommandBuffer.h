@@ -22,6 +22,7 @@ public:
     RHIRenderEncoder* makeRenderEncoder() override;
     RHIBlitEncoder* makeBlitEncoder() override;
     RHIComputeEncoder* makeComputeEncoder() override;
+    RHIRaytracingEncoder* makeRaytracingEncoder() override;
     void begin(const CommandBufferBeginInfo& info) override;
     void enqueue(RHIQueue*) override;
     void commit() override;

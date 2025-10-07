@@ -39,6 +39,11 @@ public:
     RHIDescriptorPool *createDescriptorPool(const DescriptorPoolInfo &) override;
     RHISparseImage* createSparseImage(const SparseImageInfo&) override;
 
+    virtual RHIAccelerationStructure* createAccelerationStructure(const AccelerationStructureInfo&) override;
+    virtual void buildAccelerationStructure(
+        const std::vector<AccelerationStructureBuildGeometryInfo>&,
+        const std::vector<AccelerationStructureBuildRangeInfo>&) override;
+
     StagingBufferInfo allocateStagingBuffer(uint32_t size, uint8_t queueIndex) override;
     void resetStagingBuffer(uint8_t queueIndex);
 

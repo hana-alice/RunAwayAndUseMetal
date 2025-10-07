@@ -7,6 +7,7 @@ class RHIQueue;
 class RHIRenderEncoder;
 class RHIBlitEncoder;
 class RHIComputeEncoder;
+class RHIRaytracingEncoder;
 class RHIDevice;
 class RHICommandBuffer: public RHIResource  {
 public:
@@ -16,6 +17,7 @@ public:
     virtual RHIRenderEncoder* makeRenderEncoder() = 0;
     virtual RHIBlitEncoder* makeBlitEncoder() = 0;
     virtual RHIComputeEncoder* makeComputeEncoder() = 0;
+    virtual RHIRaytracingEncoder* makeRaytracingEncoder() = 0;
 
     virtual void begin(const CommandBufferBeginInfo&) = 0;
 

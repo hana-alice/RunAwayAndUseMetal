@@ -24,6 +24,9 @@ public:
                     uint32_t offset,
                     uint32_t size,
                     rhi::BufferPtr buffer);
+    void bindBuffer(std::string_view name,
+                uint32_t index,
+                rhi::BufferViewPtr buffer);
 
     void bindImage(std::string_view name,
                    uint32_t index,

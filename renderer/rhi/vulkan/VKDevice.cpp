@@ -20,8 +20,7 @@
 #include "VkBufferView.h"
 #include "VKComputePipeline.h"
 #include "core/utils/log.h"
-
-// #include "asset/serialization/Archive.h"
+#include "VKAccelerationStructure.h"
 namespace raum::rhi {
 
 static constexpr bool enableValidationLayer{true};
@@ -63,7 +62,7 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityF
     } else if (messageSeverity == VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT) {
     } else if (messageSeverity == VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT) {
     } else if (messageSeverity == VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) {
-        raum_error("{}", pCallbackData->pMessage);
+        //raum_error("{}", pCallbackData->pMessage);
     }
 
     return VK_FALSE;
@@ -454,6 +453,15 @@ SparseBindingRequirement Device::sparseBindingRequirement(RHIImage* image) {
     req.mipTailOffset = reqs[0].imageMipTailSize;
     req.mipTailStride = reqs[0].imageMipTailStride;
     return req;
+}
+
+RHIAccelerationStructure* Device::createAccelerationStructure(const AccelerationStructureInfo& info) {
+    return new VKAccelerationStructure(info, this);
+}
+
+void Device::buildAccelerationStructure(const std::vector<AccelerationStructureBuildGeometryInfo>& geoInfos,
+        const std::vector<AccelerationStructureBuildRangeInfo>& rangeInfos) {
+
 }
 
 StagingBufferInfo Device::allocateStagingBuffer(uint32_t size, uint8_t queueIndex) {

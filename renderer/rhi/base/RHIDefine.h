@@ -4,6 +4,7 @@
 #include <functional>
 #include <string>
 #include <vector>
+#include <variant>
 #include "core/define.h"
 #include "core/math.h"
 
@@ -65,6 +66,7 @@ class RHIDescriptorPool;
 class RHICommandPool;
 class RHISparseImage;
 class RHISemaphore;
+class RHIAccelerationStructure;
 
 using DevicePtr = std::shared_ptr<RHIDevice>;
 using SwapchainPtr = std::shared_ptr<RHISwapchain>;
@@ -88,6 +90,7 @@ using ComputeEncoderPtr = std::shared_ptr<RHIComputeEncoder>;
 using DescriptorPoolPtr = std::shared_ptr<RHIDescriptorPool>;
 using SparseImagePtr = std::shared_ptr<RHISparseImage>;
 using SemaphorePtr = std::shared_ptr<RHISemaphore>;
+using AccelerationStructurePtr = std::shared_ptr<RHIAccelerationStructure>;
 
 using DescriptorSetLayoutRef = std::weak_ptr<RHIDescriptorSetLayout>;
 using PipelineLayoutRef = std::weak_ptr<RHIPipelineLayout>;
@@ -265,6 +268,14 @@ enum class ShaderStage : uint32_t {
     MESH = 1 << 2,
     FRAGMENT = 1 << 3,
     COMPUTE = 1 << 4,
+
+    RAY_GEN = 1 << 8,
+    RAY_MISS = 1 << 9,
+    RAY_CHIT = 1 << 10,
+    RAY_AHIT = 1 << 11,
+    RAY_INTERSECTION = 1 << 12,
+    RAY_CALLABLE = 1 << 13,
+
 };
 OPERABLE(ShaderStage)
 
@@ -865,6 +876,124 @@ struct GraphicsPipelineInfo {
 };
 RHIHASHER(GraphicsPipelineInfo)
 
+enum class AccelerationStructureType : uint8_t {
+    TOP_LEVEL,
+    BOTTOM_LEVEL,
+    Generic,
+};
+
+enum class AccelerationStructureBuildFlag {
+    ALLOW_UPDATE = 0,
+    ALLOW_COMPACTION = 1,
+    PREFER_FAST_TRACE = 1 << 1,
+    PREFER_FAST_BUILD = 1 << 2,
+    LOW_MEMORY = 1 << 3,
+    MOTION = 1 << 4,
+    ALLOW_OPACITY_MICROMAP_UPDATE = 1 << 5,
+    ALLOW_DISABLE_OPACITY_MICROMAPS = 1 << 6,
+    ALLOW_OPACITY_MICROMAP_DATA_UPDATE = 1 << 7,
+    ALLOW_DATA_ACCESS = 1 << 8,
+};
+
+enum class AccelerationStructureBuildMode : uint8_t {
+    BUILD,
+    UPDATE,
+};
+
+enum class AccelerationStructureFlag {
+    DEVICE_ADDRESS_CAPTURE_REPLAY = 0,
+    DESCRIPTOR_BUFFER_CAPTURE_REPLAY = 1,
+    MOTION = 1 << 1,
+};
+
+enum class GeometryType {
+    TRIANGLES,
+    AABBS,
+    INSTANCES,
+};
+
+using DeviceAddress = uint64_t;
+
+using DeviceOrHostAddressConst = std::variant<DeviceAddress, void*>;
+
+enum class IndexType : uint8_t {
+    HALF, // most likely 16 bit
+    FULL, // most likely 32 bit
+};
+
+struct AccelerationStructureGeometryTrianglesData {
+    Format format{Format::UNKNOWN};
+    DeviceOrHostAddressConst vertexData;
+    uint64_t vertexStride{0};
+    uint32_t maxVertex{0};
+    IndexType indexType{IndexType::FULL};
+    DeviceOrHostAddressConst indexData;
+    DeviceOrHostAddressConst transformData;
+};
+
+struct AccelerationStructureGeometryAabbsData {
+    DeviceOrHostAddressConst data;
+    uint64_t stride{0};
+};
+
+struct AccelerationStructureGeometryInstancesData {
+    bool isArray{false};
+    DeviceOrHostAddressConst data;
+};
+
+using AccelerationStructureGeometry = std::variant<AccelerationStructureGeometryTrianglesData, AccelerationStructureGeometryAabbsData, AccelerationStructureGeometryInstancesData>;
+
+struct AccelerationStructureBuildGeometryInfo {
+    AccelerationStructureType type{AccelerationStructureType::BOTTOM_LEVEL};
+    AccelerationStructureBuildFlag buildFlag{AccelerationStructureBuildFlag::PREFER_FAST_TRACE};
+    AccelerationStructureBuildMode buildMode{AccelerationStructureBuildMode::BUILD};
+    RHIAccelerationStructure* srcAccelerationStructure{nullptr};
+    RHIAccelerationStructure* dstAccelerationStructure{nullptr};
+    uint32_t geometryCount{0};
+    std::vector<AccelerationStructureGeometry> geometries;
+    DeviceOrHostAddressConst scratchData;
+};
+
+struct AccelerationStructureBuildRangeInfo {
+    uint32_t    primitiveCount;
+    uint32_t    primitiveOffset;
+    uint32_t    firstVertex;
+    uint32_t    transformOffset;
+};
+
+struct AccelerationStructureInfo {
+    AccelerationStructureFlag flags{AccelerationStructureFlag::DEVICE_ADDRESS_CAPTURE_REPLAY};
+    AccelerationStructureType type{AccelerationStructureType::BOTTOM_LEVEL};
+    RHIBuffer* buffer{nullptr};
+    uint64_t offset{0};
+    uint64_t size{0};
+    DeviceAddress deviceAddress{0};
+};
+RHIHASHER(AccelerationStructureInfo)
+
+enum class RaytracingShaderGroupType: uint8_t {
+    SHADER_GROUPTYPE_GENERAL = 0,
+    SHADER_GROUPTYPE_TRIAGNLES_HIT = 1,
+    SHADER_GROUPTYPE_PROCEDURAL_HIT = 2,
+};
+
+struct RaytracingShaderGroupCreateInfo {
+    RaytracingShaderGroupType shaderGroupType{RaytracingShaderGroupType::SHADER_GROUPTYPE_GENERAL};
+    uint32_t generalShader{0};
+    uint32_t closestHitShader{0};
+    uint32_t anyHitShader{0};
+    uint32_t intersectionShader{0};
+};
+RHIHASHER(RaytracingShaderGroupCreateInfo)
+
+struct RaytracingPipelineInfo {
+    std::vector<RHIShader*> shaders;
+    std::vector<RaytracingShaderGroupCreateInfo> groups;
+    uint32_t maxRecursionDepth{0};
+    RHIPipelineLayout* pipelineLayout{nullptr};
+};
+RHIHASHER(RaytracingPipelineInfo)
+
 struct ComputePipelineInfo {
     RHIPipelineLayout* pipelineLayout{nullptr};
     RHIShader* shader{nullptr};
@@ -921,11 +1050,6 @@ struct BufferViewInfo {
     Format format{Format::UNKNOWN};
     uint32_t offset{0};
     uint32_t size{0};
-};
-
-enum class IndexType : uint8_t {
-    HALF, // most likely 16 bit
-    FULL, // most likely 32 bit
 };
 
 struct DeviceInfo {

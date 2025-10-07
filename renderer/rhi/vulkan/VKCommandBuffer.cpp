@@ -12,6 +12,7 @@
 #include "VKCommandPool.h"
 #include "VKSparseImage.h"
 #include "RHIUtils.h"
+#include "VKRaytracingEncoder.h"
 namespace raum::rhi {
 CommandBuffer::CommandBuffer(const CommandBufferInfo& info, CommandPool* commandPool, RHIDevice* device)
 : RHICommandBuffer(info, device),
@@ -43,6 +44,10 @@ RHIComputeEncoder* CommandBuffer::makeComputeEncoder() {
 
 RHIBlitEncoder* CommandBuffer::makeBlitEncoder() {
     return new BlitEncoder(this);
+}
+
+RHIRaytracingEncoder* CommandBuffer::makeRaytracingEncoder() {
+    return new VKRaytracingEncoder(this);
 }
 
 void CommandBuffer::begin(const CommandBufferBeginInfo& info) {

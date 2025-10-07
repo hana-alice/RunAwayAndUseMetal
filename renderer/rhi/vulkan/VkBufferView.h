@@ -13,10 +13,13 @@ public:
     explicit BufferView(const BufferViewInfo& info, RHIDevice* device);
     ~BufferView();
 
+    const BufferViewInfo& info() const override;
+
     VkBufferView bufferView() const { return _bufferView; }
 
 private:
     Device* _device{nullptr};
     VkBufferView _bufferView;
+    BufferViewInfo _info;
 };
 } // namespace raum::rhi

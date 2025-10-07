@@ -5,7 +5,7 @@
 namespace raum::rhi {
 
 BufferView::BufferView(const BufferViewInfo& info, RHIDevice* device)
-: RHIBufferView(info, device), _device(static_cast<Device*>(device)) {
+: RHIBufferView(info, device), _device(static_cast<Device*>(device)), _info(info) {
     VkBufferViewCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_BUFFER_VIEW_CREATE_INFO;
     createInfo.buffer = static_cast<Buffer*>(info.buffer)->buffer();
@@ -19,5 +19,10 @@ BufferView::BufferView(const BufferViewInfo& info, RHIDevice* device)
 BufferView::~BufferView() {
     vkDestroyBufferView(_device->device(), _bufferView, nullptr);
 }
+
+const BufferViewInfo& BufferView::info() const {
+    return _info;
+}
+
 
 } // namespace raum::rhi

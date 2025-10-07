@@ -266,6 +266,48 @@ const std::filesystem::path deserialize(const std::filesystem::path& layoutPath,
         reflect(source, bindingMap);
         deserializeBinding(task.as_object(), rhi::ShaderStage::TASK, resource, bindingMap);
     }
+    if (data.contains("ray_generate")) {
+        const auto& rgen = data.at("ray_generate");
+        auto source = loadResource(rgen.as_object(), layoutPath, ".rgen");
+        resource.shaderSources.emplace(rhi::ShaderStage::RAY_GEN, source);
+        reflect(source, bindingMap);
+        deserializeBinding(rgen.as_object(), rhi::ShaderStage::RAY_GEN, resource, bindingMap);
+    }
+    if (data.contains("ray_miss")) {
+        const auto& rmiss = data.at("ray_miss");
+        auto source = loadResource(rmiss.as_object(), layoutPath, ".rmiss");
+        resource.shaderSources.emplace(rhi::ShaderStage::RAY_MISS, source);
+        reflect(source, bindingMap);
+        deserializeBinding(rmiss.as_object(), rhi::ShaderStage::RAY_MISS, resource, bindingMap);
+    }
+    if (data.contains("ray_closest_hit")) {
+        const auto& rchit = data.at("ray_closest_hit");
+        auto source = loadResource(rchit.as_object(), layoutPath, ".rchit");
+        resource.shaderSources.emplace(rhi::ShaderStage::RAY_CHIT, source);
+        reflect(source, bindingMap);
+        deserializeBinding(rchit.as_object(), rhi::ShaderStage::RAY_CHIT, resource, bindingMap);
+    }
+    if (data.contains("ray_any_hit")) {
+        const auto& rahit = data.at("ray_any_hit");
+        auto source = loadResource(rahit.as_object(), layoutPath, ".rahit");
+        resource.shaderSources.emplace(rhi::ShaderStage::RAY_AHIT, source);
+        reflect(source, bindingMap);
+        deserializeBinding(rahit.as_object(), rhi::ShaderStage::RAY_AHIT, resource, bindingMap);
+    }
+    if (data.contains("ray_intersection")) {
+        const auto& rintersect = data.at("ray_intersection");
+        auto source = loadResource(rintersect.as_object(), layoutPath, ".rintersect");
+        resource.shaderSources.emplace(rhi::ShaderStage::RAY_INTERSECTION, source);
+        reflect(source, bindingMap);
+        deserializeBinding(rintersect.as_object(), rhi::ShaderStage::RAY_INTERSECTION, resource, bindingMap);
+    }
+    if (data.contains("ray_callable")) {
+        const auto& rcall = data.at("ray_callable");
+        auto source = loadResource(rcall.as_object(), layoutPath, ".rcall");
+        resource.shaderSources.emplace(rhi::ShaderStage::RAY_CALLABLE, source);
+        reflect(source, bindingMap);
+        deserializeBinding(rcall.as_object(), rhi::ShaderStage::RAY_CALLABLE, resource, bindingMap);
+    }
 
     return std::filesystem::path(pathID.c_str());
 }
@@ -276,6 +318,10 @@ std::unordered_map<std::string_view, rhi::ShaderStage> str2ShaderStage = {
     {".comp", rhi::ShaderStage::COMPUTE},
     {".mesh", rhi::ShaderStage::MESH},
     {".task", rhi::ShaderStage::TASK},
+    {".rgen", rhi::ShaderStage::RAY_GEN},
+    {".rmiss", rhi::ShaderStage::RAY_MISS},
+    {".rchit", rhi::ShaderStage::RAY_CHIT},
+    {".rahit", rhi::ShaderStage::RAY_AHIT},
 };
 
 void deserialize(const std::filesystem::path& path, std::string_view name, ShaderGraph& shaderGraph) {

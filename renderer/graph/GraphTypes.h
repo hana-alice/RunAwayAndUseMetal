@@ -185,6 +185,14 @@ enum class Rate {
     PER_DRAW,
 };
 
+enum class ShaderSourceType {
+    GLSL,
+    HLSL,
+    SPIRV,
+    SLANG,
+    WGSL,
+};
+
 struct ShaderBindingDesc {
     BindingType type{BindingType::BUFFER};
     rhi::ShaderStage visibility{rhi::ShaderStage::NONE};
@@ -200,6 +208,7 @@ struct ShaderResource {
     std::array<rhi::DescriptorSetLayoutPtr, rhi::BindingRateCount> descriptorLayouts;
     std::vector<rhi::PushConstantRange> constants;
     boost::container::flat_map<ShaderStage, std::string> shaderSources;
+    ShaderSourceType shaderSourceType{ShaderSourceType::GLSL};
 };
 
 using ShaderResources = std::unordered_map<std::string, ShaderResource, hash_string, std::equal_to<>>;
