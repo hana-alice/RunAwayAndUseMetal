@@ -1,7 +1,6 @@
 #pragma once
 #include <glm/glm.hpp>
 
-#include "framework/event/KeyboardEvent.h"
 namespace raum {
 using Vec2i = glm::ivec2;
 using Vec3i = glm::ivec3;

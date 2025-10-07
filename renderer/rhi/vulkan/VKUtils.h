@@ -1,5 +1,6 @@
 #pragma once
 #include <vulkan/vulkan.h>
+#include "core/core.h"
 #include "VKDefine.h"
 #include "core/utils/log.h"
 
@@ -17,6 +18,14 @@ inline void log(const std::vector<VkLayerProperties>& vec) {
         spdlog::log(spdlog::level::info, "{}. {}", &ele - &vec[0], ele.layerName);
     }
 }
+
+template<>
+struct equalTo<VkPipelineBinaryKeyKHR> {
+    bool operator()(const VkPipelineBinaryKeyKHR& lhs, const VkPipelineBinaryKeyKHR& rhs) const {
+        if (lhs.sType != rhs.sType || lhs.keySize != rhs.keySize) return false;
+        return std::memcmp(lhs.key, rhs.key, lhs.keySize) == 0;
+    }
+};
 
 namespace rhi {
 FormatInfo formatInfo(Format format);
@@ -116,6 +125,8 @@ VkSamplerMipmapMode samplerMipmapMode(MipmapMode mipmapMode);
 VkSamplerAddressMode samplerAddressMode(SamplerAddressMode addressMode);
 
 VkBorderColor borderColor(BorderColor borderColor);
+
+VkPipelineBinaryKHR getOrCachePipelineBinary(VkDevice device, const VkGraphicsPipelineCreateInfo& info);
 
 } // namespace rhi
 

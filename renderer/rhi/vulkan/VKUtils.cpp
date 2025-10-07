@@ -3,6 +3,11 @@
 
 #include <map>
 #include "VKUtils.h"
+
+#include <boost/container_hash/hash.hpp>
+
+#include "core/utils/containers.h"
+#include "core/utils/utils.h"
 namespace raum::rhi {
 
 const std::map<Format, FormatInfo> formatMap = {
@@ -1279,6 +1284,26 @@ template <class T>
 inline void hash_combine(std::size_t& s, const T& v) {
     std::hash<T> h;
     s ^= h(v) + 0x9e3779b9 + (s << 6) + (s >> 2);
+}
+
+template <>
+size_t RHIHash<VkPipelineBinaryKeyKHR>::operator()(const VkPipelineBinaryKeyKHR& key) const {
+    std::size_t res{0};
+    raum_expect(key.sType == VK_STRUCTURE_TYPE_PIPELINE_BINARY_KEY_KHR, "Wrong key type!");
+    hash_combine(res, key.keySize);
+    hashRange(res, &key.key[0], key.keySize);
+    return res;
+}
+
+static RaumMap<VkPipelineBinaryKeyKHR, VkPipelineBinaryDataKHR> pipelineBinaryCacheMap;
+
+VkPipelineBinaryDataKHR* getOrCachePipelineBinary(const VkPipelineBinaryKeyKHR& key) {
+    auto iter = pipelineBinaryCacheMap.find(key);
+    if (iter != pipelineBinaryCacheMap.end()) {
+        return &iter->second;
+    }
+
+    return nullptr;
 }
 
 /*template <>

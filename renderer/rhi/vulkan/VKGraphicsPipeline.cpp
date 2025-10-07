@@ -5,6 +5,13 @@
 #include "VKShader.h"
 #include "VKUtils.h"
 namespace raum::rhi {
+
+namespace {
+
+
+
+}
+
 GraphicsPipeline::GraphicsPipeline(const GraphicsPipelineInfo& pipelineInfo, Device* device)
 : RHIGraphicsPipeline(pipelineInfo, device), 
 _device(static_cast<Device*>(device)), 
