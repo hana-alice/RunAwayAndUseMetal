@@ -1,24 +1,16 @@
 #pragma once
 #include <filesystem>
-// #include "SceneGraph.h"
 #include "cereal/cereal.hpp"
 #include "ArchiveTypes.h"
 #include <fstream>
 
 namespace raum::utils {
 
-template<class... Args>
-void func(Args&&... args) {
-}
-
-template<>
-void func(int a) {
-}
-
 class InputArchive {
 public:
     InputArchive() = default;
     explicit InputArchive(const std::filesystem::path& filePath);
+    explicit InputArchive(const std::filesystem::path& filePath, std::ios::openmode stdFileMode);
 
     template <typename T>
     InputArchive& operator>>(T&& arg) {
@@ -36,23 +28,18 @@ public:
         (*iarchive)(std::forward<Args>(args)...);
     }
 
+    void read(uint8_t* data, uint32_t size);
+
 private:
     std::shared_ptr<cereal::BinaryInputArchive> iarchive;
     std::ifstream is;
 };
 
-// template <>
-// inline void InputArchive::read(uint8_t* data, uint32_t size) {
-//     auto& ar = *iarchive;
-//     ar(cereal::binary_data(data, size));
-// }
-
-} // namespace raum::asset::serialize
-
 class OutputArchive {
 public:
     OutputArchive() = default;
     explicit OutputArchive(const std::filesystem::path& filePath);
+    explicit OutputArchive(const std::filesystem::path& filePath, std::ios::openmode stdFileMode);
 
     template <typename T>
     OutputArchive& operator<<(const T& arg) {
@@ -70,15 +57,11 @@ public:
         (*oarchive)(std::forward<Args>(args)...);
     }
 
+    void write(const uint8_t* data, uint32_t size);
+
 private:
     std::shared_ptr<cereal::BinaryOutputArchive> oarchive;
     std::ofstream os;
 };
 
-template <>
-inline void OutputArchive::write(const uint8_t* data, uint32_t size) {
-    auto& ar = *oarchive;
-    ar << cereal::binary_data(data, size);
 }
-
-} // namespace raum::asset::serialize

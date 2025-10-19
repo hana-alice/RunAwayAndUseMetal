@@ -17,4 +17,6 @@ struct FormatInfo {
     uint32_t macroPixelCount;
 };
 
+inline PFN_vkGetPipelineKeyKHR pfn_vkGetPipelineKeyKHR = nullptr;
+
 } // namespace raum::rhi

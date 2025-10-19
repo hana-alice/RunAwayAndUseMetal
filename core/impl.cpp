@@ -14,4 +14,8 @@ exec::static_thread_pool& getIOThreadPool() {
     return ioThreadPool;
 }
 
+memory_resource* DefaultResource() {
+    return std::pmr::get_default_resource();
+}
+
 }

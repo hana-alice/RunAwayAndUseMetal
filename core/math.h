@@ -1,5 +1,6 @@
 #pragma once
 #include <glm/glm.hpp>
+#include <glm/gtx/quaternion.hpp>
 
 namespace raum {
 using Vec2i = glm::ivec2;

@@ -196,11 +196,14 @@ add_library(raum_asset
         ${raum_asset_loader_cpp}
         ${raum_asset_builtinres_h}
         ${raum_asset_builtinres_cpp}
+        ${raum_asset_serialize_h}
+        ${raum_asset_serialize_cpp}
 )
 target_include_directories(raum_asset PUBLIC
         ${Stb_INCLUDE_DIR}
         ${CMAKE_CURRENT_LIST_DIR}/asset/loader
         ${CMAKE_CURRENT_LIST_DIR}/asset/resources/builtin
+        ${CMAKE_CURRENT_LIST_DIR}/asset/serialization/
         ${TINYGLTF_INCLUDE_DIRS}
 )
 target_link_libraries(raum_asset PUBLIC
@@ -249,4 +252,16 @@ else ()
     file(COPY asset/resources/files DESTINATION ${CMAKE_BINARY_DIR})
     #file(COPY framework/platform/windows/builds/qt6.conf DESTINATION ${CMAKE_BINARY_DIR})
     set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT raum_sample)
+
+# === Generate preprocessed source for debugging (Recommended Method) ===
+#set(PREPROCESS_FILE "${renderer_dir}/graph/GraphUtils.cpp")
+#
+#get_filename_component(PREPROCESS_NAME ${PREPROCESS_FILE} NAME_WE)
+#set(PREPROCESS_OUTPUT "${CMAKE_BINARY_DIR}/${PREPROCESS_NAME}.i")
+#
+#set_source_files_properties(${PREPROCESS_FILE}
+#    PROPERTIES
+#    COMPILE_FLAGS "/P /Fi${PREPROCESS_OUTPUT}"
+#)
+
 endif ()

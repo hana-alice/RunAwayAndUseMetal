@@ -2,6 +2,7 @@
 #include "RHIManager.h"
 #include "VKBuffer.h"
 #include "VKCommandPool.h"
+#include "VKComputePipeline.h"
 #include "VKDescriptorPool.h"
 #include "VKDescriptorSet.h"
 #include "VKDescriptorSetLayout.h"
@@ -14,12 +15,13 @@
 #include "VKRenderPass.h"
 #include "VKSampler.h"
 #include "VKShader.h"
-#include "VKSwapchain.h"
 #include "VKSparseImage.h"
+#include "VKSwapchain.h"
 #include "VKUtils.h"
 #include "VkBufferView.h"
-#include "VKComputePipeline.h"
 #include "core/utils/log.h"
+#include "core/utils/utils.h"
+#include "VKCache.h"
 
 // #include "asset/serialization/Archive.h"
 namespace raum::rhi {
@@ -50,6 +52,9 @@ bool checkRequiredExtensions(const std::vector<const char*> reqs, const std::vec
                 found = true;
                 break;
             }
+        }
+        if (!found) {
+            raum_error("Could not find required extension: {}", require);
         }
     }
     return false;
@@ -123,10 +128,16 @@ VkPhysicalDevice rankDevices(const std::vector<VkPhysicalDevice>& devices) {
 }
 
 } // namespace
+
 Device::Device() {
     initInstance();
     initDevice();
-    validateCache();
+    initCache();
+}
+
+void Device::initCache() {
+    _programCache = new ProgramCache(this);
+    _programCache->validate();
 }
 
 Device::~Device() {
@@ -148,13 +159,6 @@ Device::~Device() {
 
     vkDestroyDevice(_device, nullptr);
     vkDestroyInstance(_instance, nullptr);
-}
-
-void Device::validateCache() {
-    VkPipelineBinaryKeyKHR globalKey{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_BINARY_KEY_KHR
-    };
-    vkGetPipelineKeyKHR(_device, nullptr, &globalKey);
 }
 
 void Device::initInstance() {
@@ -266,30 +270,35 @@ void Device::initDevice() {
     VkDeviceCreateInfo deviceInfo{};
     deviceInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
 
+    uint32_t extNum{0};
+    vkEnumerateDeviceExtensionProperties(_physicalDevice, nullptr, &extNum, nullptr);
+    std::vector<VkExtensionProperties> availableExts(extNum);
+    vkEnumerateDeviceExtensionProperties(_physicalDevice, nullptr, &extNum, availableExts.data());
+    log(availableExts);
+
     std::vector<const char*> exts{};
     exts.emplace_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
     exts.emplace_back(VK_KHR_MAINTENANCE1_EXTENSION_NAME);
 
     {
         exts.emplace_back(VK_KHR_MAINTENANCE_5_EXTENSION_NAME);
-        exts.emplace_back(VK_KHR_PIPELINE_BINARY_EXTENSION_NAME);
-        VkPhysicalDevicePipelineBinaryFeaturesKHR pipelineBinaryFeatures{};
-        pipelineBinaryFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PIPELINE_BINARY_FEATURES_KHR;
-        pipelineBinaryFeatures.pipelineBinaries = VK_TRUE;
-        deviceFeatures2.pNext = &pipelineBinaryFeatures;
 
-        VkDevicePipelineBinaryInternalCacheControlKHR pipelineBinaryInternalCacheControl{};
-        pipelineBinaryInternalCacheControl.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PIPELINE_CREATION_CACHE_CONTROL_FEATURES;
-        pipelineBinaryInternalCacheControl.disableInternalCache = VK_FALSE;
-        pipelineBinaryInternalCacheControl.pNext = nullptr;
-        pipelineBinaryFeatures.pNext = &pipelineBinaryInternalCacheControl;
+        {
+            exts.emplace_back(VK_KHR_PIPELINE_BINARY_EXTENSION_NAME);
+            VkPhysicalDevicePipelineBinaryFeaturesKHR pipelineBinaryFeatures{};
+            pipelineBinaryFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PIPELINE_BINARY_FEATURES_KHR;
+            pipelineBinaryFeatures.pipelineBinaries = VK_TRUE;
+            deviceFeatures2.pNext = &pipelineBinaryFeatures;
+
+            VkDevicePipelineBinaryInternalCacheControlKHR pipelineBinaryInternalCacheControl{};
+            pipelineBinaryInternalCacheControl.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PIPELINE_CREATION_CACHE_CONTROL_FEATURES;
+            pipelineBinaryInternalCacheControl.disableInternalCache = VK_FALSE;
+            pipelineBinaryInternalCacheControl.pNext = nullptr;
+            pipelineBinaryFeatures.pNext = &pipelineBinaryInternalCacheControl;
+        }
+
+        checkRequiredExtensions(exts, availableExts);
     }
-
-    uint32_t extNum{0};
-    vkEnumerateDeviceExtensionProperties(_physicalDevice, nullptr, &extNum, nullptr);
-    std::vector<VkExtensionProperties> availableExts(extNum);
-    vkEnumerateDeviceExtensionProperties(_physicalDevice, nullptr, &extNum, availableExts.data());
-    log(availableExts);
 
     deviceInfo.pNext = &deviceFeatures2;
     deviceInfo.pQueueCreateInfos = &queueInfo;
@@ -302,8 +311,6 @@ void Device::initDevice() {
     VkResult res = vkCreateDevice(_physicalDevice, &deviceInfo, nullptr, &_device);
     RAUM_CRITICAL_IF(res != VK_SUCCESS, "failed to create logic device.");
 
-    //vkGetDeviceQueue(_device, queue->_index, 0, &queue->_vkQueue);
-
     VmaAllocatorCreateInfo allocInfo{};
     allocInfo.device = _device;
     allocInfo.physicalDevice = _physicalDevice;
@@ -314,6 +321,13 @@ void Device::initDevice() {
     for (auto [_, q] : _queues) {
         vkGetDeviceQueue(_device, q->_index, 0, &q->_vkQueue);
         q->initQueue();
+    }
+
+    auto* gpk = vkGetDeviceProcAddr(_device, "vkGetPipelineKeyKHR");
+    pfn_vkGetPipelineKeyKHR = reinterpret_cast<PFN_vkGetPipelineKeyKHR>(gpk);
+
+    if (!pfn_vkGetPipelineKeyKHR) {
+        raum_error("Couldn't get pfn_vkGetPipelineKeyKHR");
     }
 }
 

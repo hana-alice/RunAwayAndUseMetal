@@ -14,6 +14,14 @@ static constexpr bool raum_debug{false};
 
 #if defined(_WIN32)
     #define RAUM_WINDOWS 1
+
+    // minwindef.h
+    #ifdef near
+        #undef near
+    #endif
+    #ifdef far
+        #undef far
+    #endif
 #endif
 
 #ifdef RAUM_DEBUG

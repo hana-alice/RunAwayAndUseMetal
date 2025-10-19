@@ -73,7 +73,7 @@ private:
 
 TrackedResource* getGlobalTrackedResource();
 
-auto* DefaultResource = std::pmr::get_default_resource();
+memory_resource* DefaultResource();
 // inline auto* DefaultResource = getGlobalTrackedResource();
 
 }

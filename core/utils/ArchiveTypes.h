@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/math.h"
+#include "utils.h"
 
 #include "cereal/cereal.hpp"
 #include "cereal/types/string.hpp"
