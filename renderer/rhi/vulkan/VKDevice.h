@@ -12,6 +12,8 @@ class Queue;
 class Swapchain;
 class Buffer;
 class Sampler;
+class ProgramCache;
+
 class Device : public RHIDevice {
 public:
     VkPhysicalDevice physicalDevice() { return _physicalDevice; };
@@ -58,6 +60,7 @@ private:
 
     void initInstance();
     void initDevice();
+    void initCache();
 
     VkInstance _instance;
     VkDebugUtilsMessengerEXT _debugMessenger;
@@ -69,6 +72,8 @@ private:
     std::map<uint8_t, RHIStagingBuffer*> _stagingBuffers;
     std::vector<VkDescriptorPool> _descriptorPools;
     std::unordered_map<SamplerInfo, Sampler *, RHIHash<SamplerInfo>> _samplers;
+
+    ProgramCache* _programCache;
 
     friend Device *loadVK();
     friend void unloadVK(Device *);

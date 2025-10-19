@@ -6,7 +6,11 @@
 #include "RenderGraph.h"
 #include "SceneGraph.h"
 #include "ShaderGraph.h"
-namespace raum::graph {
+#include "core/utils/Archive.h"
+#include "GraphIO.h"
+
+namespace raum {
+namespace graph {
 
 rhi::RenderPassPtr getOrCreateRenderPass(const RenderGraph::VertexType v, AccessGraph& ag, rhi::DevicePtr device);
 
@@ -42,4 +46,6 @@ void bindResourceToMaterial(std::string_view resourceName, std::string_view slot
 
 scene::MeshRendererPtr getLocalQuad(rhi::DevicePtr device);
 
-} // namespace raum::graph
+}
+
+} // namespace raum

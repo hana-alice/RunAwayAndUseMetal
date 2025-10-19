@@ -17,33 +17,15 @@
 #include "core/utils/utils.h"
 #include "tiny_gltf.h"
 
-#include "Archive.h"
-
-namespace cereal {
-template <class Archive>
-void serialize(Archive& ar, raum::rhi::VertexAttribute& vertexAttr) {
-    ar(vertexAttr.location, vertexAttr.binding, vertexAttr.format, vertexAttr.offset);
-}
-
-template <class Archive>
-void serialize(Archive& ar, raum::rhi::VertexBufferAttribute& attr) {
-    ar(attr.binding, attr.stride, attr.rate);
-}
-
-template <class Archive>
-void serialize(Archive& ar, raum::rhi::VertexLayout& rhiVertexLayout) {
-    ar(rhiVertexLayout.vertexAttrs);
-    ar(rhiVertexLayout.vertexBufferAttrs);
-}
-
-template <class Archive>
-void serialize(Archive& ar, raum::scene::AABB& aabb) {
-    ar(aabb.minBound, aabb.maxBound);
-}
-
-} // namespace cereal
+#include "core/utils/Archive.h"
+#include "RHIIO.h"
+#include "SceneIO.h"
+#include "GraphIO.h"
 
 namespace raum::asset::serialize {
+
+using OutputArchive = utils::OutputArchive;
+using InputArchive = utils::InputArchive;
 
 void loadTexture(
     std::string_view name,

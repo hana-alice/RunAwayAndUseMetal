@@ -9,7 +9,7 @@ list(APPEND rhi_abstract ${rhi_abstract_cpp})
 # file(GLOB_RECURSE rhi_abstract ${renderer_dir}/rhi/*.cpp)
 source_group("Abstract Layer" FILES ${rhi_abstract})
 
-find_package(Vulkan REQUIRED)
+find_package(Vulkan 1.4 REQUIRED)
 find_package(VulkanMemoryAllocator CONFIG REQUIRED)
 
 find_package(unofficial-shaderc CONFIG REQUIRED)
