@@ -37,9 +37,10 @@ public:
     RHIRenderPass *createRenderPass(const RenderPassInfo &) override;
     RHIFrameBuffer *createFrameBuffer(const FrameBufferInfo &) override;
     RHIPipelineLayout *createPipelineLayout(const PipelineLayoutInfo &) override;
-    RHICommandPool *createCoomandPool(const CommandPoolInfo &);
+    RHICommandPool *createCoomandPool(const CommandPoolInfo &) override;
     RHIDescriptorPool *createDescriptorPool(const DescriptorPoolInfo &) override;
     RHISparseImage* createSparseImage(const SparseImageInfo&) override;
+    RHISemaphore* createSemaphore() override;
 
     StagingBufferInfo allocateStagingBuffer(uint32_t size, uint8_t queueIndex) override;
     void resetStagingBuffer(uint8_t queueIndex);

@@ -58,7 +58,7 @@ private:
     std::vector<RenderTask*> _preRenderTasks;
     std::vector<RenderTask*> _postRenderTasks;
 
-    TickFunction _tick;
+    platform::TickID _tickID;
 };
 
 } // namespace raum::framework

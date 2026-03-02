@@ -92,8 +92,10 @@ void BuiltinRes::initialize(graph::ShaderGraph& shaderGraph, rhi::DevicePtr devi
 
         s_quad = new Quad(cmdBuffer, device);
 
-        cmdBuffer->onComplete([imgBuffer]() mutable {
+        cmdBuffer->onComplete([imgBuffer, cmdBuffer, cmdPool]() mutable {
             imgBuffer.reset();
+            cmdBuffer.reset();
+            cmdPool.reset();
         });
     }
 

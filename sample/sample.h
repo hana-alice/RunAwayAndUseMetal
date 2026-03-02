@@ -23,11 +23,11 @@ public:
         auto& director = _world->director();
         auto device = director.device();
 
-        _window = std::make_shared<platform::Window>(argc, argv, s_width, s_height, device->instance());
-        _tick = platform::TickFunction{[&](std::chrono::milliseconds miliSec) {
+        _window = std::make_shared<platform::Window>(argc, argv, s_width, s_height);
+        _window->show();
+        _tickID = _window->addTick([&](std::chrono::milliseconds miliSec) {
             this->show();
-        }};
-        _window->registerPollEvents(&_tick);
+        });
 
         _world->attachWindow(_window);
 
@@ -56,6 +56,7 @@ public:
     }
 
     ~Sample() {
+        _window->removeTick(_tickID);
         _resizeListener.remove();
         _closeListener.remove();
     }
@@ -98,7 +99,7 @@ private:
     framework::World* _world{nullptr};
     framework::EventListener<framework::ResizeEventTag> _resizeListener;
     framework::EventListener<framework::CloseEventTag> _closeListener;
-    platform::TickFunction _tick;
+    platform::TickID _tickID;
 };
 
 } // namespace raum

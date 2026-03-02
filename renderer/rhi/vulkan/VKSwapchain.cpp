@@ -87,16 +87,16 @@ void Swapchain::initialize(uintptr_t hwnd, SyncType type, uint32_t width, uint32
 
     VkExtent2D extent{width, height};
 
-    uint32_t imageCount = caps.minImageCount;
+    _imageCount = caps.minImageCount;
     constexpr uint32_t preferredSwapchainCount = 3;
     if (caps.maxImageCount > 0 && caps.maxImageCount >= preferredSwapchainCount) {
-        imageCount = preferredSwapchainCount;
+        _imageCount = preferredSwapchainCount;
     }
 
     VkSwapchainCreateInfoKHR createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
     createInfo.surface = _surface;
-    createInfo.minImageCount = imageCount;
+    createInfo.minImageCount = _imageCount;
     createInfo.imageFormat = preferred.format;
     createInfo.imageColorSpace = preferred.colorSpace;
     createInfo.imageExtent = extent;
@@ -114,21 +114,23 @@ void Swapchain::initialize(uintptr_t hwnd, SyncType type, uint32_t width, uint32
     auto res = vkCreateSwapchainKHR(_device->device(), &createInfo, nullptr, &_swapchain);
     RAUM_CRITICAL_IF(res != VK_SUCCESS, "failed to create swapchain");
 
-    vkGetSwapchainImagesKHR(_device->device(), _swapchain, &imageCount, nullptr);
-    _vkImages.resize(imageCount);
-    vkGetSwapchainImagesKHR(_device->device(), _swapchain, &imageCount, _vkImages.data());
+    vkGetSwapchainImagesKHR(_device->device(), _swapchain, &_imageCount, nullptr);
+    _vkImages.resize(_imageCount);
+    vkGetSwapchainImagesKHR(_device->device(), _swapchain, &_imageCount, _vkImages.data());
 
     _valid.clear();
-    _valid.resize(imageCount, 0);
+    _valid.resize(_imageCount, 0);
 
 #else
     #pragma error Run Away
 #endif
 
-    _acquireSemaphores.resize(imageCount);
-    for (auto& sem : _acquireSemaphores) {
-        sem = new Semaphore(_device);
+    _acquireSemaphores.resize(_imageCount, nullptr);
+    _readyPresentSemaphores.resize(_imageCount, nullptr);
+    for (size_t i = 0; i < _imageCount; i++) {
+        _readyPresentSemaphores[i] = static_cast<Semaphore*>(_device->createSemaphore());
     }
+
 }
 
 Swapchain::Swapchain(const SwapchainInfo& info, Device* device)
@@ -142,46 +144,45 @@ Swapchain::Swapchain(const raum::rhi::SwapchainSurfaceInfo& info, raum::rhi::Dev
     initialize(info.windId, info.type, info.width, info.height);
 }
 
-void Swapchain::addWaitBeforePresent(RHISemaphore* s) {
-    auto* sem = static_cast<Semaphore*>(s);
-    _waits.emplace_back(sem);
-}
-
-RHISemaphore* Swapchain::getAvailableByAcquire() {
+RHISemaphore* Swapchain::getAvailableSemaphore() {
     return _acquireSemaphores[_imageIndex];
 }
 
+RHISemaphore* Swapchain::getSignalPresentSemaphore() {
+    return _readyPresentSemaphores[_imageIndex];
+}
+
 bool Swapchain::acquire() {
-    auto imageAvailableSem = _acquireSemaphores[_imageIndex];
-    return vkAcquireNextImageKHR(_device->device(), _swapchain, UINT64_MAX, imageAvailableSem->semaphore(), VK_NULL_HANDLE, &_imageIndex) == VK_SUCCESS;
+    Semaphore* acquireSem = _semaphorePool.allocate(_device);
+    auto res = vkAcquireNextImageKHR(_device->device(), _swapchain, UINT64_MAX, acquireSem->semaphore(), VK_NULL_HANDLE, &_imageIndex) == VK_SUCCESS;
+    if (_acquireSemaphores[_imageIndex]) [[likely]] {
+        _semaphorePool.dealloccate(_acquireSemaphores[_imageIndex]);
+    }
+    _acquireSemaphores[_imageIndex] = acquireSem;
+    return res;
 }
 
 void Swapchain::present() {
     VkPresentInfoKHR presentInfo{};
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 
-    std::vector<VkSemaphore> sems{};
-    if (!_waits.empty()) [[likely]] {
-        for (auto sem : _waits) {
-            sems.emplace_back(sem->semaphore());
-        }
-        presentInfo.pWaitSemaphores = sems.data();
-        presentInfo.waitSemaphoreCount = sems.size();
-        _waits.clear();
-    } else {
-        presentInfo.waitSemaphoreCount = 0;
-        presentInfo.pWaitSemaphores = nullptr;
-    }
-
+    auto sem = _readyPresentSemaphores[_imageIndex]->semaphore();
+    presentInfo.pWaitSemaphores = &sem;
+    presentInfo.waitSemaphoreCount = 1;
     presentInfo.swapchainCount = 1;
     presentInfo.pSwapchains = &_swapchain;
     presentInfo.pImageIndices = &_imageIndex;
     presentInfo.pResults = nullptr;
     vkQueuePresentKHR(_presentQueue->_vkQueue, &presentInfo);
+    _presentQueue->increaseFrameIndex();
 }
 
 void Swapchain::destroy() {
     vkQueueWaitIdle(_presentQueue->_vkQueue);
+
+    for (auto* sem : _readyPresentSemaphores) {
+        delete sem;
+    }
 
     auto instance = static_cast<VkInstance>(_device->instance());
     vkDestroySurfaceKHR(instance, _surface, nullptr);

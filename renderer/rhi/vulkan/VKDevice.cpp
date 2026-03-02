@@ -1,6 +1,7 @@
 #include "VKDevice.h"
 #include "RHIManager.h"
 #include "VKBuffer.h"
+#include "VKCache.h"
 #include "VKCommandPool.h"
 #include "VKComputePipeline.h"
 #include "VKDescriptorPool.h"
@@ -14,6 +15,7 @@
 #include "VKQueue.h"
 #include "VKRenderPass.h"
 #include "VKSampler.h"
+#include "VKSemaphore.h"
 #include "VKShader.h"
 #include "VKSparseImage.h"
 #include "VKSwapchain.h"
@@ -21,7 +23,6 @@
 #include "VkBufferView.h"
 #include "core/utils/log.h"
 #include "core/utils/utils.h"
-#include "VKCache.h"
 
 // #include "asset/serialization/Archive.h"
 namespace raum::rhi {
@@ -295,6 +296,14 @@ void Device::initDevice() {
             pipelineBinaryInternalCacheControl.disableInternalCache = VK_FALSE;
             pipelineBinaryInternalCacheControl.pNext = nullptr;
             pipelineBinaryFeatures.pNext = &pipelineBinaryInternalCacheControl;
+
+            
+            exts.emplace_back(VK_KHR_TIMELINE_SEMAPHORE_EXTENSION_NAME);
+            VkPhysicalDeviceTimelineSemaphoreFeatures timelineSemaphoreFeatures{};
+            timelineSemaphoreFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TIMELINE_SEMAPHORE_FEATURES_KHR;
+            timelineSemaphoreFeatures.timelineSemaphore = VK_TRUE;
+            timelineSemaphoreFeatures.pNext = nullptr;
+            pipelineBinaryInternalCacheControl.pNext = &timelineSemaphoreFeatures;
         }
 
         checkRequiredExtensions(exts, availableExts);
@@ -412,6 +421,10 @@ RHIPipelineLayout* Device::createPipelineLayout(const PipelineLayoutInfo& info) 
 
 RHISparseImage* Device::createSparseImage(const raum::rhi::SparseImageInfo& info) {
     return new SparseImage(info, this);
+}
+
+RHISemaphore* Device::createSemaphore() {
+    return new Semaphore(this);
 }
 
 SparseBindingRequirement Device::sparseBindingRequirement(RHIImage* image) {

@@ -2,12 +2,51 @@
 #include <vector>
 #include "RHISwapchain.h"
 #include "VKDefine.h"
+#include <stack>
+#include "VKSemaphore.h"
+
+#include "VKDevice.h"
 namespace raum::rhi {
 class Device;
 class ImageView;
 class Image;
 class Queue;
-class Semaphore;
+
+class SemaphorePool {
+public:
+    SemaphorePool() = default;
+    SemaphorePool(const SemaphorePool&) = delete;
+    SemaphorePool& operator=(const SemaphorePool&) = delete;
+    SemaphorePool(SemaphorePool&&) = delete;
+    SemaphorePool& operator=(SemaphorePool&&) = delete;
+
+    Semaphore* allocate(Device* device) {
+        Semaphore* sem = nullptr;
+        if (_availables.empty()) {
+            sem = static_cast<Semaphore*>(device->createSemaphore());
+        } else {
+            sem = _availables.top();
+            _availables.pop();
+        }
+        return sem;
+    }
+
+    void dealloccate(Semaphore* semaphore) {
+        _availables.push(semaphore);
+    }
+
+    ~SemaphorePool() {
+        while (!_availables.empty()) {
+            auto* sem = static_cast<Semaphore*>(_availables.top());
+            delete sem;
+            _availables.pop();
+        }
+    }
+
+private:
+    std::stack<Semaphore*> _availables;
+};
+
 class Swapchain : public RHISwapchain {
 public:
     bool acquire() override;
@@ -24,8 +63,8 @@ public:
 
     bool imageValid(uint32_t index) override;
     bool holds(RHIImage* img) override;
-    void addWaitBeforePresent(RHISemaphore* sem) override;
-    RHISemaphore* getAvailableByAcquire() override;
+    RHISemaphore* getAvailableSemaphore() override;
+    RHISemaphore* getSignalPresentSemaphore() override;
 
 private:
     Swapchain(const SwapchainSurfaceInfo& info, Device* device);
@@ -45,10 +84,14 @@ private:
     Queue* _presentQueue{nullptr};
 
     uint32_t _imageIndex{0};
+    uint32_t _imageCount{0};
     std::vector<VkImage> _vkImages;
     std::vector<uint32_t> _valid;
+
     std::vector<Semaphore*> _acquireSemaphores;
-    std::vector<Semaphore*> _waits;
+    std::vector<Semaphore*> _readyPresentSemaphores;
+
+    SemaphorePool _semaphorePool;
 
     friend class Device;
 };

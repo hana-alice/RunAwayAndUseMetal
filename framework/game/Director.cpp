@@ -91,11 +91,9 @@ void Director::postRender(std::chrono::milliseconds miliSec, rhi::CommandBufferP
 void Director::update(std::chrono::milliseconds milisec) {
     auto* queue = _device->getQueue({rhi::QueueType::GRAPHICS});
 
-    auto* acquireSem = _swapchain->getAvailableByAcquire();
-    _swapchain->acquire();
-
-    auto* renderSem = queue->getSignal();
-    _swapchain->addWaitBeforePresent(renderSem);
+    auto res = _swapchain->acquire();
+    raum_check(res, "");
+    auto* acquireSem = _swapchain->getAvailableSemaphore();
 
     auto cmd = _cmds[_swapchain->imageIndex()];
 
@@ -109,20 +107,22 @@ void Director::update(std::chrono::milliseconds milisec) {
 
     cmd->commit();
     queue->addWait(acquireSem);
+
+    auto* presentSignalSem = _swapchain->getSignalPresentSemaphore();
+    queue->addSignal(presentSignalSem);
     queue->submit(true);
 
     _swapchain->present();
 }
 
 void Director::run() {
-    _tick = TickFunction{[&](std::chrono::milliseconds miliSec){
+    _tickID = _window->addTick([&](const std::chrono::milliseconds& miliSec){
         this->update(miliSec);
-    }};
-    _window->registerPollEvents(&_tick);
+    });
 }
 
 Director::~Director() {
-    _window->removePollEvent(&_tick);
+    _window->removeTick(_tickID);
 }
 
 } // namespace raum::framework

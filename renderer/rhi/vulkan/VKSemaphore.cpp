@@ -3,11 +3,12 @@
 namespace raum::rhi {
 
 Semaphore::Semaphore(Device *device): RHISemaphore(device), _device(device) {
-    VkSemaphoreCreateInfo sci{};
-    sci.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-    sci.pNext = nullptr;
 
-    auto res = vkCreateSemaphore(_device->device(), &sci, nullptr, &_sem);
+    VkSemaphoreCreateInfo ci{};
+    ci.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+    ci.pNext = nullptr;
+    ci.flags = 0;
+    auto res = vkCreateSemaphore(_device->device(), &ci, nullptr, &_sem);
     raum_check(res == VK_SUCCESS, "failed to create semaphore!");
 }
 

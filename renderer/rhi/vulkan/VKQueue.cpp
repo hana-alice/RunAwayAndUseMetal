@@ -50,10 +50,6 @@ void Queue::initQueue() {
         info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
         vkCreateFence(_device->device(), &info, nullptr, &fence);
     }
-    _signals.resize(FRAMES_IN_FLIGHT);
-    for (auto& sem : _signals) {
-        sem = new Semaphore(_device);
-    }
 }
 
 Queue::~Queue() {
@@ -69,7 +65,7 @@ void Queue::enqueue(RHICommandBuffer* cmdBuffer) {
     _commandBuffers.emplace_back(static_cast<CommandBuffer*>(cmdBuffer));
 }
 
-void Queue::submit(bool signal) {
+void Queue::submit(bool enableFrameFence) {
     VkSubmitInfo info{};
     info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
@@ -99,28 +95,41 @@ void Queue::submit(bool signal) {
     }
     info.waitSemaphoreCount = waitSems.size();
     info.commandBufferCount = static_cast<uint32_t>(_commandBuffers.size());
-    VkSemaphore sem;
-    if (signal) {
-        info.signalSemaphoreCount = 1;
-        sem = _signals[_currFrameIndex]->semaphore();
-        info.pSignalSemaphores = &sem;
+    std::vector<VkSemaphore> signalSems;
+    if (!_signals.empty()) {
+        for (auto* s : _signals) {
+            signalSems.emplace_back(s->semaphore());
+        }
+        info.signalSemaphoreCount = _signals.size();
+        info.pSignalSemaphores = signalSems.data();
+        _signals.clear();
     } else {
         info.signalSemaphoreCount = 0;
         info.pSignalSemaphores = nullptr;
     }
 
-    VkFence lastFence = _frameFence[(_currFrameIndex - 1 + FRAMES_IN_FLIGHT) % FRAMES_IN_FLIGHT];
+    VkFence lastFence = VK_NULL_HANDLE;
+    uint32_t fenceCount = 0;
+    if (enableFrameFence) [[likely]] {
+        lastFence = _frameFence[(_currFrameIndex + FRAMES_IN_FLIGHT - 1 ) % FRAMES_IN_FLIGHT];
+        fenceCount = 1;
+    }
     vkQueueSubmit(_vkQueue, 1, &info, lastFence);
-    vkWaitForFences(_device->device(), 1, &lastFence, VK_TRUE, UINT64_MAX);
-    vkResetFences(_device->device(), 1, &_frameFence[_currFrameIndex]);
+    if (fenceCount) {
+        vkWaitForFences(_device->device(), fenceCount, &lastFence, VK_TRUE, UINT64_MAX);
+        vkResetFences(_device->device(), fenceCount, &lastFence);
+    }
 
+    _commandBuffers.clear();
+    _device->resetStagingBuffer(_index);
+}
+
+void Queue::increaseFrameIndex() {
     _currFrameIndex = (_currFrameIndex + 1) % FRAMES_IN_FLIGHT;
     for (auto& completeFunc : _completeHandlers[_currFrameIndex]) {
         completeFunc();
     }
     _completeHandlers[_currFrameIndex].clear();
-    _commandBuffers.clear();
-    _device->resetStagingBuffer(_index);
 }
 
 void Queue::bindSparse(const SparseBindingInfo& info, SparseType type) {
@@ -166,17 +175,21 @@ void Queue::bindSparse(const SparseBindingInfo& info, SparseType type) {
     } else {
         bindInfo.waitSemaphoreCount = 0;
     }
-    bindInfo.signalSemaphoreCount = 1;
-    auto signalSem = _signals[_currFrameIndex]->semaphore();
-    bindInfo.pSignalSemaphores = &signalSem;
+
+    std::vector<VkSemaphore> signals;
+    if (!_signals.empty()) {
+        for (auto* sem : _signals) {
+            signals.emplace_back(sem->semaphore());
+        }
+        bindInfo.signalSemaphoreCount = signals.size();
+        bindInfo.pSignalSemaphores = signals.data();
+        _signals.clear();
+    } else {
+        bindInfo.signalSemaphoreCount = 0;
+    }
 
     vkQueueBindSparse(_vkQueue, 1, &bindInfo, VK_NULL_HANDLE);
 
-    _currFrameIndex = (_currFrameIndex + 1) % FRAMES_IN_FLIGHT;
-    for (auto& completeFunc : _completeHandlers[_currFrameIndex]) {
-        completeFunc();
-    }
-    _completeHandlers[_currFrameIndex].clear();
     _commandBuffers.clear();
 }
 
@@ -187,8 +200,11 @@ void Queue::addWait(RHISemaphore* s) {
     }
 }
 
-RHISemaphore* Queue::getSignal() {
-    return _signals[_currFrameIndex];
+void Queue::addSignal(RHISemaphore* s) {
+    if (s) {
+        auto* sem = static_cast<Semaphore*>(s);
+        _signals.emplace_back(sem);
+    }
 }
 
 void Queue::addCompleteHandler(std::function<void()>&& func) {

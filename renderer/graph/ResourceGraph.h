@@ -16,11 +16,7 @@ enum class ResourceResidency : uint8_t {
     SWAPCHAIN,
 };
 
-enum class Aspect : uint32_t {
-    COLOR = rhi::AspectMask::COLOR,
-    DEPTH = rhi::AspectMask::DEPTH,
-    STENCIL = rhi::AspectMask::STENCIL,
-};
+using Aspect = rhi::AspectMask;
 
 struct SwapchainData {
     rhi::SwapchainPtr swapchain;

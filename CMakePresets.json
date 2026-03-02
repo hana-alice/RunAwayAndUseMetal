@@ -10,8 +10,22 @@
                 "VCPKG_MANIFEST_INSTALL": "ON",
                 "CMAKE_RUNTIME_OUTPUT_DIRECTORY": "${sourceDir}/build/",
                 "CMAKE_BUILD_TYPE": "Debug",
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+                "VCPKG_INSTALLED_DIR": "${sourceDir}/vcpkg_installed",
                 "RAUM_DEFAULT_ASSET_DIR":  "${sourceDir}/build/"
             }
+        },
+        {
+          "name": "Debug-Ninja",
+          "generator": "Ninja",
+          "binaryDir": "${sourceDir}/build-ninja/",
+          "cacheVariables": {
+            "CMAKE_TOOLCHAIN_FILE": "vcpkg/scripts/buildsystems/vcpkg.cmake",
+            "VCPKG_MANIFEST_INSTALL": "ON",
+            "VCPKG_INSTALLED_DIR": "${sourceDir}/vcpkg_installed",
+            "CMAKE_BUILD_TYPE": "Debug",
+            "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+          }
         },
         {
             "name": "offline_tools_meshoptimizer_config",

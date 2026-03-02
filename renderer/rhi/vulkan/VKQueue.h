@@ -10,56 +10,11 @@ class Swapchain;
 class CommandBuffer;
 class Semaphore;
 
-//struct Semaphores {
-//    Semaphores(VkDevice device) : _device(device) {}
-//
-//    [[nodiscard]] VkSemaphore allocate() {
-//        if (_availables.empty()) {
-//            VkSemaphore sem;
-//            VkSemaphoreCreateInfo info{.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
-//            vkCreateSemaphore(_device, &info, nullptr, &sem);
-//            _inUse.emplace_back(sem);
-//            return sem;
-//        } else {
-//            auto sem = _availables.front();
-//            _availables.pop();
-//            _inUse.emplace_back(sem);
-//            return sem;
-//        }
-//    }
-//
-//    void reset() {
-//        for(auto sem : _inUse) {
-//            _availables.emplace(sem);
-//        }
-//        _inUse.clear();
-//    }
-//
-//    const std::vector<VkSemaphore>& inUse() const {
-//        return _inUse;
-//    }
-//
-//    ~Semaphores() {
-//        vkDeviceWaitIdle(_device);
-//        for(auto sem : _inUse) {
-//            vkDestroySemaphore(_device, _inUse.front(), nullptr);
-//        }
-//        while(!_availables.empty()) {
-//            vkDestroySemaphore(_device, _availables.front(), nullptr);
-//            _availables.pop();
-//        }
-//    }
-//
-//    VkDevice _device;
-//    std::vector<VkSemaphore> _inUse;
-//    std::queue<VkSemaphore> _availables;
-//};
-
 class Queue : public RHIQueue {
 public:
     uint32_t index() const override { return _index; }
 
-    void submit(bool signal) override;
+    void submit(bool enableFrameFence) override;
 
     void enqueue(RHICommandBuffer* commandBuffer) override;
 
@@ -71,7 +26,11 @@ public:
 
     void addWait(RHISemaphore* sem) override;
 
-    RHISemaphore* getSignal() override;
+    void addSignal(RHISemaphore* sem) override;
+
+    uint16_t frameIndex() const { return _currFrameIndex; }
+
+    void increaseFrameIndex();
 
     ~Queue();
 
@@ -83,7 +42,7 @@ private:
 
     QueueInfo _info;
     uint32_t _index{0};
-    uint32_t _currFrameIndex{0};
+    uint64_t _currFrameIndex{0};
     Device* _device{nullptr};
 
     std::vector<CommandBuffer*> _commandBuffers;
