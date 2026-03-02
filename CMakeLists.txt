@@ -12,6 +12,9 @@ endif ()
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+
 #set(CMAKE_AUTOMOC ON)
 
 set(RAUM_DEFAULT_ASSET_DIR "${RAUM_DEFAULT_ASSET_DIR}")
@@ -84,6 +87,7 @@ if (MSVC)
     target_compile_options(raum_core PUBLIC $<$<CXX_COMPILER_ID:MSVC>:${MSVC_CONFORMANCE_FLAGS}>)
 endif()
 # framework
+find_package(Qt5 REQUIRED COMPONENTS Widgets)
 #file(GLOB_RECURSE raum_framework_platform_h ${CMAKE_CURRENT_LIST_DIR}/framework/platform/windows/*.h)
 #file(GLOB_RECURSE raum_framework_platform_cpp ${CMAKE_CURRENT_LIST_DIR}/framework/platform/windows/*.cpp)
 file(GLOB_RECURSE raum_framework_platform_common_h ${CMAKE_CURRENT_LIST_DIR}/framework/platform/common/*.h)
@@ -121,7 +125,13 @@ target_link_libraries(raum_framework PRIVATE
         raum_core
         raum_renderer
         raum_asset
-        SDL3::SDL3
+        Qt5::Widgets
+)
+
+set_target_properties(raum_framework PROPERTIES
+        AUTOMOC ON
+        AUTOUIC ON
+        AUTORCC ON
 )
 
 # renderer
@@ -151,6 +161,8 @@ add_library(raum_renderer
         ${raum_scene_cpp}
         ${raum_feature_h}
         ${raum_feature_cpp}
+        ${raum_ui_h}
+        ${raum_ui_cpp}
 )
 target_include_directories(raum_renderer PUBLIC
         ${CMAKE_CURRENT_LIST_DIR}/renderer/graph
@@ -161,6 +173,28 @@ target_link_libraries(raum_renderer PUBLIC
         raum_rhi
         Boost::graph
 )
+
+find_package(Qt5 REQUIRED COMPONENTS Widgets)
+file(GLOB_RECURSE raum_ui_h ${CMAKE_CURRENT_LIST_DIR}/ui/*.h)
+file(GLOB_RECURSE raum_ui_cpp ${CMAKE_CURRENT_LIST_DIR}/ui/*.cpp)
+source_group("raum_ui_h" FILES ${raum_ui_h})
+source_group("raum_ui_cpp" FILES ${raum_ui_cpp})
+add_library(raum_ui
+        ${raum_ui_h}
+        ${raum_ui_cpp}
+)
+target_include_directories(raum_ui PUBLIC
+        ${CMAKE_CURRENT_LIST_DIR}/ui
+
+)
+target_link_libraries(raum_ui PUBLIC
+        raum_rhi
+        raum_framework
+)
+target_link_libraries(raum_ui PRIVATE
+        Qt5::Widgets
+)
+
 
 # Get the include directories for the target.
 get_target_property(LIBA_INCLUDES raum_rhi INCLUDE_DIRECTORIES)
@@ -241,6 +275,7 @@ else ()
             raum_framework
             raum_asset
             raum_core
+            Qt5::Widgets
     )
 
 #     set_target_properties(raum_sample PROPERTIES LINK_FLAGS "/PROFILE")

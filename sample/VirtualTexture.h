@@ -79,11 +79,13 @@ public:
         cmd->enqueue(q);
         cmd->begin({});
         auto* sparseQ = device->getQueue({rhi::QueueType::SPARSE});
-        auto* sparseSem = sparseQ->getSignal();
+        _lastSparseSem = device->createSemaphore();
+        sparseQ->addSignal(_lastSparseSem);
+        _lastGraphicsSem = device->createSemaphore();
         _vt->prepare(cmd);
         cmd->commit();
 
-        q->addWait(sparseSem);
+        q->addWait(_lastSparseSem);
         q->submit(false);
 
         cmd->onComplete([cmd]() mutable { cmd.reset(); });
@@ -113,18 +115,14 @@ public:
             [this](std::chrono::milliseconds sec, rhi::CommandBufferPtr cmd, rhi::DevicePtr device) {
                 auto* sparseQ = device->getQueue({{rhi::QueueType::SPARSE}});
                 auto* grfxQ = device->getQueue({{rhi::QueueType::GRAPHICS}});
-                if (_lastGraphicsSem) {
-                    // sparseQ->addWait(_lastGraphicsSem);
-                }
-                if (_lastSparseSem) {
-                }
-                _lastGraphicsSem = grfxQ->getSignal();
-                _lastSparseSem = sparseQ->getSignal();
                 _vt->resetAccessCounter(cmd);
                 _vt->analyze(cmd);
                 auto newUpdate = _vt->hasRemainedTask();
                 if (newUpdate) {
+                    sparseQ->addWait(_lastGraphicsSem);
+                    sparseQ->addSignal(_lastSparseSem);
                     grfxQ->addWait(_lastSparseSem);
+                    grfxQ->addSignal(_lastGraphicsSem);
                 }
                 _vt->update(cmd);
             }};

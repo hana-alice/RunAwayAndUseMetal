@@ -1021,6 +1021,11 @@ void loadFromCache(graph::SceneGraph& sg, const std::filesystem::path& cachePath
     loadSceneFromCache(cachePath, sg, commandBuffer, device);
 
     commandBuffer->commit();
+
+    commandBuffer->onComplete([commandBuffer, commandPool]() mutable {
+        commandBuffer.reset();
+        commandPool.reset();
+    });
     queue->submit(false);
 }
 
@@ -1063,6 +1068,10 @@ void load(graph::SceneGraph& sg, const std::filesystem::path& filePath, std::str
     }
 
     commandBuffer->commit();
+    commandBuffer->onComplete([commandBuffer, commandPool]() mutable {
+        commandBuffer.reset();
+        commandPool.reset();
+    });
     queue->submit(false);
 }
 

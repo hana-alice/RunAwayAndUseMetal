@@ -25,9 +25,17 @@ template <typename... Args>
 class TickFunction {
 public:
     TickFunction() = default;
-    TickFunction(std::function<void(Args... args)>&& tickFunc) {
-        _tickFunc = tickFunc;
-    }
+    TickFunction(const TickFunction&) = default;
+    TickFunction(TickFunction&&) = default;
+    TickFunction& operator=(const TickFunction&) = default;
+    TickFunction& operator=(TickFunction&&) = default;
+
+    template <class F>
+    requires(
+        !std::same_as<std::decay_t<F>, TickFunction> &&
+        std::constructible_from<std::function<void(Args...)>, F>
+    )
+    TickFunction(F&& f) : _tickFunc(std::forward<F>(f)) {}
 
     void operator()(Args... args) {
         _tickFunc(std::forward<Args>(args)...);

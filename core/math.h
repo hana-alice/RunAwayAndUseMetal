@@ -18,8 +18,8 @@ using Mat4 = glm::mat4;
 
 using Quaternion = glm::quat;
 
-const float FloatEpsilon = 1e-5f;
-const double DoubleEpsilon = 1e-10;
+constexpr float FloatEpsilon = 1e-5f;
+constexpr double DoubleEpsilon = 1e-10;
 
 template <typename T>
 struct Epsilon {
