@@ -180,13 +180,16 @@ void Swapchain::present() {
 void Swapchain::destroy() {
     vkQueueWaitIdle(_presentQueue->_vkQueue);
 
+    auto instance = static_cast<VkInstance>(_device->instance());
+    vkDestroySwapchainKHR(_device->device(), _swapchain, nullptr);
+    _swapchain = VK_NULL_HANDLE;
+    vkDestroySurfaceKHR(instance, _surface, nullptr);
+    _surface = VK_NULL_HANDLE;
+
     for (auto* sem : _readyPresentSemaphores) {
         delete sem;
     }
-
-    auto instance = static_cast<VkInstance>(_device->instance());
-    vkDestroySurfaceKHR(instance, _surface, nullptr);
-    vkDestroySwapchainKHR(_device->device(), _swapchain, nullptr);
+    _readyPresentSemaphores.clear();
 }
 
 Swapchain::~Swapchain() {
