@@ -21,6 +21,64 @@ class BistroSample : public SampleBase {
 public:
     explicit BistroSample(framework::Director* director) : _ppl(director->pipeline()), _director(director) {}
 
+    bool getCameraPosition(float& x, float& y, float& z) const override {
+        if (!_cam) {
+            return false;
+        }
+        const auto& pos = _cam->eye().getPosition();
+        x = pos.x;
+        y = pos.y;
+        z = pos.z;
+        return true;
+    }
+
+    void setCameraPosition(float x, float y, float z) override {
+        if (!_cam) {
+            return;
+        }
+        _cam->eye().setPosition(x, y, z);
+        _cam->update();
+    }
+
+    bool getCameraFov(float& fovDeg) const override {
+        if (!_cam) {
+            return false;
+        }
+        fovDeg = _cam->fov().value;
+        return true;
+    }
+
+    void setCameraFov(float fovDeg) override {
+        if (!_cam) {
+            return;
+        }
+        _cam->setFov(utils::Degree{fovDeg});
+        _cam->update();
+    }
+
+    bool getCameraAngles(float& yawDeg, float& pitchDeg) const override {
+        yawDeg = _yawDeg;
+        pitchDeg = _pitchDeg;
+        return static_cast<bool>(_cam);
+    }
+
+    void setCameraAngles(float yawDeg, float pitchDeg) override {
+        if (!_cam) {
+            return;
+        }
+        _yawDeg = yawDeg;
+        _pitchDeg = pitchDeg;
+        const float curHRad = glm::radians(_yawDeg);
+        const float curVRad = glm::radians(_pitchDeg);
+
+        Quaternion qx(Vec3f(curVRad, 0.0f, 0.0f));
+        Quaternion qy(Vec3f(0.0f, curHRad, 0.0f));
+
+        auto& eye = _cam->eye();
+        eye.setOrientation(qy * qx);
+        _cam->update();
+    }
+
     void init() override {
         // load scene from gltf
         _device = _director->device();
@@ -28,8 +86,11 @@ public:
 
         auto width = _swapchain->width();
         auto height = _swapchain->height();
-        scene::PerspectiveFrustum frustum{60.0f, width / (float)height, 1.f, 1000.0};
+        scene::PerspectiveFrustum frustum{utils::Degree{60.0f}, width / (float)height, 1.f, 1000.0};
         _cam = std::make_shared<scene::Camera>(frustum);
+        _yawDeg = 180.0f;
+        _pitchDeg = 0.0f;
+        _cam->setFov(frustum.fov);
 
         const auto& resourcePath = utils::resourceDirectory();
         auto& sceneGraph = _director->sceneGraph();
@@ -130,16 +191,14 @@ public:
 
         auto mouseMovehandler = [&](float x, float y, float deltaXIn, float deltaYIn) {
             if (!pressed) return;
-            static float curHDeg = 180.0f;
-            static float curVDeg = 0.0f;
             auto deltaX = x - lastX;
             auto deltaY = y - lastY;
             lastX = x;
             lastY = y;
-            curHDeg -= deltaX * 0.1f;
-            curVDeg -= deltaY * 0.1f;
-            auto curHRad = curHDeg / 180.0f * 3.141593f;
-            auto curVRad = curVDeg / 180.0f * 3.141593f;
+            _yawDeg -= deltaX * 0.1f;
+            _pitchDeg -= deltaY * 0.1f;
+            auto curHRad = glm::radians(_yawDeg);
+            auto curVRad = glm::radians(_pitchDeg);
 
             deltaX = -deltaX / 180.0f * 3.141593f;
             deltaY = -deltaY / 180.0f * 3.141593f;
@@ -243,6 +302,9 @@ private:
     framework::EventListener<framework::MouseButtonEventTag> _mouseBtnListener;
     framework::EventListener<framework::MouseMotionEventTag> _mouseMoveListener;
     framework::EventListener<framework::ResizeEventTag> _resizeListener;
+
+    float _yawDeg{180.0f};
+    float _pitchDeg{0.0f};
 };
 
 } // namespace raum::sample

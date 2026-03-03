@@ -104,6 +104,24 @@ Projection Eye::projectionType() const {
     return _projectionType;
 }
 
+utils::Degree Eye::fov() const {
+    if (_projectionType != Projection::PERSPECTIVE) {
+        return utils::Degree{0.0f};
+    }
+    return _perspectiveFrustum.fov;
+}
+
+void Eye::setFov(utils::Degree degree) {
+    if (_projectionType != Projection::PERSPECTIVE) {
+        return;
+    }
+    _perspectiveFrustum.fov = degree;
+    _projectionMat = glm::perspective(glm::radians(_perspectiveFrustum.fov.value),
+                                      _perspectiveFrustum.aspect,
+                                      _perspectiveFrustum.near,
+                                      _perspectiveFrustum.far);
+}
+
 bool Eye::update() {
     bool dirty = _dirty;
     if (dirty) {

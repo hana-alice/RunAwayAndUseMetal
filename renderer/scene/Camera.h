@@ -18,6 +18,9 @@ public:
 
     const Eye& eye() const { return _eye; }
 
+    utils::Degree fov() const { return _eye.fov(); }
+    void setFov(utils::Degree degree) { _eye.setFov(degree); }
+
     const FrustumPlanes& frustumPlanes() const { return _frustumPlanes; };
 
     void update();

@@ -43,6 +43,9 @@ public:
 
     bool update();
 
+    utils::Degree fov() const;
+    void setFov(utils::Degree degree);
+
     Projection projectionType() const;
 
     static constexpr Vec3f InitialUp{0.0f, 1.0f, 0.0f};
