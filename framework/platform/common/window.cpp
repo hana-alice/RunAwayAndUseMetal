@@ -4,6 +4,11 @@
 #include <QWindow>
 #include <QWidget>
 #include <QResizeEvent>
+#include <QKeyEvent>
+#include <QMouseEvent>
+#include <QWheelEvent>
+#include <QCloseEvent>
+#include <unordered_map>
 #include "KeyboardEvent.h"
 #include "MouseEvent.h"
 #include "WindowEvent.h"
@@ -23,6 +28,38 @@ using framework::MouseButtonEventTag;
 using framework::MouseMotionEventTag;
 using framework::MouseWheelEventTag;
 using framework::ResizeEventTag;
+
+struct KeyStatus {
+    bool pressed{false};
+};
+
+// key pressed state, referenced by getKeyPressedNative()
+std::unordered_map<Keyboard, KeyStatus> keyMap;
+
+static Keyboard mapQtKeyToKeyboard(int key) {
+    switch (key) {
+    case Qt::Key_W: return Keyboard::W;
+    case Qt::Key_A: return Keyboard::A;
+    case Qt::Key_S: return Keyboard::S;
+    case Qt::Key_D: return Keyboard::D;
+    case Qt::Key_Up: return Keyboard::ArrowUp;
+    case Qt::Key_Down: return Keyboard::ArrowDown;
+    case Qt::Key_Left: return Keyboard::ArrowLeft;
+    case Qt::Key_Right: return Keyboard::ArrowRight;
+    default: return Keyboard::OTHER;
+    }
+}
+
+static MouseButton mapQtMouseButton(Qt::MouseButton btn) {
+    switch (btn) {
+    case Qt::LeftButton: return MouseButton::LEFT;
+    case Qt::RightButton: return MouseButton::RIGHT;
+    case Qt::MiddleButton: return MouseButton::WHEEL;
+    case Qt::ForwardButton: return MouseButton::FORWARD;
+    case Qt::BackButton: return MouseButton::BACKWARD;
+    default: return MouseButton::OTHER;
+    }
+}
 
 // MouseButton mapButton(SDL_MouseButtonFlags btn) {
 //     MouseButton button{MouseButton::OTHER};
@@ -144,6 +181,45 @@ void resizeEvent(int w, int h) {
         std::forward_as_tuple(w, h));
 }
 
+void dispatchKeyEvent(Keyboard key, bool pressed) {
+    if (key == Keyboard::OTHER) {
+        return;
+    }
+    auto& status = keyMap[key];
+    if (status.pressed == pressed) {
+        return;
+    }
+    status.pressed = pressed;
+    EventDispatcher<KeyboardEventTag>::get()->broadcast({});
+}
+
+void dispatchMouseButtonEvent(const QPointF& pos, Qt::MouseButton btn, ButtonStatus status) {
+    MouseButton button = mapQtMouseButton(btn);
+    EventDispatcher<MouseButtonEventTag>::get()->broadcast(
+        std::forward_as_tuple(
+            static_cast<float>(pos.x()),
+            static_cast<float>(pos.y()),
+            button,
+            status));
+}
+
+void dispatchMouseMoveEvent(const QPointF& pos, const QPointF& lastPos) {
+    EventDispatcher<MouseMotionEventTag>::get()->broadcast(
+        std::forward_as_tuple(
+            static_cast<float>(pos.x()),
+            static_cast<float>(pos.y()),
+            static_cast<float>(pos.x() - lastPos.x()),
+            static_cast<float>(pos.y() - lastPos.y())));
+}
+
+void dispatchMouseWheelEvent(const QPointF& pos, const QPoint& angleDelta) {
+    EventDispatcher<MouseWheelEventTag>::get()->broadcast(
+        std::forward_as_tuple(
+            static_cast<float>(pos.x()),
+            static_cast<float>(pos.y()),
+            static_cast<float>(angleDelta.y())));
+}
+
 // void keyEvent() {
 //     auto* sysKeyStatus = SDL_GetKeyboardState(NULL);
 //     for (auto& [key, status] : keyMap) {
@@ -251,6 +327,40 @@ protected:
         _resizeFunc(static_cast<uint32_t>(size.width()), static_cast<uint32_t>(size.height()));
     }
 
+    void keyPressEvent(QKeyEvent* event) override {
+        Keyboard key = mapQtKeyToKeyboard(event->key());
+        dispatchKeyEvent(key, true);
+        QWindow::keyPressEvent(event);
+    }
+
+    void keyReleaseEvent(QKeyEvent* event) override {
+        Keyboard key = mapQtKeyToKeyboard(event->key());
+        dispatchKeyEvent(key, false);
+        QWindow::keyReleaseEvent(event);
+    }
+
+    void mousePressEvent(QMouseEvent* event) override {
+        dispatchMouseButtonEvent(event->pos(), event->button(), ButtonStatus::PRESS);
+        QWindow::mousePressEvent(event);
+    }
+
+    void mouseReleaseEvent(QMouseEvent* event) override {
+        dispatchMouseButtonEvent(event->pos(), event->button(), ButtonStatus::RELEASE);
+        QWindow::mouseReleaseEvent(event);
+    }
+
+    void mouseMoveEvent(QMouseEvent* event) override {
+        auto pos = event->pos();
+        dispatchMouseMoveEvent(pos, _lastPos);
+        QWindow::mouseMoveEvent(event);
+        _lastPos = pos;
+    }
+
+    void wheelEvent(QWheelEvent* event) override {
+        dispatchMouseWheelEvent(event->pos(), event->angleDelta());
+        QWindow::wheelEvent(event);
+    }
+
 private:
     QTimer _timer;
     QElapsedTimer _elapsedTimer;
@@ -258,6 +368,7 @@ private:
     TickFunction _tickFunc;
     ResizeFunction _resizeFunc;
     QWidget* _container{nullptr};
+    QPoint _lastPos{0, 0};
 };
 
 static RUIEmbededWindow* EmbededWindow = nullptr;
@@ -388,7 +499,7 @@ Window::~Window() {
 
 namespace raum::framework {
 bool getKeyPressedNative(Keyboard key) {
-    return false;//platform::keyMap[key].pressed;
+    return platform::keyMap[key].pressed;
 }
 
 } // namespace raum::framework
