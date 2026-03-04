@@ -42,7 +42,7 @@ vec3 fresnelSchlick(float cosTheta, vec3 F0) {
 }
 
 vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness) {
-    return F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(1.0 - cosTheta, 5.0);
+    return F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
 }
 
 mat3x3 getTBN(vec3 pos, vec2 uv, vec3 normal) {
@@ -194,7 +194,7 @@ void main() {
     KD *= 1.0 - metallic;
 
     vec3 irradiance = texture(samplerCube(diffuseEnvMap, linearSampler), N).rgb;
-    albedo *= irradiance;
+    vec3 diffuseIBL = KD * albedo * irradiance;
 
     #ifdef OCCLUSION_MAP
     float ao = texture(sampler2D(aoMap, linearSampler), f_uv).r;
@@ -209,7 +209,7 @@ void main() {
     vec3 prefilteredColor = textureLod(samplerCube(specularMap, linearSampler), R, roughness * MAX_REFLECTION_LOD).rgb;
     vec2 envBRDF = texture(sampler2D(brdfLUT, linearSampler), vec2(max(dot(N, V), 0.0), roughness)).rg;
     vec3 prefilt = prefilteredColor * (F * envBRDF.x + envBRDF.y);
-    vec3 ambient = (KD * albedo + prefilt) * ao;
+    vec3 ambient = (diffuseIBL + prefilt) * ao;
 
 
     #ifdef EMISSIVE_MAP

@@ -78,7 +78,7 @@ private:
 
     SwapchainInfo _info;
     VkSurfaceKHR _surface{VK_NULL_HANDLE};
-    VkSwapchainKHR _swapchain;
+    VkSwapchainKHR _swapchain{VK_NULL_HANDLE};
     Format _preferredFormat;
     Device* _device{nullptr};
     Queue* _presentQueue{nullptr};

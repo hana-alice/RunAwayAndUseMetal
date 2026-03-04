@@ -1,4 +1,6 @@
 #pragma once
+#include <atomic>
+#include <chrono>
 #include <cstdlib>
 #include <iostream>
 #include "BistroSample.h"
@@ -25,7 +27,16 @@ public:
 
         _window = std::make_shared<platform::Window>(argc, argv, s_width, s_height);
         _window->show();
+        _lastFpsTime = std::chrono::steady_clock::now();
         _tickID = _window->addTick([&](std::chrono::milliseconds miliSec) {
+            auto now = std::chrono::steady_clock::now();
+            _frameCount.fetch_add(1, std::memory_order_relaxed);
+            auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - _lastFpsTime).count();
+            if (elapsed >= 500) {
+                int count = _frameCount.exchange(0, std::memory_order_relaxed);
+                _fps.store(static_cast<float>(count) * 1000.0f / static_cast<float>(elapsed), std::memory_order_relaxed);
+                _lastFpsTime = now;
+            }
             this->show();
         });
 
@@ -91,6 +102,17 @@ public:
         return _samples;
     }
 
+    sample::SampleBase* currentSample() {
+        if (_currIndex < _samples.size()) {
+            return _samples[_currIndex].get();
+        }
+        return nullptr;
+    }
+
+    float getFps() const {
+        return _fps.load(std::memory_order_relaxed);
+    }
+
 private:
     uint32_t _currIndex{0};
     std::vector<std::shared_ptr<sample::SampleBase>> _samples;
@@ -100,6 +122,9 @@ private:
     framework::EventListener<framework::ResizeEventTag> _resizeListener;
     framework::EventListener<framework::CloseEventTag> _closeListener;
     platform::TickID _tickID;
+    std::atomic<float> _fps{0.0f};
+    std::atomic<int> _frameCount{0};
+    std::chrono::steady_clock::time_point _lastFpsTime;
 };
 
 } // namespace raum

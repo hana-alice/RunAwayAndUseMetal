@@ -181,7 +181,7 @@ float getAOContributions(float factor) {
 }
 
 void main() {
-    vec4 albedo = texture(sampler2D(albedoMap, linearSampler), f_uv);
+    vec4 albedo = SRGBtoLINEAR(texture(sampler2D(albedoMap, linearSampler), f_uv));
 
     if (albedo.a < alphaCutoff) {
        discard;
@@ -201,12 +201,13 @@ void main() {
 
     vec3 V = normalize(camPos - f_worldPos);
     vec3 L = normalize(lightPos.xyz - f_worldPos);
+    vec3 H = normalize(V + L);
 
     float NdotL = max(dot(N, L), 0.001);
     float NdotV = max(dot(N, V), 0.001);
-    float HdotL = dot(normalize(L + V), N);
-    float HdotV = dot(normalize(V + L), N);
-    float NdotH = dot(N, normalize(V + L));
+    float HdotV = dot(H, V);
+    float HdotL = dot(H, L);
+    float NdotH = dot(N, H);
 
     // gltf pbr
     vec3 black = vec3(0.0f);
@@ -231,12 +232,13 @@ void main() {
     vec3 envSpecFactor = mix(F0, baseColor.rgb, metallic);
 
     vec3 ibl = getIBLContributions(reflect(-V, N), N, envDiffuseFactor, envSpecFactor, roughness, NdotV);
-    outColor.rgb += ibl;
 
     float ao = getAOContributions(mrno.w);
-    outColor.rgb *= ao;
+    outColor.rgb += ibl * ao;
 
     outColor.rgb += emissive.xyz;
 
+    outColor = outColor / (outColor + vec3(1.0));
+    outColor = pow(outColor, vec3(1.0 / 2.2));
     FragColor = vec4(outColor, 1.0f);
 }
