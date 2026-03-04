@@ -55,11 +55,9 @@ void Eye::translate(float x, float y, float z) {
 
 void Eye::lookAt(const Vec3f& pos, const Vec3f& up) {
     auto dir = glm::normalize(pos - _position);
-    auto upN = glm::normalize(up);
-    _orientation = glm::quatLookAt(dir, upN);
-    _forward = dir;
-    auto right = glm::cross(upN, _forward);
-    _up = glm::cross(_forward, right);
+    _orientation = glm::quatLookAt(dir, glm::normalize(up));
+    _forward = _orientation * InitialForward;
+    _up = _orientation * InitialUp;
     _dirty = true;
 }
 
