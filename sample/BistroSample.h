@@ -226,7 +226,8 @@ public:
         auto& renderGraph = _ppl->renderGraph();
         auto uploadPass = renderGraph.addCopyPass("cambufferUpdate");
 
-        _ppl->resourceGraph().updateImage("forwardDS", _swapchain->width(), _swapchain->height());
+        _ppl->resourceGraph().updateImage(_forwardDS, _swapchain->width(), _swapchain->height());
+        _ppl->resourceGraph().updateImage(_forwardRT, _swapchain->width(), _swapchain->height());
 
         auto& eye = _cam->eye();
         auto p = eye.getPosition();

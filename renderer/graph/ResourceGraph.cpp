@@ -229,12 +229,12 @@ void ResourceGraph::mount(std::string_view name) {
                            for (uint32_t i = 0; i < swapchain->imageCount(); ++i) {
                                auto index = static_cast<uint8_t>(i);
                                auto imagePtr = rhi::ImagePtr(swapchain->allocateImage(index));
-                               data.images.emplace(index, imagePtr);
+                               data.images[index] = imagePtr;
 
                                const auto& imageInfo = imagePtr->info();
                                rhi::ImageViewInfo viewInfo = getDefaultViewInfo(imageInfo);
                                viewInfo.image = imagePtr.get();
-                               data.imageViews.emplace(index, rhi::ImageViewPtr(_device->createImageView(viewInfo)));
+                               data.imageViews[index] = rhi::ImageViewPtr(_device->createImageView(viewInfo));;
                            }
                        }
                    },

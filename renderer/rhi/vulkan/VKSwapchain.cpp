@@ -242,6 +242,10 @@ void Swapchain::resize(uint32_t w, uint32_t h, uintptr_t surface) {
     destroy();
     vkQueueWaitIdle(_presentQueue->_vkQueue);
     vkDestroySwapchainKHR(_device->device(), _swapchain, nullptr);
+
+    for (auto& v : _valid) {
+        v = 0;
+    }
     _info.width = w;
     _info.height = h;
     initialize(surface, _info.type, w, h);
