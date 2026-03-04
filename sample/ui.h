@@ -1,4 +1,8 @@
 #pragma once
+#include <filesystem>
+#include <fstream>
+#include <sstream>
+#include <QApplication>
 #include <QLayout>
 #include <QMainWindow>
 #include <QMenuBar>
@@ -60,6 +64,7 @@ private:
 class UI {
 public:
     UI(int argc, char** argv) {
+        qApp->setStyleSheet(loadStyle());
         _sample = new Sample(argc, argv);
         _window = _sample->window();
 
@@ -70,7 +75,10 @@ public:
             static_cast<float>(s_width) / static_cast<float>(s_height));
 
         auto* panel = new QWidget;
+        panel->setObjectName("sidePanel");
         auto* panelLayout = new QVBoxLayout(panel);
+        panelLayout->setContentsMargins(14, 14, 14, 14);
+        panelLayout->setSpacing(10);
 
         // Camera parameters UI (position and FOV)
         auto* camGroup = new QGroupBox("Camera");
@@ -114,7 +122,8 @@ public:
 
         // FPS label pinned to the bottom
         _fpsLabel = new QLabel("FPS: --");
-        _fpsLabel->setContentsMargins(4, 2, 4, 2);
+        _fpsLabel->setObjectName("fpsLabel");
+        _fpsLabel->setContentsMargins(8, 3, 8, 3);
 
         auto* root = new QWidget;
         auto* rootLayout = new QVBoxLayout(root);
@@ -126,7 +135,7 @@ public:
         auto* main = new QMainWindow;
         main->setCentralWidget(root);
 
-        const int initialW = static_cast<int>(s_width) + 300;
+        const int initialW = static_cast<int>(s_width) + 380;
         const int initialH = static_cast<int>(s_height) + _fpsLabel->sizeHint().height();
         main->resize(initialW, initialH);
         main->setMinimumSize(initialW, initialH);
@@ -199,6 +208,20 @@ private:
     QDoubleSpinBox* _pitchSpin{nullptr};
     QLabel* _fpsLabel{nullptr};
     bool _updatingFromCamera{false};
+
+    static QString loadStyle() {
+        namespace fs = std::filesystem;
+        auto exeDir = fs::path(qApp->applicationFilePath().toStdString()).parent_path();
+        for (auto& candidate : {exeDir / "style.qss", fs::path("style.qss")}) {
+            std::ifstream f(candidate);
+            if (f) {
+                std::ostringstream ss;
+                ss << f.rdbuf();
+                return QString::fromStdString(ss.str());
+            }
+        }
+        return {};
+    }
 
     void syncCameraFromUi() {
         if (_updatingFromCamera) {

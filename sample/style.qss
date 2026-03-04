@@ -1,0 +1,136 @@
+/* =========================================================
+   Light theme – Fluent / Material inspired
+   ========================================================= */
+
+QWidget {
+    background-color: #f3f3f3;
+    color: #1a1a1a;
+    font-family: "Segoe UI", "SF Pro Text", sans-serif;
+    font-size: 13px;
+}
+
+QMainWindow {
+    background-color: #ebebeb;
+}
+
+/* ── Side panel ─────────────────────────────────────────── */
+QWidget#sidePanel {
+    background-color: #ffffff;
+    border-left: 1px solid #d6d6d6;
+}
+
+/* ── Group box ──────────────────────────────────────────── */
+QGroupBox {
+    background-color: #ffffff;
+    border: 1px solid #d6d6d6;
+    border-radius: 8px;
+    margin-top: 14px;
+    padding-top: 14px;
+}
+QGroupBox::title {
+    subcontrol-origin: margin;
+    subcontrol-position: top left;
+    left: 12px;
+    padding: 0 5px;
+    color: #0067c0;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+}
+
+/* ── Labels ─────────────────────────────────────────────── */
+QLabel {
+    background-color: transparent;
+    color: #3b3b3b;
+}
+
+QLabel#fpsLabel {
+    background-color: #0067c0;
+    color: #ffffff;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+}
+
+/* ── SpinBox ─────────────────────────────────────────────── */
+QDoubleSpinBox {
+    background-color: #ffffff;
+    border: 1px solid #c2c2c2;
+    border-radius: 5px;
+    padding: 4px 7px;
+    color: #1a1a1a;
+    selection-background-color: #0067c0;
+    selection-color: #ffffff;
+    min-width: 100px;
+}
+QDoubleSpinBox:hover {
+    border-color: #0067c0;
+    background-color: #f0f6ff;
+}
+QDoubleSpinBox:focus {
+    border: 2px solid #0067c0;
+    background-color: #ffffff;
+}
+QDoubleSpinBox::up-button {
+    subcontrol-origin: border;
+    subcontrol-position: top right;
+    width: 22px;
+    background-color: #f0f0f0;
+    border-left: 1px solid #c2c2c2;
+    border-bottom: 1px solid #c2c2c2;
+    border-top-right-radius: 4px;
+}
+QDoubleSpinBox::down-button {
+    subcontrol-origin: border;
+    subcontrol-position: bottom right;
+    width: 22px;
+    background-color: #f0f0f0;
+    border-left: 1px solid #c2c2c2;
+    border-bottom-right-radius: 4px;
+}
+QDoubleSpinBox::up-button:hover,
+QDoubleSpinBox::down-button:hover {
+    background-color: #0067c0;
+    border-color: #0067c0;
+}
+QDoubleSpinBox::up-button:hover::up-arrow,
+QDoubleSpinBox::down-button:hover::down-arrow {
+    border-bottom-color: #ffffff;
+    border-top-color: #ffffff;
+}
+QDoubleSpinBox::up-arrow {
+    width: 0;
+    height: 0;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-bottom: 5px solid #555555;
+    margin: 1px;
+}
+QDoubleSpinBox::down-arrow {
+    width: 0;
+    height: 0;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-top: 5px solid #555555;
+    margin: 1px;
+}
+
+/* ── Scrollbar (if any) ──────────────────────────────────── */
+QScrollBar:vertical {
+    background: #f0f0f0;
+    width: 8px;
+    border-radius: 4px;
+}
+QScrollBar::handle:vertical {
+    background: #b0b0b0;
+    border-radius: 4px;
+    min-height: 20px;
+}
+QScrollBar::handle:vertical:hover {
+    background: #0067c0;
+}
+QScrollBar::add-line:vertical,
+QScrollBar::sub-line:vertical {
+    height: 0;
+}

@@ -22,7 +22,7 @@ layout(set = 2, binding = 0) uniform LocalMat {
 void main () {
     f_uv = v_uv;
 #ifdef VERTEX_TANGENT
-    f_tan = vec4((modelMat * v_tangent).xyz, v_tangent.w);
+    f_tan = vec4(mat3(modelMat) * v_tangent.xyz, v_tangent.w);
 #endif
     f_normal = (transpose(inverse(modelMat)) * vec4(v_normal, 1.0f)).xyz;
     f_normal = normalize(f_normal);
