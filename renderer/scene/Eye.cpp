@@ -118,6 +118,7 @@ void Eye::setFov(utils::Degree degree) {
                                       _perspectiveFrustum.aspect,
                                       _perspectiveFrustum.near,
                                       _perspectiveFrustum.far);
+    _dirty = true;
 }
 
 bool Eye::update() {

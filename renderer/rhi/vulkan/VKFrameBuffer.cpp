@@ -21,6 +21,9 @@ FrameBuffer::FrameBuffer(const FrameBufferInfo& info, RHIDevice* device)
 
     VkResult res = vkCreateFramebuffer(_device->device(), &createInfo, nullptr, &_framebuffer);
     RAUM_ERROR_IF(res != VK_SUCCESS, "Failed to create framebuffer");
+    if (res != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create Vulkan framebuffer");
+    }
 }
 
 FrameBuffer::~FrameBuffer() {

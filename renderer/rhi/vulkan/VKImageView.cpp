@@ -37,7 +37,9 @@ void ImageView::init(ImageViewType type, VkImage image, const ImageSubresourceRa
     createInfo.subresourceRange.layerCount = range.sliceCount;
 
     VkResult res = vkCreateImageView(_device->device(), &createInfo, nullptr, &_imageView);
-    raum_check(res == VK_SUCCESS, "failed to create image view");
+    if (res != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create Vulkan image view");
+    }
 }
 
 ImageView::~ImageView() {

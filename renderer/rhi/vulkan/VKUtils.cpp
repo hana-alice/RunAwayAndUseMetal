@@ -900,6 +900,9 @@ VkCommandBufferLevel commandBufferLevel(CommandBufferType commandBufferLevel) {
 VkStencilFaceFlags stencilFaceFlags(FaceMode faceMode) {
     VkStencilFaceFlags res = VK_STENCIL_FACE_FRONT_BIT;
     switch (faceMode) {
+        case FaceMode::NONE:
+            res = 0;
+            break;
         case FaceMode::FRONT:
             res = VK_STENCIL_FACE_FRONT_BIT;
             break;
@@ -990,7 +993,7 @@ FormatType formatType(Format format) {
         case Format::RGB16_UINT:
         case Format::RGBA16_UINT:
         case Format::R32_UINT:
-        case Format::RG32_SINT:
+        case Format::RG32_UINT:
         case Format::RGB32_UINT:
         case Format::RGBA32_UINT:
         case Format::R64_UINT:
@@ -1010,7 +1013,7 @@ FormatType formatType(Format format) {
         case Format::RGB16_SINT:
         case Format::RGBA16_SINT:
         case Format::R32_SINT:
-        case Format::RG32_UINT:
+        case Format::RG32_SINT:
         case Format::RGB32_SINT:
         case Format::RGBA32_SINT:
         case Format::R64_SINT:
@@ -1032,6 +1035,7 @@ FormatType formatType(Format format) {
         case Format::RGB64_SFLOAT:
         case Format::RGBA64_SFLOAT:
             return FormatType::COLOR_UNFILTER_FLOAT;
+        case Format::D16_UNORM:
         case Format::X8_D24_UNORM_PACK32:
         case Format::D32_SFLOAT:
             return FormatType::DEPTH;
@@ -1041,6 +1045,8 @@ FormatType formatType(Format format) {
             return FormatType::DEPTH_STENCIL;
         case Format::S8_UINT:
             return FormatType::STENCIL;
+        default:
+            break;
     }
     return FormatType::COLOR_FLOAT;
 }
@@ -1096,6 +1102,7 @@ void fillClearAttachment(std::vector<VkClearAttachment>& clearAttachment,
                 memcpy(clearValue.color.int32, &colors[index], sizeof(colors[index].color.clearColorI));
                 break;
             case FormatType::COLOR_FLOAT:
+            case FormatType::COLOR_UNFILTER_FLOAT:
                 attachment.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
                 memcpy(clearValue.color.float32, &colors[index], sizeof(colors[index].color.clearColorF));
                 break;
@@ -1134,18 +1141,18 @@ void fillClearColors(std::vector<VkClearColorValue>& clearValues,
     switch (formatType(format)) {
         case FormatType::COLOR_UINT:
             for (size_t i = 0; i < clearValues.size(); ++i) {
-                clearValues[i].int32[0] = colors[i].color.clearColorI[0];
-                clearValues[i].int32[1] = colors[i].color.clearColorI[1];
-                clearValues[i].int32[2] = colors[i].color.clearColorI[2];
-                clearValues[i].int32[3] = colors[i].color.clearColorI[3];
-            }
-            break;
-        case FormatType::COLOR_INT:
-            for (size_t i = 0; i < clearValues.size(); ++i) {
                 clearValues[i].uint32[0] = colors[i].color.clearColorU[0];
                 clearValues[i].uint32[1] = colors[i].color.clearColorU[1];
                 clearValues[i].uint32[2] = colors[i].color.clearColorU[2];
                 clearValues[i].uint32[3] = colors[i].color.clearColorU[3];
+            }
+            break;
+        case FormatType::COLOR_INT:
+            for (size_t i = 0; i < clearValues.size(); ++i) {
+                clearValues[i].int32[0] = colors[i].color.clearColorI[0];
+                clearValues[i].int32[1] = colors[i].color.clearColorI[1];
+                clearValues[i].int32[2] = colors[i].color.clearColorI[2];
+                clearValues[i].int32[3] = colors[i].color.clearColorI[3];
             }
             break;
         case FormatType::COLOR_FLOAT:
@@ -1156,6 +1163,8 @@ void fillClearColors(std::vector<VkClearColorValue>& clearValues,
                 clearValues[i].float32[2] = colors[i].color.clearColorF[2];
                 clearValues[i].float32[3] = colors[i].color.clearColorF[3];
             }
+            break;
+        default:
             break;
     }
 }
@@ -1269,8 +1278,14 @@ VkBorderColor borderColor(BorderColor borderColor) {
         case BorderColor::INT_TRANSPARENT_BLACK:
             res = VK_BORDER_COLOR_INT_TRANSPARENT_BLACK;
             break;
+        case BorderColor::FLOAT_OPAQUE_BLACK:
+            res = VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK;
+            break;
         case BorderColor::INT_OPAQUE_BLACK:
             res = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+            break;
+        case BorderColor::FLOAT_OPAQUE_WHITE:
+            res = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
             break;
         case BorderColor::INT_OPAQUE_WHITE:
             res = VK_BORDER_COLOR_INT_OPAQUE_WHITE;

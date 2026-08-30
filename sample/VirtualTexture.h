@@ -73,7 +73,8 @@ public:
         //        _vt->initLocalBind(binds,
         //                           shaderRes.descriptorLayouts.at(static_cast<uint32_t>(graph::Rate::PER_INSTANCE)));
 
-        _cmdPool = rhi::CommandPoolPtr(device->createCoomandPool({}));
+        const auto graphicsQueueIndex = device->getQueue({rhi::QueueType::GRAPHICS})->index();
+        _cmdPool = rhi::CommandPoolPtr(device->createCoomandPool({graphicsQueueIndex}));
         auto* q = device->getQueue({rhi::QueueType::GRAPHICS});
         auto cmd = rhi::CommandBufferPtr(_cmdPool->makeCommandBuffer({}));
         cmd->enqueue(q);
@@ -113,8 +114,8 @@ public:
 
         _preRenderTask = framework::RenderTask{
             [this](std::chrono::milliseconds sec, rhi::CommandBufferPtr cmd, rhi::DevicePtr device) {
-                auto* sparseQ = device->getQueue({{rhi::QueueType::SPARSE}});
-                auto* grfxQ = device->getQueue({{rhi::QueueType::GRAPHICS}});
+                auto* sparseQ = device->getQueue({rhi::QueueType::SPARSE});
+                auto* grfxQ = device->getQueue({rhi::QueueType::GRAPHICS});
                 _vt->resetAccessCounter(cmd);
                 _vt->analyze(cmd);
                 auto newUpdate = _vt->hasRemainedTask();

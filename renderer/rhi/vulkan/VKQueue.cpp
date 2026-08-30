@@ -1,5 +1,6 @@
 #include "VKQueue.h"
 #include <optional>
+#include <stdexcept>
 #include <vector>
 #include "VKCommandBuffer.h"
 #include "VKDevice.h"
@@ -39,7 +40,7 @@ Queue::Queue(const QueueInfo& info, Device* device)
     if (index.has_value()) {
         _index = index.value();
     } else {
-        RAUM_CRITICAL_IF(!index.has_value(), "Queue type not support.");
+        throw std::runtime_error("Requested Vulkan queue type is not supported");
     }
 }
 
@@ -48,7 +49,10 @@ void Queue::initQueue() {
     for (auto& fence : _frameFence) {
         VkFenceCreateInfo info{};
         info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-        vkCreateFence(_device->device(), &info, nullptr, &fence);
+        const auto result = vkCreateFence(_device->device(), &info, nullptr, &fence);
+        if (result != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create Vulkan queue fence");
+        }
     }
 }
 
@@ -114,14 +118,23 @@ void Queue::submit(bool enableFrameFence) {
         lastFence = _frameFence[(_currFrameIndex + FRAMES_IN_FLIGHT - 1 ) % FRAMES_IN_FLIGHT];
         fenceCount = 1;
     }
-    vkQueueSubmit(_vkQueue, 1, &info, lastFence);
+    auto result = vkQueueSubmit(_vkQueue, 1, &info, lastFence);
+    if (result != VK_SUCCESS) {
+        throw std::runtime_error("Failed to submit Vulkan command buffers");
+    }
     if (fenceCount) {
-        vkWaitForFences(_device->device(), fenceCount, &lastFence, VK_TRUE, UINT64_MAX);
-        vkResetFences(_device->device(), fenceCount, &lastFence);
+        result = vkWaitForFences(_device->device(), fenceCount, &lastFence, VK_TRUE, UINT64_MAX);
+        if (result != VK_SUCCESS) {
+            throw std::runtime_error("Failed while waiting for Vulkan queue fence");
+        }
+        result = vkResetFences(_device->device(), fenceCount, &lastFence);
+        if (result != VK_SUCCESS) {
+            throw std::runtime_error("Failed to reset Vulkan queue fence");
+        }
+        _device->resetStagingBuffer(_index);
     }
 
     _commandBuffers.clear();
-    _device->resetStagingBuffer(_index);
 }
 
 void Queue::increaseFrameIndex() {
@@ -188,7 +201,9 @@ void Queue::bindSparse(const SparseBindingInfo& info, SparseType type) {
         bindInfo.signalSemaphoreCount = 0;
     }
 
-    vkQueueBindSparse(_vkQueue, 1, &bindInfo, VK_NULL_HANDLE);
+    if (vkQueueBindSparse(_vkQueue, 1, &bindInfo, VK_NULL_HANDLE) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to submit Vulkan sparse bindings");
+    }
 
     _commandBuffers.clear();
 }

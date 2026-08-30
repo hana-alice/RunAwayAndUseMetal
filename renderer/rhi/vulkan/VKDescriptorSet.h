@@ -20,9 +20,9 @@ private:
     DescriptorSet(const DescriptorSetInfo& info, DescriptorPool* pool, RHIDevice* device);
 
     const DescriptorSetInfo _info;
-    VkDescriptorSet _descriptorSet;
-    Device* _device;
-    DescriptorPool* _descriptorPool;
+    VkDescriptorSet _descriptorSet{VK_NULL_HANDLE};
+    Device* _device{nullptr};
+    DescriptorPool* _descriptorPool{nullptr};
 
     friend class DescriptorPool;
 };

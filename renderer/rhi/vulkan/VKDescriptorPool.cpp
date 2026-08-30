@@ -19,7 +19,9 @@ DescriptorPool::DescriptorPool(const DescriptorPoolInfo& info, RHIDevice* device
 
     createInfo.poolSizeCount = static_cast<uint32_t>(sizes.size());
     createInfo.pPoolSizes = sizes.data();
-    vkCreateDescriptorPool(_device->device(), &createInfo, nullptr, &_pool);
+    if (vkCreateDescriptorPool(_device->device(), &createInfo, nullptr, &_pool) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create Vulkan descriptor pool");
+    }
 }
 
 DescriptorPool::~DescriptorPool() {

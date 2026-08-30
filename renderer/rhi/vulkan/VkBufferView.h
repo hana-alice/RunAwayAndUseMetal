@@ -17,6 +17,6 @@ public:
 
 private:
     Device* _device{nullptr};
-    VkBufferView _bufferView;
+    VkBufferView _bufferView{VK_NULL_HANDLE};
 };
 } // namespace raum::rhi

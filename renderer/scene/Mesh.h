@@ -1,7 +1,7 @@
 #pragma once
 #include <stdint.h>
 #include <vector>
-#include "Common.h"
+#include "common.h"
 #include "RHIDefine.h"
 #include "Technique.h"
 

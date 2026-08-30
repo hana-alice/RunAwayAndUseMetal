@@ -20,6 +20,8 @@ Shader::Shader(const ShaderSourceInfo& shaderInfo, RHIDevice* device)
     // P. B. T
     auto mapStage = [](ShaderStage stage) {
         switch (stage) {
+            case ShaderStage::NONE:
+                throw std::runtime_error("A shader stage must be specified");
             case ShaderStage::VERTEX:
                 return shaderc_glsl_vertex_shader;
             case ShaderStage::FRAGMENT:
@@ -38,7 +40,7 @@ Shader::Shader(const ShaderSourceInfo& shaderInfo, RHIDevice* device)
 
     auto result = shaderCompiler.CompileGlslToSpv(stage.source.c_str(), stage.source.size(), mapStage(stage.stage), shaderInfo.sourcePath.c_str(), "main", options);
     if (result.GetCompilationStatus() != shaderc_compilation_status_success) {
-        RAUM_ERROR("Failed to compile shader: {0}", result.GetErrorMessage());
+        throw std::runtime_error("Failed to compile shader '" + shaderInfo.sourcePath + "': " + result.GetErrorMessage());
     }
 
     VkShaderModuleCreateInfo createInfo{};
@@ -48,6 +50,9 @@ Shader::Shader(const ShaderSourceInfo& shaderInfo, RHIDevice* device)
     VkResult res = vkCreateShaderModule(_device->device(), &createInfo, nullptr, &_shaderModule);
 
     RAUM_ERROR_IF(res != VK_SUCCESS, "Failed to create shader module");
+    if (res != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create Vulkan shader module");
+    }
 }
 
 Shader::Shader(const raum::rhi::ShaderBinaryInfo& shaderInfo, raum::rhi::RHIDevice* device)
@@ -64,6 +69,9 @@ Shader::Shader(const raum::rhi::ShaderBinaryInfo& shaderInfo, raum::rhi::RHIDevi
     VkResult res = vkCreateShaderModule(_device->device(), &createInfo, nullptr, &_shaderModule);
 
     RAUM_ERROR_IF(res != VK_SUCCESS, "Failed to create shader module");
+    if (res != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create Vulkan shader module");
+    }
 }
 
 Shader::~Shader() {

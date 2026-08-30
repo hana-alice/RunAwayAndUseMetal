@@ -25,7 +25,7 @@ public:
 private:
     void init(ImageViewType type, VkImage image, const ImageSubresourceRange& range, ComponentMapping cm, Format format);
 
-    VkImageView _imageView;
+    VkImageView _imageView{VK_NULL_HANDLE};
     Device* _device{nullptr};
     RHIImage* _image{nullptr};
 

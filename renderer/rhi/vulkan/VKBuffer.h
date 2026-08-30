@@ -22,9 +22,9 @@ public:
 
 private:
     Device* _device{nullptr};
-    VkBuffer _buffer;
-    VmaAllocation _allocation;
-    VmaAllocationInfo _allocInfo;
+    VkBuffer _buffer{VK_NULL_HANDLE};
+    VmaAllocation _allocation{VK_NULL_HANDLE};
+    VmaAllocationInfo _allocInfo{};
 };
 
 struct StagingInfo {
@@ -51,7 +51,7 @@ public:
 
 private:
     std::vector<Chunk> _chunks;
-    VmaAllocator& _allocator;
+    VmaAllocator _allocator;
     static constexpr uint32_t CHUNK_SIZE{1024 * 1024 * 4};
 };
 

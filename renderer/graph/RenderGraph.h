@@ -58,12 +58,7 @@ class RenderPass {
 public:
     RenderPass(RenderGraphImpl::vertex_descriptor id, RenderGraphImpl& graph, TransparentUnorderedSet& names) : _id(id), _graph(graph), _names(names) {}
     RenderPass(const RenderPass& rhs) : _id(rhs._id), _graph(rhs._graph), _names(rhs._names) {}
-    RenderPass& operator=(const RenderPass& rhs) {
-        _id = rhs._id;
-        _graph = rhs._graph;
-        _names = rhs._names;
-        return *this;
-    }
+    RenderPass& operator=(const RenderPass& rhs) = delete;
     RenderPass(RenderPass&& rhs) = delete;
     ~RenderPass() = default;
 
@@ -83,10 +78,7 @@ class ComputePass {
 public:
     ComputePass(ComputePassData& data) : _data(data) {}
     ComputePass(const ComputePass& rhs) : _data(rhs._data) {}
-    ComputePass& operator=(const ComputePass& rhs) {
-        _data = rhs._data;
-        return *this;
-    }
+    ComputePass& operator=(const ComputePass& rhs) = delete;
 
     ComputePass(ComputePass&& rhs) = delete;
     ~ComputePass() = default;
@@ -105,11 +97,7 @@ class CopyPass {
 public:
     CopyPass(CopyPassData& data, rhi::DevicePtr device) : _data(data),_device(device) {}
     CopyPass(const CopyPass& rhs) : _data(rhs._data), _device(rhs._device) {}
-    CopyPass& operator=(const CopyPass& rhs) {
-        _data = rhs._data;
-        _device = rhs._device;
-        return *this;
-    }
+    CopyPass& operator=(const CopyPass& rhs) = delete;
 
     CopyPass(CopyPass&& rhs) = delete;
     ~CopyPass() = default;

@@ -11,7 +11,7 @@
 #include "SceneSerializer.h"
 #include "Serialization.h"
 #include "WindowEvent.h"
-#include "common.h"
+#include "../common.h"
 #include "core/utils/utils.h"
 #include "math.h"
 

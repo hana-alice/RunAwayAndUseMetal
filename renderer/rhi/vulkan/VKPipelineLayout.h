@@ -17,6 +17,6 @@ public:
 
 private:
     Device* _device{nullptr};
-    VkPipelineLayout _layout;
+    VkPipelineLayout _layout{VK_NULL_HANDLE};
 };
 } // namespace raum::rhi

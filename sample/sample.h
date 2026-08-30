@@ -44,10 +44,9 @@ public:
 
         _world->run();
 
-        auto swapchain = director.swapchain();
-
-        auto resizeHandler = [&, swapchain](uint32_t w, uint32_t h) {
-            swapchain->resize(w, h, _window->handle());
+        auto pipeline = director.pipeline();
+        auto resizeHandler = [this, pipeline](uint32_t w, uint32_t h) {
+            pipeline->resizeSwapchain(w, h, _window->handle());
         };
         _resizeListener.add(resizeHandler);
 
@@ -70,6 +69,9 @@ public:
         _window->removeTick(_tickID);
         _resizeListener.remove();
         _closeListener.remove();
+        _samples.clear();
+        delete _world;
+        _world = nullptr;
     }
 
     void showWindow() {

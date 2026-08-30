@@ -43,12 +43,12 @@ private:
     CommandBufferStatus _status{CommandBufferStatus::AVAILABLE};
     Device* _device{nullptr};
     Queue* _queue{nullptr};
-    CommandPool* _commandPool;
+    CommandPool* _commandPool{nullptr};
     CommandBufferInfo _info;
     std::vector<ImageBarrierInfo> _imageBarriers;
     std::vector<BufferBarrierInfo> _bufferBarriers;
     std::vector<ExecutionBarrier> _executionBarriers;
 
-    VkCommandBuffer _commandBuffer;
+    VkCommandBuffer _commandBuffer{VK_NULL_HANDLE};
 };
 } // namespace raum::rhi

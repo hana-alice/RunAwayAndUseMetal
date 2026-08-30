@@ -62,7 +62,8 @@ void BuiltinRes::initialize(graph::ShaderGraph& shaderGraph, rhi::DevicePtr devi
     iterateLayout(shaderGraph, resourcePath);
     shaderGraph.compile("asset");
 
-    auto cmdPool = rhi::CommandPoolPtr(device->createCoomandPool({}));
+    const auto graphicsQueueIndex = device->getQueue({rhi::QueueType::GRAPHICS})->index();
+    auto cmdPool = rhi::CommandPoolPtr(device->createCoomandPool({graphicsQueueIndex}));
     auto cmdBuffer = rhi::CommandBufferPtr(cmdPool->makeCommandBuffer({}));
     auto* queue = device->getQueue({rhi::QueueType::GRAPHICS});
     cmdBuffer->enqueue(queue);
@@ -101,6 +102,15 @@ void BuiltinRes::initialize(graph::ShaderGraph& shaderGraph, rhi::DevicePtr devi
 
     cmdBuffer->commit();
     queue->submit(false);
+}
+
+void BuiltinRes::shutdown() {
+    delete s_quad;
+    s_quad = nullptr;
+    delete s_skybox;
+    s_skybox = nullptr;
+    s_iblBrdfLUTView.reset();
+    s_iblBrdfLUT.reset();
 }
 
 const Skybox& BuiltinRes::skybox() {

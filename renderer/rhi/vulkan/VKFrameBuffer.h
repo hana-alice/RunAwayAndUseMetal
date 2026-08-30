@@ -12,6 +12,6 @@ public:
 
 private:
     Device* _device{nullptr};
-    VkFramebuffer _framebuffer;
+    VkFramebuffer _framebuffer{VK_NULL_HANDLE};
 };
 }

@@ -181,7 +181,11 @@ float getAOContributions(float factor) {
 }
 
 void main() {
+#ifdef BASE_COLOR_MAP
     vec4 albedo = SRGBtoLINEAR(texture(sampler2D(albedoMap, linearSampler), f_uv));
+#else
+    vec4 albedo = vec4(1.0);
+#endif
 
     if (albedo.a < alphaCutoff) {
        discard;
@@ -189,12 +193,21 @@ void main() {
 
     vec4 baseColor = albedo * baseColorFactor;
 
+#ifdef EMISSIVE_MAP
     vec4 em = texture(sampler2D(emissiveMap, linearSampler), f_uv);
     vec3 emissive = vec3(em * emissiveFactor);
+#else
+    vec3 emissive = emissiveFactor.xyz;
+#endif
 
+#ifdef MATALLIC_ROUGHNESS_MAP
     vec4 mr = texture(sampler2D(metallicRoughnessMap, linearSampler), f_uv);
     float metallic = mr.b * mrno.x;
     float roughness = mr.g * mrno.y;
+#else
+    float metallic = mrno.x;
+    float roughness = mrno.y;
+#endif
 
     vec3 sampledNormal = texture(sampler2D(normalMap, pointSampler), f_uv).rgb;
     vec3 N = getNormal(sampledNormal, mrno.z);

@@ -128,6 +128,7 @@ _layout(static_cast<PipelineLayout*>(pipelineInfo.pipelineLayout)) {
     VkPipelineRasterizationStateCreateInfo rsInfo{};
     rsInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
     rsInfo.cullMode = cullMode(rasterizationInfo.cullMode);
+    rsInfo.frontFace = frontFace(rasterizationInfo.frontFace);
     rsInfo.lineWidth = rasterizationInfo.lineWidth;
     rsInfo.polygonMode = polygonMode(rasterizationInfo.polygonMode);
     rsInfo.depthClampEnable = rasterizationInfo.depthClamp;
@@ -196,6 +197,7 @@ _layout(static_cast<PipelineLayout*>(pipelineInfo.pipelineLayout)) {
         colorBlendAttachment.blendEnable = attachmentBlend.blendEnable;
         colorBlendAttachment.srcColorBlendFactor = blendFactor(attachmentBlend.srcColorBlendFactor);
         colorBlendAttachment.dstColorBlendFactor = blendFactor(attachmentBlend.dstColorBlendFactor);
+        colorBlendAttachment.colorBlendOp = blendOp(attachmentBlend.colorBlendOp);
         colorBlendAttachment.srcAlphaBlendFactor = blendFactor(attachmentBlend.srcAlphaBlendFactor);
         colorBlendAttachment.dstAlphaBlendFactor = blendFactor(attachmentBlend.dstAlphaBlendFactor);
         colorBlendAttachment.alphaBlendOp = blendOp(attachmentBlend.alphaBlendOp);
@@ -210,6 +212,9 @@ _layout(static_cast<PipelineLayout*>(pipelineInfo.pipelineLayout)) {
     pipelineCreateInfo.renderPass = static_cast<RenderPass*>(pipelineInfo.renderPass)->renderPass();
 
     VkResult res = vkCreateGraphicsPipelines(_device->device(), VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &_pipeline);
+    if (res != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create Vulkan graphics pipeline");
+    }
 }
 
 GraphicsPipeline::~GraphicsPipeline() {

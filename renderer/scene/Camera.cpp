@@ -61,7 +61,7 @@ void Camera::update() {
             _frustumPlanes[1].normal = -_eye.forward();
 
             // left plane
-            _frustumPlanes[2].point = _eye.getPosition() - frustum.left * camRight;
+            _frustumPlanes[2].point = _eye.getPosition() + frustum.left * camRight;
             _frustumPlanes[2].normal = camRight;
 
             // right plane
@@ -73,8 +73,8 @@ void Camera::update() {
             _frustumPlanes[4].normal = -camUp;
 
             // bottom plane
-            _frustumPlanes[5].point = _eye.getPosition() - frustum.bottom * camRight;
-            _frustumPlanes[5].normal = camRight;
+            _frustumPlanes[5].point = _eye.getPosition() + frustum.bottom * camUp;
+            _frustumPlanes[5].normal = camUp;
 
         } else {
             raum_error("unsupported projection type: {}", static_cast<uint8_t>(_eye.projectionType()));

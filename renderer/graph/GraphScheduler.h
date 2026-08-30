@@ -20,6 +20,7 @@ public:
         TaskGraph* _taskGraph,
         SceneGraph* _sceneGraph,
         ShaderGraph* _shaderGraph);
+    ~GraphScheduler();
 
     void needWarmUp();
     void execute(rhi::CommandBufferPtr cmd);

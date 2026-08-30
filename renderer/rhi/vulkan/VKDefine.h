@@ -1,4 +1,5 @@
 #pragma once
+#include <stdexcept>
 #include <vulkan/vulkan.h>
 #include "RHIDefine.h"
 namespace raum::rhi {

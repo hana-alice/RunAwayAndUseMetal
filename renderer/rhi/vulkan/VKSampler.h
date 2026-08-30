@@ -12,8 +12,8 @@ public:
 private:
     ~Sampler();
 
-    VkSampler _sampler;
-    Device* _device;
+    VkSampler _sampler{VK_NULL_HANDLE};
+    Device* _device{nullptr};
 
     friend class Device;
 };

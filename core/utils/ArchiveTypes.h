@@ -13,21 +13,21 @@ namespace cereal {
 
 template <class Archive>
 void serialize(Archive& ar, raum::Mat2& mat2) {
-    for (int i = 0; i < 4; i++) {
+    for (int i = 0; i < 2; i++) {
         ar(mat2[i]);
     }
 }
 
 template <class Archive>
 void serialize(Archive& ar, raum::Mat3& mat3) {
-    for (int i = 0; i < 9; i++) {
+    for (int i = 0; i < 3; i++) {
         ar(mat3[i]);
     }
 }
 
 template <class Archive>
 void serialize(Archive& ar, raum::Mat4& mat4) {
-    for (int i = 0; i < 16; i++) {
+    for (int i = 0; i < 4; i++) {
         ar(mat4[i]);
     }
 }

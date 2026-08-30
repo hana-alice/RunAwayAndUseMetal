@@ -1,4 +1,5 @@
 #include "VKSparseImage.h"
+#include <stdexcept>
 #include "RHIUtils.h"
 #include "VKBuffer.h"
 #include "VKDevice.h"
@@ -41,10 +42,18 @@ SparseImage::SparseImage(const SparseImageInfo& info, Device* dev)
 
     VkResult res = vkCreateImage(_device->device(), &createInfo, nullptr, &_sparseImage);
     RAUM_ERROR_IF(res != VK_SUCCESS, "Failed to create image.");
+    if (res != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create Vulkan sparse image");
+    }
 
     std::vector<VkSparseImageMemoryRequirements> reqs;
-    uint32_t count;
+    uint32_t count{0};
     vkGetImageSparseMemoryRequirements(_device->device(), _sparseImage, &count, nullptr);
+    if (!count) {
+        vkDestroyImage(_device->device(), _sparseImage, nullptr);
+        _sparseImage = VK_NULL_HANDLE;
+        throw std::runtime_error("Vulkan sparse image has no sparse memory requirements");
+    }
     reqs.resize(count);
     vkGetImageSparseMemoryRequirements(_device->device(), _sparseImage, &count, reqs.data());
     vkGetImageMemoryRequirements(_device->device(), _sparseImage, &_memReq);
@@ -64,6 +73,11 @@ SparseImage::SparseImage(const SparseImageInfo& info, Device* dev)
         bits >>= 1;
     }
     raum_check(typeIndex != 0xFFFFFFFF, "can't find request memory type");
+    if (typeIndex == 0xFFFFFFFF) {
+        vkDestroyImage(_device->device(), _sparseImage, nullptr);
+        _sparseImage = VK_NULL_HANDLE;
+        throw std::runtime_error("No compatible Vulkan memory type exists for the sparse image");
+    }
     _memTypeIndex = typeIndex;
 
     _granularity = {
@@ -137,7 +151,7 @@ void SparseImage::prepareMiptail(RHICommandBuffer* cb) {
             },
         };
         cmdBuffer->appendImageBarrier(prepareTransfer);
-        cmdBuffer->applyBarrier({DependencyFlags::BY_REGION});
+        cmdBuffer->applyBarrier(DependencyFlags::BY_REGION);
 
         VkBufferImageCopy region{
             .bufferOffset = 0,
@@ -170,7 +184,7 @@ void SparseImage::prepareMiptail(RHICommandBuffer* cb) {
             },
         };
         cmdBuffer->appendImageBarrier(shaderRead);
-        cmdBuffer->applyBarrier({DependencyFlags::BY_REGION});
+        cmdBuffer->applyBarrier(DependencyFlags::BY_REGION);
 
         cmdBuffer->onComplete([stagingBuffer]() mutable {
             stagingBuffer.reset();
@@ -191,7 +205,9 @@ void SparseImage::prepare(RHICommandBuffer* cmdBuffer, uint32_t numCols, uint32_
     aci.usage = VMA_MEMORY_USAGE_GPU_ONLY;
     aci.memoryTypeBits = memrequires.memoryTypeBits;
     auto res = vmaAllocateMemoryPages(_device->allocator(), &memrequires, &aci, 1, &_miptailAlloc, &ai);
-    assert(res == VK_SUCCESS);
+    if (res != VK_SUCCESS) {
+        throw std::runtime_error("Failed to allocate Vulkan sparse image mip tail");
+    }
 
     _miptailBind = {};
     _miptailBind.size = miptailSize;
@@ -271,8 +287,12 @@ void SparseImage::initPageInfo(uint32_t pageCount, uint32_t pageSize) {
 }
 
 SparseImage::~SparseImage() {
-    vkDestroyImage(_device->device(), _sparseImage, nullptr);
-    vmaFreeMemoryPages(_device->allocator(), 1, &_miptailAlloc);
+    if (_sparseImage != VK_NULL_HANDLE) {
+        vkDestroyImage(_device->device(), _sparseImage, nullptr);
+    }
+    if (_miptailAlloc != VK_NULL_HANDLE) {
+        vmaFreeMemoryPages(_device->allocator(), 1, &_miptailAlloc);
+    }
 }
 
 } // namespace raum::rhi

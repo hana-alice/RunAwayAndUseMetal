@@ -1,4 +1,5 @@
-#include "VkCommandBuffer.h"
+#include "VKCommandBuffer.h"
+#include <stdexcept>
 #include <type_traits>
 #include "VKBlitEncoder.h"
 #include "VKBuffer.h"
@@ -22,11 +23,15 @@ CommandBuffer::CommandBuffer(const CommandBufferInfo& info, CommandPool* command
     createInfo.commandBufferCount = 1;
     createInfo.commandPool = commandPool->commandPool();
     createInfo.level = commandBufferLevel(info.type);
-    vkAllocateCommandBuffers(_device->device(), &createInfo, &_commandBuffer);
+    if (vkAllocateCommandBuffers(_device->device(), &createInfo, &_commandBuffer) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to allocate Vulkan command buffer");
+    }
 }
 
 CommandBuffer::~CommandBuffer() {
-    vkFreeCommandBuffers(_device->device(), _commandPool->commandPool(), 1, &_commandBuffer);
+    if (_commandBuffer != VK_NULL_HANDLE) {
+        vkFreeCommandBuffers(_device->device(), _commandPool->commandPool(), 1, &_commandBuffer);
+    }
 }
 
 RHIRenderEncoder* CommandBuffer::makeRenderEncoder(RenderEncoderHint hint) {
@@ -49,7 +54,9 @@ void CommandBuffer::begin(const CommandBufferBeginInfo& info) {
     VkCommandBufferBeginInfo beginInfo{};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     beginInfo.flags = commandBufferUsage(info.flags);
-    vkBeginCommandBuffer(_commandBuffer, &beginInfo);
+    if (vkBeginCommandBuffer(_commandBuffer, &beginInfo) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to begin Vulkan command buffer");
+    }
 }
 
 void CommandBuffer::enqueue(RHIQueue* queue) {
@@ -59,11 +66,15 @@ void CommandBuffer::enqueue(RHIQueue* queue) {
 }
 
 void CommandBuffer::commit() {
-    vkEndCommandBuffer(_commandBuffer);
+    if (vkEndCommandBuffer(_commandBuffer) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to end Vulkan command buffer");
+    }
 }
 
 void CommandBuffer::reset() {
-    vkResetCommandBuffer(_commandBuffer, VkCommandBufferResetFlagBits{});
+    if (vkResetCommandBuffer(_commandBuffer, VkCommandBufferResetFlagBits{}) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to reset Vulkan command buffer");
+    }
 }
 
 void CommandBuffer::appendImageBarrier(const ImageBarrierInfo& info) {
@@ -127,7 +138,7 @@ void CommandBuffer::applyBarrier(DependencyFlags flags) {
         executionBarriers[i].sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
     }
 
-    if (!_bufferBarriers.empty() || !_imageBarriers.empty()) {
+    if (!_bufferBarriers.empty() || !_imageBarriers.empty() || !_executionBarriers.empty()) {
         vkCmdPipelineBarrier(_commandBuffer, srcStageMask, dstStageMask, dependencyFlags(flags),
                              executionBarriers.size(), executionBarriers.data(),
                              static_cast<uint32_t>(bufferBarriers.size()), bufferBarriers.data(),
@@ -135,6 +146,7 @@ void CommandBuffer::applyBarrier(DependencyFlags flags) {
     }
     _bufferBarriers.clear();
     _imageBarriers.clear();
+    _executionBarriers.clear();
 }
 
 void CommandBuffer::onComplete(std::function<void()>&& func) {

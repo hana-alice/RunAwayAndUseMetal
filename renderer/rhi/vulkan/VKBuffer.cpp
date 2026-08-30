@@ -1,4 +1,6 @@
 #include "VKBuffer.h"
+#include <algorithm>
+#include <stdexcept>
 #include "VKDevice.h"
 #include "VKUtils.h"
 
@@ -85,6 +87,9 @@ Buffer::Buffer(const BufferInfo& info, RHIDevice* device) : RHIBuffer(info, devi
 
     VkResult res = vmaCreateBuffer(allocator, &bufferInfo, &allocaInfo, &_buffer, &_allocation, &_allocInfo);
     RAUM_ERROR_IF(res != VK_SUCCESS, "Failed to create buffer!");
+    if (res != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create Vulkan buffer");
+    }
 }
 
 Buffer::Buffer(const BufferSourceInfo& info, RHIDevice* device) : RHIBuffer(info, device), _device(static_cast<Device*>(device)) {
@@ -108,12 +113,17 @@ Buffer::Buffer(const BufferSourceInfo& info, RHIDevice* device) : RHIBuffer(info
 
     VkResult res = vmaCreateBuffer(allocator, &bufferInfo, &allocaInfo, &_buffer, &_allocation, &_allocInfo);
     RAUM_ERROR_IF(res != VK_SUCCESS, "Failed to create buffer!");
+    if (res != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create Vulkan buffer with source data");
+    }
 
     memcpy(_allocInfo.pMappedData, info.data, info.size);
 }
 
 Buffer::~Buffer() {
-    vmaDestroyBuffer(_device->allocator(), _buffer, _allocation);
+    if (_buffer != VK_NULL_HANDLE) {
+        vmaDestroyBuffer(_device->allocator(), _buffer, _allocation);
+    }
 }
 
 StagingBuffer::StagingBuffer(VmaAllocator allocator) : _allocator(allocator) {
@@ -137,8 +147,9 @@ StagingInfo StagingBuffer::alloc(uint32_t size) {
     auto* curChunk = &_chunks.back();
     if (size + curChunk->offset > curChunk->size) {
         curChunk = &_chunks.emplace_back();
+        curChunk->size = std::max(CHUNK_SIZE, size);
         VkBufferCreateInfo bufCreateInfo = {VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
-        bufCreateInfo.size = CHUNK_SIZE;
+        bufCreateInfo.size = curChunk->size;
         bufCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
 
         VmaAllocationCreateInfo allocCreateInfo = {};

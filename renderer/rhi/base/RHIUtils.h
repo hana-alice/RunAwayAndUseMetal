@@ -10,7 +10,7 @@ inline const DescriptorPoolInfo makeDescriptorPoolInfo(const std::vector<RHIDesc
     std::map<DescriptorType, uint32_t> dict;
     for (auto* layout : layouts) {
         for (const auto& bindingInfo : layout->info().descriptorBindings) {
-            ++dict[bindingInfo.type];
+            dict[bindingInfo.type] += bindingInfo.count;
         }
     }
     std::vector<DescriptorPoolSize> poolSize;
@@ -364,13 +364,16 @@ bool hasStencil(Format format);
 
 ImagePtr defaultSampledImage(DevicePtr);
 ImagePtr defaultStorageImage(DevicePtr);
+ImagePtr defaultInputAttachment(DevicePtr);
 ImageViewPtr defaultSampledImageView(DevicePtr);
 ImageViewPtr defaultStorageImageView(DevicePtr);
+ImageViewPtr defaultInputAttachmentView(DevicePtr);
 BufferPtr defaultUniformBuffer(DevicePtr);
 BufferPtr defaultStorageBuffer(DevicePtr);
 BufferViewPtr defaultUniformBufferView(DevicePtr);
 BufferViewPtr defaultStorageBufferView(DevicePtr);
 SamplerInfo defaultLinearSampler(DevicePtr);
+void clearResourceCaches();
 
 ImagePtr createImageFromBuffer(BufferPtr buffer,
                                uint32_t width,

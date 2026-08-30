@@ -54,8 +54,16 @@ void generateDescriptorSetLayouts(ShaderResource& resource, rhi::DevicePtr devic
                 break;
             case BindingType::SAMPLER:
                 type = rhi::DescriptorType::SAMPLER;
+                count = bindingDesc.sampler.count;
+                break;
+            case BindingType::BINDLESS:
+                throw std::runtime_error("Bindless shader bindings are not supported");
         }
-        infos[index].descriptorBindings.emplace_back(bindingDesc.binding, type, count, bindingDesc.visibility, std::vector<rhi::RHISampler*>());
+        std::vector<rhi::RHISampler*> immutableSamplers;
+        if (bindingDesc.type == BindingType::SAMPLER && bindingDesc.sampler.immutable) {
+            immutableSamplers.resize(count, device->getSampler(rhi::defaultLinearSampler(device)));
+        }
+        infos[index].descriptorBindings.emplace_back(bindingDesc.binding, type, count, bindingDesc.visibility, std::move(immutableSamplers));
     }
 
     std::vector<rhi::RHIDescriptorSetLayout*> descriptors;

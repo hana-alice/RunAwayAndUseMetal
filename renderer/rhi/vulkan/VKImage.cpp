@@ -34,6 +34,9 @@ Image::Image(const ImageInfo& info, RHIDevice* device)
 
     VkResult res = vmaCreateImage(_device->allocator(), &createInfo, &allocInfo, &_image, &_allocation, nullptr);
     RAUM_ERROR_IF(res != VK_SUCCESS, "Failed to create image.");
+    if (res != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create Vulkan image");
+    }
 }
 
 Image::Image(const ImageInfo& imgInfo, RHIDevice* device, VkImage image)

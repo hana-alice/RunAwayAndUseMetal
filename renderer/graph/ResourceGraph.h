@@ -5,6 +5,7 @@
 
 namespace raum::rhi {
 class RHIDevice;
+class RHISwapchain;
 }
 
 namespace raum::graph {
@@ -75,6 +76,7 @@ public:
     void mount(std::string_view name);
     void unmount(std::string_view name, uint64_t life);
     void updateImage(std::string_view name, uint32_t width, uint32_t height);
+    void invalidateSwapchain(rhi::RHISwapchain* swapchain);
 
     static VertexType null_vertex() { return boost::graph_traits<ResourceGraphImpl>::null_vertex(); }
     auto& impl() { return _graph; }

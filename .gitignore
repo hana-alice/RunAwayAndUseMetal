@@ -8,3 +8,5 @@
 .idea/
 .vscode/
 CppProperties.json
+build-ninja/
+compile_commands.json

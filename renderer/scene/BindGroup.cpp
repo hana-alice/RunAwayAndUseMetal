@@ -13,7 +13,11 @@ BindGroup::BindGroup(const SlotMap &bindings, rhi::DescriptorSetLayoutPtr layout
     };
     _descriptorSet = rhi::DescriptorSetPtr (_descriptorSetPool->makeDescriptorSet(descSetInfo));
     _descriptorSetLayout = layout;
-    _updateIndices.resize(16);
+    uint32_t maxBinding{0};
+    for (const auto& descBinding : layout->info().descriptorBindings) {
+        maxBinding = (std::max)(maxBinding, descBinding.binding);
+    }
+    _updateIndices.resize(layout->info().descriptorBindings.empty() ? 0 : maxBinding + 1);
 
     for(const auto& descBinding : layout->info().descriptorBindings) {
         switch (descBinding.type) {
@@ -70,6 +74,20 @@ BindGroup::BindGroup(const SlotMap &bindings, rhi::DescriptorSetLayoutPtr layout
                 for(auto& bindingView : imageBinding.imageViews) {
                     auto sampledImageView = rhi::defaultSampledImageView(device);
                     bindingView.imageView = sampledImageView.get();
+                    bindingView.layout = rhi::ImageLayout::SHADER_READ_ONLY_OPTIMAL;
+                }
+                _updateIndices[descBinding.binding] = _currentBinding.imageBindings.size() - 1;
+                break;
+            }
+            case rhi::DescriptorType::INPUT_ATTACHMENT: {
+                auto& imageBinding = _currentBinding.imageBindings.emplace_back();
+                imageBinding.binding = descBinding.binding;
+                imageBinding.arrayElement = 0;
+                imageBinding.type = descBinding.type;
+                imageBinding.imageViews.resize(descBinding.count);
+                for (auto& bindingView : imageBinding.imageViews) {
+                    auto inputAttachmentView = rhi::defaultInputAttachmentView(device);
+                    bindingView.imageView = inputAttachmentView.get();
                     bindingView.layout = rhi::ImageLayout::SHADER_READ_ONLY_OPTIMAL;
                 }
                 _updateIndices[descBinding.binding] = _currentBinding.imageBindings.size() - 1;
@@ -151,7 +169,8 @@ void BindGroup::bindImage(std::string_view name, uint32_t index, rhi::ImageViewP
     auto bindingIndex = _updateIndices[bindingSlot];
 
     auto& currentBinding = _currentBinding.imageBindings[bindingIndex];
-    if(currentBinding.imageViews[index].imageView != imgView.get()) {
+    if(currentBinding.imageViews[index].imageView != imgView.get() ||
+       currentBinding.imageViews[index].layout != layout) {
         currentBinding.imageViews[index] = {
             .layout = layout,
             .imageView = imgView.get(),
