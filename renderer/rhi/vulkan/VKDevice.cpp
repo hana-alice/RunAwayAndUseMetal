@@ -508,6 +508,7 @@ void Device::waitDeviceIdle() {
 void Device::waitQueueIdle(raum::rhi::RHIQueue* q) {
     auto* queue = static_cast<Queue*>(q);
     VK_EXPECT(vkQueueWaitIdle(queue->_vkQueue));
+    queue->completePendingHandlers();
 }
 
 Device* loadVK() {

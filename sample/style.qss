@@ -178,6 +178,56 @@ QWidget#renderSurface {
     border: none;
 }
 
+QStackedWidget#viewportStack,
+QWidget#loadingPage {
+    background: #090b0f;
+    border: none;
+}
+
+QFrame#loadingCard {
+    background: #14171d;
+    border: 1px solid #292e38;
+    border-radius: 10px;
+}
+
+QLabel#loadingTitle {
+    color: #f1f4f9;
+    font-size: 15px;
+    font-weight: 600;
+}
+
+QLabel#loadingMessage {
+    color: #858d9b;
+    font-size: 11px;
+}
+
+QWidget#loadingProgressRow {
+    background: transparent;
+}
+
+QProgressBar#loadingProgress {
+    min-height: 5px;
+    max-height: 5px;
+    background: #252a33;
+    border: none;
+    border-radius: 2px;
+}
+
+QProgressBar#loadingProgress::chunk {
+    background: #5f95f4;
+    border-radius: 2px;
+}
+
+QProgressBar#loadingProgress[failed="true"]::chunk {
+    background: #e36f78;
+}
+
+QLabel#loadingPercent {
+    color: #9ca5b4;
+    font-family: "Cascadia Mono";
+    font-size: 10px;
+}
+
 QWidget#inspectorDock,
 QWidget#inspectorPanel,
 QScrollArea#inspectorScrollArea,

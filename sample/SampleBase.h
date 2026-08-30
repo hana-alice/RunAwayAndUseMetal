@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -23,6 +24,8 @@ class SceneGraph;
 
 namespace raum::sample {
 
+using LoadingProgressCallback = std::function<void(float, std::string_view)>;
+
 struct CameraControlState {
     Vec3f position{0.0f};
     float yawDegrees{0.0f};
@@ -38,6 +41,7 @@ public:
     SampleBase(const SampleBase&) = delete;
     SampleBase& operator=(const SampleBase&) = delete;
 
+    void load(const LoadingProgressCallback& progress = {});
     void initialize();
     void activate();
     void render();
@@ -51,6 +55,7 @@ public:
     virtual void applyCameraControlState(const CameraControlState&) {}
 
 protected:
+    virtual void onLoad(const LoadingProgressCallback&) {}
     virtual void onInitialize() = 0;
     virtual void onRender() = 0;
     virtual void onActivated() {}
@@ -81,7 +86,10 @@ protected:
     void ensureSampler(std::string_view localName, const rhi::SamplerInfo& info);
     void resizeViewportResources();
 
-    void loadScene(const std::filesystem::path& filePath, std::string_view localName = "scene");
+    void loadScene(
+        const std::filesystem::path& filePath,
+        std::string_view localName = "scene",
+        const LoadingProgressCallback& progress = {});
 
     // Tracked nodes are automatically disabled/enabled when switching samples.
     void trackSceneNode(std::string_view nodeName);
@@ -97,6 +105,7 @@ private:
     mutable std::unordered_map<std::string, std::string> _resourceNames;
     std::vector<std::string> _viewportImageNames;
     std::vector<std::string> _sceneNodeNames;
+    bool _loaded{false};
     bool _initialized{false};
     bool _active{false};
 };

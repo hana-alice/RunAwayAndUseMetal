@@ -51,7 +51,8 @@ void Queue::initQueue() {
 
 Queue::~Queue() {
     if (_vkQueue != VK_NULL_HANDLE) {
-        vkQueueWaitIdle(_vkQueue);
+        VK_EXPECT(vkQueueWaitIdle(_vkQueue));
+        completePendingHandlers();
         for (auto fence : _frameFence) {
             vkDestroyFence(_device->device(), fence, nullptr);
         }
@@ -127,6 +128,16 @@ void Queue::increaseFrameIndex() {
         completeFunc();
     }
     _completeHandlers[_currFrameIndex].clear();
+}
+
+void Queue::completePendingHandlers() {
+    for (auto& handlers : _completeHandlers) {
+        auto completed = std::move(handlers);
+        handlers.clear();
+        for (auto& completeFunc : completed) {
+            completeFunc();
+        }
+    }
 }
 
 void Queue::bindSparse(const SparseBindingInfo& info, SparseType type) {

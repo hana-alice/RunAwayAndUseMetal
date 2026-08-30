@@ -30,11 +30,20 @@ void SampleBase::initialize() {
     if (_initialized) {
         return;
     }
+    load();
     onInitialize();
     _initialized = true;
     if (!_active) {
         setTrackedSceneNodesEnabled(false);
     }
+}
+
+void SampleBase::load(const LoadingProgressCallback& progress) {
+    if (_loaded) {
+        return;
+    }
+    onLoad(progress);
+    _loaded = true;
 }
 
 void SampleBase::activate() {
@@ -155,12 +164,16 @@ void SampleBase::resizeViewportResources() {
     }
 }
 
-void SampleBase::loadScene(const std::filesystem::path& filePath, std::string_view localName) {
+void SampleBase::loadScene(
+    const std::filesystem::path& filePath,
+    std::string_view localName,
+    const LoadingProgressCallback& progress) {
     const auto loadedNodes = asset::serialize::loadScoped(
         sceneGraph(),
         filePath,
         resource(localName),
-        device());
+        device(),
+        progress);
     for (const auto& nodeName : loadedNodes) {
         trackSceneNode(nodeName);
     }

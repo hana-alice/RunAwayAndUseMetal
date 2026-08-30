@@ -5,6 +5,7 @@
 #include "RHIUtils.h"
 #include "Serialization.h"
 #include "core/utils/utils.h"
+#include "GeometryMesh.h"
 #include "stb_image.h"
 namespace raum::asset {
 
@@ -109,6 +110,10 @@ void BuiltinRes::shutdown() {
     s_quad = nullptr;
     delete s_skybox;
     s_skybox = nullptr;
+    // These geometry buffers are shared by the built-in render helpers, but
+    // their static storage otherwise outlives the Vulkan device.
+    ::raum::scene::Quad::vertexBuffer.buffer.reset();
+    ::raum::scene::Cube::vertexBuffer.buffer.reset();
     s_iblBrdfLUTView.reset();
     s_iblBrdfLUT.reset();
 }

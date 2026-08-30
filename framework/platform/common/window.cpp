@@ -123,6 +123,9 @@ public:
     }
 
     void prepare() {
+        if (_container) {
+            return;
+        }
         _container = QWidget::createWindowContainer(this);
         _container->setFocusPolicy(Qt::StrongFocus);
         _container->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
@@ -220,7 +223,6 @@ Window::Window(int argc, char** argv, uint32_t w, uint32_t h) {
     EmbededWindow->setTitle("Run!");
 
     _hwnd = EmbededWindow->winId();
-    EmbededWindow->prepare();
 
     const auto& size = EmbededWindow->size();
     _size = {
@@ -229,16 +231,18 @@ Window::Window(int argc, char** argv, uint32_t w, uint32_t h) {
     };
 
     _surface = EmbededWindow;
-    _container = EmbededWindow->container();
-    raum_info("window size: {} {}, widget size: {} {}, dpr: {}, {} {} {}",
+    raum_info("window size: {} {}, dpr: {}",
         EmbededWindow->size().width(),
         EmbededWindow->size().height(),
-        EmbededWindow->container()->size().width(),
-        EmbededWindow->container()->size().height(),
-        EmbededWindow->devicePixelRatio(),
-        EmbededWindow->container()->devicePixelRatio(),
-        EmbededWindow->container()->devicePixelRatioF(),
-        EmbededWindow->container()->devicePixelRatioFScale());
+        EmbededWindow->devicePixelRatio());
+}
+
+void* Window::container() {
+    if (!_container) {
+        EmbededWindow->prepare();
+        _container = EmbededWindow->container();
+    }
+    return _container;
 }
 
 void Window::tick(const std::chrono::milliseconds& ms) {

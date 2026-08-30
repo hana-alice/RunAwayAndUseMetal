@@ -15,10 +15,12 @@ public:
     : CameraSample(director, "LocalTest") {}
 
 private:
-    void onInitialize() override {
+    void onLoad(const LoadingProgressCallback& progress) override {
         const auto& resourcePath = utils::resourceDirectory();
-        loadScene(resourcePath / "models" / "sponza" / "sponza.gltf");
+        loadScene(resourcePath / "models" / "sponza" / "sponza.gltf", "scene", progress);
+    }
 
+    void onInitialize() override {
         createPerspectiveCamera({
             .verticalFov = utils::Degree{60.0f},
             .nearPlane = 1.0f,

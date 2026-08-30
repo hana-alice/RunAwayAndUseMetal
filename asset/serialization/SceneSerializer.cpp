@@ -1,4 +1,5 @@
 #include "SceneSerializer.h"
+#include <algorithm>
 #include <array>
 #include <cstring>
 #include <functional>
@@ -33,6 +34,12 @@ using OutputArchive = utils::OutputArchive;
 using InputArchive = utils::InputArchive;
 
 namespace {
+void reportProgress(const ProgressCallback& callback, float progress, std::string_view message) {
+    if (callback) {
+        callback(std::clamp(progress, 0.0f, 1.0f), message);
+    }
+}
+
 int64_t sourceTimestamp(const std::filesystem::path& filePath) {
     return std::filesystem::last_write_time(filePath).time_since_epoch().count();
 }
@@ -796,7 +803,8 @@ void loadTexturesFromCache(
     const std::filesystem::path& cachePath,
     std::vector<std::pair<std::string, scene::Texture>>& textures,
     rhi::DevicePtr device,
-    rhi::CommandBufferPtr cmdBuffer) {
+    rhi::CommandBufferPtr cmdBuffer,
+    const ProgressCallback& progress) {
     const auto texCachePath = cachePath / "textures";
     // raum_check(std::filesystem::exists(texCachePath), "textures cache not found: %s", texCachePath.string());
     if (std::filesystem::exists(texCachePath)) {
@@ -814,10 +822,16 @@ void loadTexturesFromCache(
 
         textures.resize(files.size());
 
+        if (files.empty()) {
+            reportProgress(progress, 1.0f, "No scene textures to upload");
+            return;
+        }
+
         auto& threadPool = getIOThreadPool();
         auto sched = threadPool.get_scheduler();
 
         std::mutex taskMutex;
+        size_t completedTextures{0};
 
         auto imgTask = [&](int i) {
             // load image data
@@ -846,10 +860,17 @@ void loadTexturesFromCache(
                         device,
                         cmdBuffer,
                         textures);
+            ++completedTextures;
+            reportProgress(
+                progress,
+                static_cast<float>(completedTextures) / static_cast<float>(files.size()),
+                "Uploading scene textures");
         };
 
         auto sender = stdexec::schedule(sched) | stdexec::bulk(files.size(), std::move(imgTask));
         stdexec::sync_wait(std::move(sender));
+    } else {
+        reportProgress(progress, 1.0f, "No scene textures to upload");
     }
 }
 
@@ -1002,18 +1023,29 @@ void loadMeshFromCache(
     std::vector<std::pair<std::string, scene::Texture>>& textures,
     rhi::CommandBufferPtr cmdBuffer,
     rhi::DevicePtr device,
-    std::vector<std::string>& loadedNodes) {
+    std::vector<std::string>& loadedNodes,
+    const ProgressCallback& progress) {
     const auto& meshCachePath = cachePath / "mesh";
     if (!std::filesystem::exists(meshCachePath)) {
         throw std::runtime_error("glTF mesh cache was not found: " + meshCachePath.string());
     }
 
+    std::vector<std::filesystem::path> meshFiles;
     for (const auto& entry : std::filesystem::directory_iterator(meshCachePath)) {
-        if (!entry.is_regular_file() || entry.path().extension() != ".mesh") {
-            continue;
+        if (entry.is_regular_file() && entry.path().extension() == ".mesh") {
+            meshFiles.emplace_back(entry.path());
         }
+    }
+    std::ranges::sort(meshFiles);
+    if (meshFiles.empty()) {
+        reportProgress(progress, 1.0f, "No scene meshes to load");
+        return;
+    }
 
-        const auto meshName = entry.path().stem().string();
+    size_t completedMeshes{0};
+    for (const auto& meshFile : meshFiles) {
+
+        const auto meshName = meshFile.stem().string();
         const auto nodeName = std::string{nodePrefix} + meshName;
         std::filesystem::path resPath = cachePath / "mesh" / meshName;
         resPath.replace_extension(".mesh");
@@ -1127,6 +1159,11 @@ void loadMeshFromCache(
                 meshRenderer->addTechnique(scene::makeEmbededTechnique(static_cast<scene::EmbededTechnique>(i)));
             }
         }
+        ++completedMeshes;
+        reportProgress(
+            progress,
+            static_cast<float>(completedMeshes) / static_cast<float>(meshFiles.size()),
+            "Building scene meshes");
     }
 }
 
@@ -1135,15 +1172,34 @@ std::vector<std::string> loadSceneFromCache(const std::filesystem::path& cachePa
                                             graph::SceneGraph& sg,
                                             rhi::CommandBufferPtr cmdBuffer,
                                             rhi::DevicePtr device,
-                                            std::string_view scope) {
+                                            std::string_view scope,
+                                            const ProgressCallback& progress) {
     const auto nodePrefix = scope.empty() ? std::string{} : std::string{scope} + "/";
     const auto rootName = nodePrefix + "Scene";
     sg.addEmpty(rootName);
     std::vector<std::string> loadedNodes{rootName};
     std::vector<std::pair<std::string, scene::Texture>> textures;
-    loadTexturesFromCache(cachePath, textures, device, cmdBuffer);
+    loadTexturesFromCache(
+        cachePath,
+        textures,
+        device,
+        cmdBuffer,
+        [&](float value, std::string_view message) {
+            reportProgress(progress, 0.05f + value * 0.55f, message);
+        });
 
-    loadMeshFromCache(cachePath, rootName, nodePrefix, sg, textures, cmdBuffer, device, loadedNodes);
+    loadMeshFromCache(
+        cachePath,
+        rootName,
+        nodePrefix,
+        sg,
+        textures,
+        cmdBuffer,
+        device,
+        loadedNodes,
+        [&](float value, std::string_view message) {
+            reportProgress(progress, 0.60f + value * 0.38f, message);
+        });
     return loadedNodes;
 }
 
@@ -1151,7 +1207,8 @@ std::vector<std::string> loadFromCache(
     graph::SceneGraph& sg,
     const std::filesystem::path& cachePath,
     rhi::DevicePtr device,
-    std::string_view scope = {}) {
+    std::string_view scope = {},
+    const ProgressCallback& progress = {}) {
     const auto graphicsQueueIndex = device->getQueue({rhi::QueueType::GRAPHICS})->index();
     auto commandPool = rhi::CommandPoolPtr(device->createCoomandPool({graphicsQueueIndex}));
     auto commandBuffer = rhi::CommandBufferPtr(commandPool->makeCommandBuffer({}));
@@ -1159,7 +1216,7 @@ std::vector<std::string> loadFromCache(
     commandBuffer->enqueue(queue);
     commandBuffer->begin({});
 
-    auto loadedNodes = loadSceneFromCache(cachePath, sg, commandBuffer, device, scope);
+    auto loadedNodes = loadSceneFromCache(cachePath, sg, commandBuffer, device, scope, progress);
 
     commandBuffer->commit();
 
@@ -1168,6 +1225,9 @@ std::vector<std::string> loadFromCache(
         commandPool.reset();
     });
     queue->submit(false);
+    reportProgress(progress, 0.99f, "Waiting for GPU uploads");
+    device->waitQueueIdle(queue);
+    reportProgress(progress, 1.0f, "GPU uploads complete");
     return loadedNodes;
 }
 
@@ -1188,12 +1248,15 @@ std::vector<std::string> loadScoped(
     graph::SceneGraph& sg,
     const std::filesystem::path& filePath,
     std::string_view scope,
-    rhi::DevicePtr device) {
+    rhi::DevicePtr device,
+    const ProgressCallback& progress) {
     if (scope.empty()) {
         throw std::invalid_argument("A scoped scene load requires a non-empty scope");
     }
+    reportProgress(progress, 0.01f, "Checking scene cache");
     const auto cachePath = raum::utils::resourceDirectory() / "cache" / filePath.stem();
     if (!cacheIsCurrent(cachePath, filePath)) {
+        reportProgress(progress, 0.03f, "Parsing scene and rebuilding cache");
         if (std::filesystem::exists(cachePath)) {
             std::filesystem::remove_all(cachePath);
         }
@@ -1201,7 +1264,17 @@ std::vector<std::string> loadScoped(
         assetPreprocess(offlineScene, filePath);
     }
     raum_expect(std::filesystem::exists(cachePath), "Failed to store cache file");
-    return loadFromCache(sg, cachePath, device, scope);
+    reportProgress(progress, 0.15f, "Reading cached scene resources");
+    auto loadedNodes = loadFromCache(
+        sg,
+        cachePath,
+        device,
+        scope,
+        [&](float value, std::string_view message) {
+            reportProgress(progress, 0.15f + value * 0.83f, message);
+        });
+    reportProgress(progress, 1.0f, "Scene resources ready");
+    return loadedNodes;
 }
 
 void load(graph::SceneGraph& sg, const std::filesystem::path& filePath, std::string_view sceneName, rhi::DevicePtr device) {

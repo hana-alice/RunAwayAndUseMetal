@@ -124,6 +124,7 @@ void Director::update(std::chrono::milliseconds milisec) {
     queue->submit(true);
 
     _swapchain->present();
+    _hasPresentedFrame.store(true, std::memory_order_release);
 }
 
 void Director::run() {

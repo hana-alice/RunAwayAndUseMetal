@@ -1,18 +1,25 @@
 #include "ui.h"
 
+#include <algorithm>
+#include <functional>
 #include <optional>
+#include <utility>
 
 #include <QApplication>
+#include <QCloseEvent>
 #include <QComboBox>
 #include <QFile>
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QMainWindow>
+#include <QPainter>
+#include <QProgressBar>
 #include <QPushButton>
 #include <QScrollArea>
 #include <QSizePolicy>
 #include <QSplitter>
+#include <QStackedWidget>
 #include <QStyle>
 #include <QStyleFactory>
 #include <QTimer>
@@ -35,6 +42,67 @@ namespace {
 
 constexpr int kInspectorWidth = 320;
 constexpr int kUiRefreshIntervalMs = 100;
+
+class MainWindow final : public QMainWindow {
+public:
+    using CloseHandler = std::function<void()>;
+
+    void setCloseHandler(CloseHandler handler) {
+        _closeHandler = std::move(handler);
+    }
+
+protected:
+    void closeEvent(QCloseEvent* event) override {
+        if (_closeHandler) {
+            _closeHandler();
+        }
+        QMainWindow::closeEvent(event);
+    }
+
+private:
+    CloseHandler _closeHandler;
+};
+
+class LoadingSpinner final : public QWidget {
+public:
+    explicit LoadingSpinner(QWidget* parent = nullptr) : QWidget(parent) {
+        setFixedSize(42, 42);
+        _timer.setInterval(24);
+        QObject::connect(&_timer, &QTimer::timeout, this, [this] {
+            _angle = (_angle + 8) % 360;
+            update();
+        });
+        _timer.start();
+    }
+
+    void setRunning(bool running) {
+        if (running) {
+            _timer.start();
+        } else {
+            _timer.stop();
+        }
+        update();
+    }
+
+protected:
+    void paintEvent(QPaintEvent*) override {
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing);
+        const QRectF bounds = rect().adjusted(4, 4, -4, -4);
+
+        QPen trackPen(QColor(QStringLiteral("#252a33")), 3.0, Qt::SolidLine, Qt::RoundCap);
+        painter.setPen(trackPen);
+        painter.drawArc(bounds, 0, 360 * 16);
+
+        QPen progressPen(QColor(QStringLiteral("#69a0ff")), 3.0, Qt::SolidLine, Qt::RoundCap);
+        painter.setPen(progressPen);
+        painter.drawArc(bounds, (90 - _angle) * 16, -105 * 16);
+    }
+
+private:
+    QTimer _timer;
+    int _angle{0};
+};
 
 QLabel* makeLabel(const QString& text, const char* objectName, QWidget* parent = nullptr) {
     auto* label = new QLabel(text, parent);
@@ -80,7 +148,10 @@ struct UI::Impl {
         _sample = std::make_unique<::raum::Sample>(argc, argv);
         _engineWindow = _sample->window();
 
-        _mainWindow = std::make_unique<QMainWindow>();
+        _mainWindow = std::make_unique<MainWindow>();
+        _mainWindow->setCloseHandler([this] {
+            shutdown();
+        });
         _mainWindow->setObjectName("raumMainWindow");
         _mainWindow->setWindowTitle(QStringLiteral("Raum Renderer Lab"));
         _mainWindow->setMinimumSize(1024, 680);
@@ -98,28 +169,44 @@ struct UI::Impl {
 
         connectUi();
         updateSampleLabels();
-        syncCameraState(true);
+        _sampleSelector->setEnabled(false);
+        _cameraInspector->setEnabled(false);
+        _resetCameraButton->setEnabled(false);
         updateTelemetry();
 
         _refreshTimer = new QTimer(_mainWindow.get());
         _refreshTimer->setInterval(kUiRefreshIntervalMs);
         QObject::connect(_refreshTimer, &QTimer::timeout, _mainWindow.get(), [this] {
-            syncCameraState(false);
+            updateLoadingUi();
             updateTelemetry();
         });
         _refreshTimer->start();
     }
 
     ~Impl() {
+        shutdown();
+    }
+
+    void shutdown() {
+        if (_shuttingDown) {
+            return;
+        }
+        _shuttingDown = true;
         if (_refreshTimer) {
             _refreshTimer->stop();
+        }
+        if (_cameraInspector) {
+            _cameraInspector->setChangeHandler({});
+        }
+        if (_sample) {
+            _sample->shutdown();
         }
     }
 
     void show() {
         _mainWindow->showMaximized();
         enableDarkTitleBar(_mainWindow.get());
-        _sample->showWindow();
+        _uiShown = true;
     }
 
 private:
@@ -217,12 +304,72 @@ private:
         headerLayout->addWidget(_viewportResolution);
         layout->addWidget(header);
 
-        auto* engineWidget = static_cast<QWidget*>(_engineWindow->container());
-        engineWidget->setObjectName("renderSurface");
-        engineWidget->setMinimumSize(480, 270);
-        engineWidget->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-        layout->addWidget(engineWidget, 1);
+        _viewportStack = new QStackedWidget(viewport);
+        _viewportStack->setObjectName("viewportStack");
+        _loadingPage = buildLoadingPage(_viewportStack);
+        _viewportStack->addWidget(_loadingPage);
+        _viewportStack->setCurrentWidget(_loadingPage);
+        layout->addWidget(_viewportStack, 1);
         return viewport;
+    }
+
+    QWidget* buildLoadingPage(QWidget* parent) {
+        auto* page = new QWidget(parent);
+        page->setObjectName("loadingPage");
+        auto* pageLayout = new QVBoxLayout(page);
+        pageLayout->setContentsMargins(32, 32, 32, 32);
+        pageLayout->addStretch(1);
+
+        auto* card = new QFrame(page);
+        card->setObjectName("loadingCard");
+        card->setFixedWidth(380);
+        auto* cardLayout = new QVBoxLayout(card);
+        cardLayout->setContentsMargins(30, 28, 30, 26);
+        cardLayout->setSpacing(0);
+
+        _loadingSpinner = new LoadingSpinner(card);
+        cardLayout->addWidget(_loadingSpinner, 0, Qt::AlignHCenter);
+        cardLayout->addSpacing(18);
+        _loadingTitle = makeLabel(QStringLiteral("Loading scene"), "loadingTitle", card);
+        _loadingTitle->setAlignment(Qt::AlignCenter);
+        cardLayout->addWidget(_loadingTitle);
+        cardLayout->addSpacing(7);
+        _loadingMessage = makeLabel(QStringLiteral("Preparing scene resources"), "loadingMessage", card);
+        _loadingMessage->setAlignment(Qt::AlignCenter);
+        _loadingMessage->setWordWrap(true);
+        cardLayout->addWidget(_loadingMessage);
+        cardLayout->addSpacing(20);
+
+        auto* progressRow = new QWidget(card);
+        progressRow->setObjectName("loadingProgressRow");
+        auto* progressLayout = new QHBoxLayout(progressRow);
+        progressLayout->setContentsMargins(0, 0, 0, 0);
+        progressLayout->setSpacing(12);
+        _loadingProgress = new QProgressBar(progressRow);
+        _loadingProgress->setObjectName("loadingProgress");
+        _loadingProgress->setRange(0, 100);
+        _loadingProgress->setTextVisible(false);
+        progressLayout->addWidget(_loadingProgress, 1);
+        _loadingPercent = makeLabel(QStringLiteral("0%"), "loadingPercent", progressRow);
+        _loadingPercent->setFixedWidth(38);
+        _loadingPercent->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+        progressLayout->addWidget(_loadingPercent);
+        cardLayout->addWidget(progressRow);
+
+        pageLayout->addWidget(card, 0, Qt::AlignHCenter);
+        pageLayout->addStretch(1);
+        return page;
+    }
+
+    void prepareRenderSurface() {
+        if (_renderSurface) {
+            return;
+        }
+        _renderSurface = static_cast<QWidget*>(_engineWindow->container());
+        _renderSurface->setObjectName("renderSurface");
+        _renderSurface->setMinimumSize(480, 270);
+        _renderSurface->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+        _viewportStack->addWidget(_renderSurface);
     }
 
     QWidget* buildInspector(QWidget* parent) {
@@ -315,7 +462,8 @@ private:
         auto* runningDot = makeLabel({}, "runningDot", statusBar);
         runningDot->setFixedSize(6, 6);
         layout->addWidget(runningDot);
-        layout->addWidget(makeLabel(QStringLiteral("Renderer ready"), "statusPrimary", statusBar));
+        _statusPrimary = makeLabel(QStringLiteral("Loading scene"), "statusPrimary", statusBar);
+        layout->addWidget(_statusPrimary);
         layout->addWidget(makeVerticalDivider("statusDivider", statusBar));
         layout->addWidget(makeLabel(QStringLiteral("Vulkan"), "statusSecondary", statusBar));
         layout->addStretch(1);
@@ -337,7 +485,7 @@ private:
             qOverload<int>(&QComboBox::currentIndexChanged),
             _mainWindow.get(),
             [this](int index) {
-                if (index < 0 || !_sample->changeSample(static_cast<uint32_t>(index))) {
+                if (!_sample->ready() || index < 0 || !_sample->changeSample(static_cast<uint32_t>(index))) {
                     return;
                 }
                 _resetCameraState.reset();
@@ -367,6 +515,11 @@ private:
     }
 
     void syncCameraState(bool captureResetState) {
+        if (!_sample->ready()) {
+            _cameraInspector->setEnabled(false);
+            _resetCameraButton->setEnabled(false);
+            return;
+        }
         auto* current = _sample->currentSample();
         const auto state = current ? current->cameraControlState() : std::nullopt;
         const bool available = state.has_value();
@@ -390,6 +543,63 @@ private:
         }
     }
 
+    void updateLoadingUi() {
+        _sample->pollLoading();
+        const auto status = _sample->loadingStatus();
+
+        if (status.state == ::raum::Sample::LoadingState::Failed) {
+            _loadingSpinner->setRunning(false);
+            _loadingTitle->setText(QStringLiteral("Scene loading failed"));
+            _loadingMessage->setText(QString::fromStdString(status.message));
+            _loadingProgress->setValue(0);
+            _loadingProgress->setProperty("failed", true);
+            refreshStyle(_loadingProgress);
+            _loadingPercent->setText(QStringLiteral("Error"));
+            _sampleSelector->setEnabled(false);
+            _cameraInspector->setEnabled(false);
+            _resetCameraButton->setEnabled(false);
+            _statusPrimary->setText(QStringLiteral("Scene loading failed"));
+            return;
+        }
+
+        if (status.state != ::raum::Sample::LoadingState::Ready || !_sample->readyForDisplay()) {
+            _viewportStack->setCurrentWidget(_loadingPage);
+            _loadingSpinner->setRunning(true);
+            _loadingProgress->setProperty("failed", false);
+            refreshStyle(_loadingProgress);
+            const int percent = std::clamp(static_cast<int>(status.progress * 100.0f), 0, 100);
+            _loadingProgress->setValue(percent);
+            _loadingPercent->setText(QStringLiteral("%1%").arg(percent));
+            _loadingTitle->setText(
+                status.state == ::raum::Sample::LoadingState::Ready
+                    ? QStringLiteral("Preparing viewport")
+                    : QStringLiteral("Loading Sponza scene"));
+            _loadingMessage->setText(QString::fromStdString(status.message));
+            _sampleSelector->setEnabled(false);
+            _cameraInspector->setEnabled(false);
+            _resetCameraButton->setEnabled(false);
+            _statusPrimary->setText(QStringLiteral("Loading scene · %1%").arg(percent));
+
+            if (_uiShown && status.state == ::raum::Sample::LoadingState::Ready && !_engineStarted) {
+                _engineStarted = true;
+                prepareRenderSurface();
+                _sample->showWindow();
+            }
+            return;
+        }
+
+        if (!_readyUiInitialized) {
+            _readyUiInitialized = true;
+            _loadingSpinner->setRunning(false);
+            _viewportStack->setCurrentWidget(_renderSurface);
+            _sampleSelector->setEnabled(true);
+            _statusPrimary->setText(QStringLiteral("Renderer ready"));
+            syncCameraState(true);
+        } else {
+            syncCameraState(false);
+        }
+    }
+
     void updateTelemetry() {
         const float fps = _sample->getFps();
         _fpsValue->setText(fps > 0.0f ? QStringLiteral("%1 FPS").arg(fps, 0, 'f', 0) : QStringLiteral("-- FPS"));
@@ -404,12 +614,20 @@ private:
 
     // Keep the host window alive longer than Sample: Sample owns renderer state used
     // by the embedded render surface during its teardown.
-    std::unique_ptr<QMainWindow> _mainWindow;
+    std::unique_ptr<MainWindow> _mainWindow;
     std::unique_ptr<::raum::Sample> _sample;
     platform::WindowPtr _engineWindow;
     QComboBox* _sampleSelector{nullptr};
     QPushButton* _resetCameraButton{nullptr};
     CameraInspector* _cameraInspector{nullptr};
+    QStackedWidget* _viewportStack{nullptr};
+    QWidget* _renderSurface{nullptr};
+    QWidget* _loadingPage{nullptr};
+    LoadingSpinner* _loadingSpinner{nullptr};
+    QLabel* _loadingTitle{nullptr};
+    QLabel* _loadingMessage{nullptr};
+    QProgressBar* _loadingProgress{nullptr};
+    QLabel* _loadingPercent{nullptr};
     QLabel* _viewportTitle{nullptr};
     QLabel* _viewportResolution{nullptr};
     QLabel* _cameraStatusDot{nullptr};
@@ -417,8 +635,13 @@ private:
     QLabel* _fpsValue{nullptr};
     QLabel* _frameTimeValue{nullptr};
     QLabel* _statusResolution{nullptr};
+    QLabel* _statusPrimary{nullptr};
     QTimer* _refreshTimer{nullptr};
     std::optional<CameraControlState> _resetCameraState;
+    bool _shuttingDown{false};
+    bool _engineStarted{false};
+    bool _readyUiInitialized{false};
+    bool _uiShown{false};
 };
 
 UI::UI(int argc, char** argv) : _impl(std::make_unique<Impl>(argc, argv)) {}

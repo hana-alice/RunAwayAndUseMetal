@@ -1,10 +1,14 @@
 #pragma once
 #include <filesystem>
+#include <functional>
 #include <string>
+#include <string_view>
 #include <vector>
 #include "SceneGraph.h"
 
 namespace raum::asset::serialize {
+
+using ProgressCallback = std::function<void(float, std::string_view)>;
 
 void deserialize(graph::SceneGraph& sg, const std::filesystem::path& filePath);
 
@@ -23,7 +27,8 @@ void load(graph::SceneGraph& sg,
 std::vector<std::string> loadScoped(graph::SceneGraph& sg,
                                     const std::filesystem::path& filePath,
                                     std::string_view scope,
-                                    rhi::DevicePtr device);
+                                    rhi::DevicePtr device,
+                                    const ProgressCallback& progress = {});
 
 void loadSkybox(const std::filesystem::path& filePath,
                 rhi::DevicePtr device);

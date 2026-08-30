@@ -37,6 +37,7 @@ public:
 private:
     Queue(const QueueInfo& info, Device* device);
     void initQueue();
+    void completePendingHandlers();
 
     VkQueue _vkQueue{VK_NULL_HANDLE};
 

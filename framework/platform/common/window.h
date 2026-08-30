@@ -31,7 +31,7 @@ public:
 
     void show();
     void* surface() const { return _surface; };
-    void* container() const { return _container; }
+    void* container();
 
 private:
     void tick(const std::chrono::milliseconds&);
