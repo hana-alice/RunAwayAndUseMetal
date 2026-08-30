@@ -1,4 +1,6 @@
 #pragma once
+#include <algorithm>
+
 #include "BuiltinRes.h"
 #include "Camera.h"
 #include "Director.h"
@@ -21,53 +23,24 @@ class BistroSample : public SampleBase {
 public:
     explicit BistroSample(framework::Director* director) : _ppl(director->pipeline()), _director(director) {}
 
-    bool getCameraPosition(float& x, float& y, float& z) const override {
+    std::optional<CameraControlState> cameraControlState() const override {
         if (!_cam) {
-            return false;
+            return std::nullopt;
         }
-        const auto& pos = _cam->eye().getPosition();
-        x = pos.x;
-        y = pos.y;
-        z = pos.z;
-        return true;
+        return CameraControlState{
+            .position = _cam->eye().getPosition(),
+            .yawDegrees = _yawDeg,
+            .pitchDegrees = _pitchDeg,
+            .verticalFovDegrees = _cam->fov().value,
+        };
     }
 
-    void setCameraPosition(float x, float y, float z) override {
-        if (!_cam) {
-            return;
-        }
-        _cam->eye().setPosition(x, y, z);
-        _cam->update();
-    }
-
-    bool getCameraFov(float& fovDeg) const override {
-        if (!_cam) {
-            return false;
-        }
-        fovDeg = _cam->fov().value;
-        return true;
-    }
-
-    void setCameraFov(float fovDeg) override {
+    void applyCameraControlState(const CameraControlState& state) override {
         if (!_cam) {
             return;
         }
-        _cam->setFov(utils::Degree{fovDeg});
-        _cam->update();
-    }
-
-    bool getCameraAngles(float& yawDeg, float& pitchDeg) const override {
-        yawDeg = _yawDeg;
-        pitchDeg = _pitchDeg;
-        return static_cast<bool>(_cam);
-    }
-
-    void setCameraAngles(float yawDeg, float pitchDeg) override {
-        if (!_cam) {
-            return;
-        }
-        _yawDeg = yawDeg;
-        _pitchDeg = pitchDeg;
+        _yawDeg = state.yawDegrees;
+        _pitchDeg = std::clamp(state.pitchDegrees, -89.9f, 89.9f);
         const float curHRad = glm::radians(_yawDeg);
         const float curVRad = glm::radians(_pitchDeg);
 
@@ -75,7 +48,9 @@ public:
         Quaternion qy(Vec3f(0.0f, curHRad, 0.0f));
 
         auto& eye = _cam->eye();
+        eye.setPosition(state.position);
         eye.setOrientation(qy * qx);
+        _cam->setFov(utils::Degree{state.verticalFovDegrees});
         _cam->update();
     }
 
@@ -196,18 +171,12 @@ public:
             lastX = x;
             lastY = y;
             _yawDeg -= deltaX * 0.1f;
-            _pitchDeg -= deltaY * 0.1f;
+            _pitchDeg = std::clamp(_pitchDeg - deltaY * 0.1f, -89.9f, 89.9f);
             auto curHRad = glm::radians(_yawDeg);
             auto curVRad = glm::radians(_pitchDeg);
 
-            deltaX = -deltaX / 180.0f * 3.141593f;
-            deltaY = -deltaY / 180.0f * 3.141593f;
-
             Quaternion qx(Vec3f(curVRad, 0.0f, 0.0f));
             Quaternion qy(Vec3f(0.0f, curHRad, 0.0f));
-
-            Vec3f xAxis{1.0f, 0.0f, 0.0f};
-            Vec3f yAxis{0.0f, 1.0f, 0.0f};
 
             auto& eye = _cam->eye();
             eye.setOrientation(qy * qx);

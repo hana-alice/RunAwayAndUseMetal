@@ -1,8 +1,16 @@
 #pragma once
-#include <memory>
-#include "RHIDevice.h"
-#include "RHISwapchain.h"
+#include <optional>
+#include <string>
+#include "core/math.h"
+
 namespace raum::sample {
+
+struct CameraControlState {
+    Vec3f position{0.0f};
+    float yawDegrees{0.0f};
+    float pitchDegrees{0.0f};
+    float verticalFovDegrees{60.0f};
+};
 
 class SampleBase {
 public:
@@ -12,14 +20,8 @@ public:
     virtual void hide() = 0;
     virtual const std::string& name() = 0;
 
-    // Optional camera control hooks for UI
-    virtual bool getCameraPosition(float& /*x*/, float& /*y*/, float& /*z*/) const { return false; }
-    virtual void setCameraPosition(float /*x*/, float /*y*/, float /*z*/) {}
-
-    virtual bool getCameraAngles(float& /*yawDeg*/, float& /*pitchDeg*/) const { return false; }
-    virtual void setCameraAngles(float /*yawDeg*/, float /*pitchDeg*/) {}
-
-    virtual bool getCameraFov(float& /*fovDeg*/) const { return false; }
-    virtual void setCameraFov(float /*fovDeg*/) {}
+    // Samples without an editable camera can keep the default implementation.
+    virtual std::optional<CameraControlState> cameraControlState() const { return std::nullopt; }
+    virtual void applyCameraControlState(const CameraControlState&) {}
 };
 } // namespace raum::sample

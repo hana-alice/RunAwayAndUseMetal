@@ -246,7 +246,7 @@ target_link_libraries(raum_asset PUBLIC
         raum_renderer
 )
 
-file(GLOB_RECURSE Sample
+file(GLOB_RECURSE Sample CONFIGURE_DEPENDS
         ${CMAKE_CURRENT_SOURCE_DIR}/Sample/*.*
         ${CMAKE_CURRENT_SOURCE_DIR}/Sample/shadow/*.*
 )
@@ -257,6 +257,7 @@ else ()
     add_executable(raum_sample
             ${Sample}
     )
+    set_target_properties(raum_sample PROPERTIES AUTORCC ON)
 
     # if(WIN32)
     #     set_target_properties(raum_sample
@@ -276,6 +277,9 @@ else ()
             raum_core
             Qt5::Widgets
     )
+    if (WIN32)
+        target_link_libraries(raum_sample PRIVATE dwmapi)
+    endif ()
 
 #     set_target_properties(raum_sample PROPERTIES LINK_FLAGS "/PROFILE")
 

@@ -88,8 +88,10 @@ public:
         return _window;
     }
 
-    void changeSample(uint32_t index) {
-        if (index == _currIndex) return;
+    bool changeSample(uint32_t index) {
+        if (index >= _samples.size() || index == _currIndex) {
+            return false;
+        }
         _samples[_currIndex]->hide();
         if (!_inited[index]) {
             _samples[index]->init();
@@ -98,6 +100,7 @@ public:
         _currIndex = index;
         auto ppl = _world->director().pipeline();
         ppl->graphScheduler().needWarmUp();
+        return true;
     }
 
     const std::vector<std::shared_ptr<sample::SampleBase>>& samples() const {
@@ -109,6 +112,10 @@ public:
             return _samples[_currIndex].get();
         }
         return nullptr;
+    }
+
+    uint32_t currentSampleIndex() const {
+        return _currIndex;
     }
 
     float getFps() const {
