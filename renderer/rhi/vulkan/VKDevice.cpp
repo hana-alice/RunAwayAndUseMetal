@@ -39,37 +39,6 @@ static constexpr bool enableValidationLayer{true};
 static constexpr uint32_t ChunkSize{1024 * 1024 * 4};
 
 namespace {
-bool checkRequiredLayers(const std::vector<const char*>& reqs, const std::vector<VkLayerProperties>& availables) {
-    for (const char* require : reqs) {
-        bool found = false;
-        for (const auto& layer : availables) {
-            if (strcmp(require, layer.layerName) == 0) {
-                found = true;
-                break;
-            }
-        }
-        if (!found) {
-            return false;
-        }
-    }
-    return true;
-}
-
-bool checkRequiredExtensions(const std::vector<const char*>& reqs, const std::vector<VkExtensionProperties>& availables) {
-    bool allFound = true;
-    for (const char* require : reqs) {
-        bool found = false;
-        for (const auto& layer : availables) {
-            if (strcmp(require, layer.extensionName) == 0) {
-                found = true;
-                break;
-            }
-        }
-        allFound &= found;
-    }
-    return allFound;
-}
-
 static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
                                                     VkDebugUtilsMessageTypeFlagsEXT messageType,
                                                     const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
@@ -187,69 +156,53 @@ void Device::initInstance() {
     appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
     appInfo.apiVersion = VK_API_VERSION_1_4;
 
-    // extension
-    {
-        uint32_t extensionNum{0};
-        VK_EXPECT(vkEnumerateInstanceExtensionProperties(nullptr, &extensionNum, nullptr));
-        VK_ENSURE(extensionNum, "No Vulkan instance extensions are available");
-        std::vector<VkExtensionProperties> availableExts(extensionNum);
-        VK_EXPECT(vkEnumerateInstanceExtensionProperties(nullptr, &extensionNum, availableExts.data()));
-        raum::log(availableExts);
+    const auto availableExts = VK_ENUMERATE(
+        VkExtensionProperties, vkEnumerateInstanceExtensionProperties, nullptr);
+    VK_ENSURE(!availableExts.empty(), "No Vulkan instance extensions are available");
+    raum::log(availableExts);
 
-        uint32_t layerNum{0};
-        VK_EXPECT(vkEnumerateInstanceLayerProperties(&layerNum, nullptr));
-        std::vector<VkLayerProperties> availableLayers(layerNum);
-        VK_EXPECT(vkEnumerateInstanceLayerProperties(&layerNum, availableLayers.data()));
-        raum::log(availableLayers);
+    const auto availableLayers = VK_ENUMERATE(VkLayerProperties, vkEnumerateInstanceLayerProperties);
+    raum::log(availableLayers);
 
-        std::vector<const char*> requiredLayers;
-        if constexpr (enableValidationLayer) {
-            requiredLayers.emplace_back("VK_LAYER_KHRONOS_validation");
-        }
-        VK_ENSURE(checkRequiredLayers(requiredLayers, availableLayers), "Required Vulkan layers were not found");
-
-        VkInstanceCreateInfo instInfo{};
-        instInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-        instInfo.pApplicationInfo = &appInfo;
-
-        std::vector<const char*> requiredExts;
-        if constexpr (enableValidationLayer) {
-            requiredExts.emplace_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-        }
+    std::vector<const char*> requiredLayers;
+    std::vector<const char*> requiredExts;
+    if constexpr (enableValidationLayer) {
+        requiredLayers.emplace_back("VK_LAYER_KHRONOS_validation");
+        requiredExts.emplace_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+    }
 #ifdef RAUM_WINDOWS
-        requiredExts.emplace_back(VK_KHR_SURFACE_EXTENSION_NAME);
-        requiredExts.emplace_back("VK_KHR_win32_surface");
+    requiredExts.emplace_back(VK_KHR_SURFACE_EXTENSION_NAME);
+    requiredExts.emplace_back("VK_KHR_win32_surface");
 #endif
 
-        VK_ENSURE(checkRequiredExtensions(requiredExts, availableExts), "Required Vulkan instance extensions were not found");
+    requireVkProperties(requiredLayers, availableLayers, "layers");
+    requireVkProperties(requiredExts, availableExts, "instance extensions");
 
-        instInfo.enabledExtensionCount = static_cast<uint32_t>(requiredExts.size());
-        instInfo.ppEnabledExtensionNames = requiredExts.data();
-        instInfo.enabledLayerCount = static_cast<uint32_t>(requiredLayers.size());
-        instInfo.ppEnabledLayerNames = requiredLayers.data();
+    VkInstanceCreateInfo instInfo{};
+    instInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+    instInfo.pApplicationInfo = &appInfo;
+    instInfo.enabledExtensionCount = static_cast<uint32_t>(requiredExts.size());
+    instInfo.ppEnabledExtensionNames = requiredExts.data();
+    instInfo.enabledLayerCount = static_cast<uint32_t>(requiredLayers.size());
+    instInfo.ppEnabledLayerNames = requiredLayers.data();
 
-        VK_EXPECT(vkCreateInstance(&instInfo, nullptr, &_instance));
+    VK_EXPECT(vkCreateInstance(&instInfo, nullptr, &_instance));
 
-        if constexpr (enableValidationLayer) {
-            VkDebugUtilsMessengerCreateInfoEXT dbgMsgInfo{};
-            dbgMsgInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
-            dbgMsgInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
-            dbgMsgInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
-            dbgMsgInfo.pfnUserCallback = debugCallback;
-            dbgMsgInfo.pUserData = nullptr;
+    if constexpr (enableValidationLayer) {
+        VkDebugUtilsMessengerCreateInfoEXT dbgMsgInfo{};
+        dbgMsgInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+        dbgMsgInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+        dbgMsgInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+        dbgMsgInfo.pfnUserCallback = debugCallback;
+        dbgMsgInfo.pUserData = nullptr;
 
-            VK_EXPECT(createDebugMessengerExt(_instance, &dbgMsgInfo, nullptr, &_debugMessenger));
-        }
+        VK_EXPECT(createDebugMessengerExt(_instance, &dbgMsgInfo, nullptr, &_debugMessenger));
     }
 }
 
 void Device::initDevice() {
-    uint32_t deviceCount{0};
-    VK_EXPECT(vkEnumeratePhysicalDevices(_instance, &deviceCount, nullptr));
-    VK_ENSURE(deviceCount, "No Vulkan physical device is available");
-
-    std::vector<VkPhysicalDevice> devices(deviceCount);
-    VK_EXPECT(vkEnumeratePhysicalDevices(_instance, &deviceCount, devices.data()));
+    const auto devices = VK_ENUMERATE(VkPhysicalDevice, vkEnumeratePhysicalDevices, _instance);
+    VK_ENSURE(!devices.empty(), "No Vulkan physical device is available");
 
     _physicalDevice = rankDevices(devices);
 
@@ -290,17 +243,12 @@ void Device::initDevice() {
     VkDeviceCreateInfo deviceInfo{};
     deviceInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
 
-    uint32_t extNum{0};
-    VK_EXPECT(vkEnumerateDeviceExtensionProperties(_physicalDevice, nullptr, &extNum, nullptr));
-    std::vector<VkExtensionProperties> availableExts(extNum);
-    VK_EXPECT(vkEnumerateDeviceExtensionProperties(_physicalDevice, nullptr, &extNum, availableExts.data()));
+    const auto availableExts = VK_ENUMERATE(
+        VkExtensionProperties, vkEnumerateDeviceExtensionProperties, _physicalDevice, nullptr);
     log(availableExts);
 
     auto isExtAvailable = [&](const char* name) {
-        for (const auto& ext : availableExts) {
-            if (strcmp(name, ext.extensionName) == 0) return true;
-        }
-        return false;
+        return hasVkProperty(availableExts, name);
     };
 
     const bool pipelineBinaryExtensionAvailable = isExtAvailable(VK_KHR_PIPELINE_BINARY_EXTENSION_NAME);
@@ -342,11 +290,12 @@ void Device::initDevice() {
 
     VkPhysicalDevicePipelineBinaryFeaturesKHR pipelineBinaryFeatures{};
 
-    std::vector<const char*> exts{};
-    exts.emplace_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
-    exts.emplace_back(VK_KHR_MAINTENANCE1_EXTENSION_NAME);
-    exts.emplace_back(VK_KHR_MAINTENANCE_5_EXTENSION_NAME);
-    exts.emplace_back(VK_KHR_TIMELINE_SEMAPHORE_EXTENSION_NAME);
+    std::vector<const char*> exts{
+        VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+        VK_KHR_MAINTENANCE1_EXTENSION_NAME,
+        VK_KHR_MAINTENANCE_5_EXTENSION_NAME,
+        VK_KHR_TIMELINE_SEMAPHORE_EXTENSION_NAME,
+    };
 
     if (pipelineBinaryExtensionAvailable && supportedPipelineBinaryFeatures.pipelineBinaries) {
         exts.emplace_back(VK_KHR_PIPELINE_BINARY_EXTENSION_NAME);
@@ -359,13 +308,13 @@ void Device::initDevice() {
         deviceFeatures2.pNext = &timelineSemaphoreFeatures;
     }
 
-    VK_ENSURE(checkRequiredExtensions(exts, availableExts), "Required Vulkan device extensions were not found");
+    requireVkProperties(exts, availableExts, "device extensions");
 
     deviceInfo.pNext = &deviceFeatures2;
     deviceInfo.pQueueCreateInfos = queueInfos.data();
     deviceInfo.queueCreateInfoCount = static_cast<uint32_t>(queueInfos.size());
     deviceInfo.pEnabledFeatures = nullptr;
-    deviceInfo.enabledExtensionCount = exts.size();
+    deviceInfo.enabledExtensionCount = static_cast<uint32_t>(exts.size());
     deviceInfo.ppEnabledExtensionNames = exts.data();
     deviceInfo.enabledLayerCount = 0;
 

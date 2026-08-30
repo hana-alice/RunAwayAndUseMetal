@@ -41,18 +41,13 @@ void Swapchain::initialize(uintptr_t hwnd, SyncType type, uint32_t width, uint32
     VkSurfaceCapabilitiesKHR caps{};
     VK_EXPECT(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, _surface, &caps));
 
-    uint32_t formatCount{0};
-    VK_EXPECT(vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, _surface, &formatCount, nullptr));
-    VK_ENSURE(formatCount, "The Vulkan surface has no supported formats");
-    std::vector<VkSurfaceFormatKHR> formats(formatCount);
-    VK_EXPECT(vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, _surface, &formatCount, formats.data()));
+    const auto formats = VK_ENUMERATE(
+        VkSurfaceFormatKHR, vkGetPhysicalDeviceSurfaceFormatsKHR, physicalDevice, _surface);
+    VK_ENSURE(!formats.empty(), "The Vulkan surface has no supported formats");
 
-    uint32_t presentModeCount{0};
-    VK_EXPECT(vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, _surface, &presentModeCount, nullptr));
-    VK_ENSURE(presentModeCount, "The Vulkan surface has no supported present modes");
-
-    std::vector<VkPresentModeKHR> presentModes(presentModeCount);
-    VK_EXPECT(vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, _surface, &presentModeCount, presentModes.data()));
+    const auto presentModes = VK_ENUMERATE(
+        VkPresentModeKHR, vkGetPhysicalDeviceSurfacePresentModesKHR, physicalDevice, _surface);
+    VK_ENSURE(!presentModes.empty(), "The Vulkan surface has no supported present modes");
 
     VkSurfaceFormatKHR preferred = formats[0];
     if (formats.size() == 1 && formats[0].format == VK_FORMAT_UNDEFINED) {
@@ -140,10 +135,9 @@ void Swapchain::initialize(uintptr_t hwnd, SyncType type, uint32_t width, uint32
 
     VK_EXPECT(vkCreateSwapchainKHR(_device->device(), &createInfo, nullptr, &_swapchain));
 
-    VK_EXPECT(vkGetSwapchainImagesKHR(_device->device(), _swapchain, &_imageCount, nullptr));
-    VK_ENSURE(_imageCount, "The Vulkan swapchain has no images");
-    _vkImages.resize(_imageCount);
-    VK_EXPECT(vkGetSwapchainImagesKHR(_device->device(), _swapchain, &_imageCount, _vkImages.data()));
+    _vkImages = VK_ENUMERATE(VkImage, vkGetSwapchainImagesKHR, _device->device(), _swapchain);
+    VK_ENSURE(!_vkImages.empty(), "The Vulkan swapchain has no images");
+    _imageCount = static_cast<uint32_t>(_vkImages.size());
 
     _valid.clear();
     _valid.resize(_imageCount, 0);
