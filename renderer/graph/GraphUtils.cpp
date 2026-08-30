@@ -132,7 +132,7 @@ bool culled(const scene::Mesh& mesh, const SceneGraph& sg) {
     const auto& graph = sg.impl();
     // todo: Traits camera only.
     for (auto v : boost::make_iterator_range(boost::vertices(graph))) {
-        if (std::holds_alternative<CameraNode>(graph[v].sceneNodeData)) {
+        if (graph[v].node.enabled() && std::holds_alternative<CameraNode>(graph[v].sceneNodeData)) {
             const auto& camNode = std::get<CameraNode>(graph[v].sceneNodeData);
             const auto& cam = camNode.camera;
             if (cam && cam->cullingEnabled()) {

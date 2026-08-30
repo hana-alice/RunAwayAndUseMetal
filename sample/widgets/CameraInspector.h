@@ -5,7 +5,7 @@
 
 #include <QWidget>
 
-#include "../common.h"
+#include "../SampleBase.h"
 
 class QDoubleSpinBox;
 class QFrame;

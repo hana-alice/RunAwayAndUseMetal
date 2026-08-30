@@ -1,14 +1,13 @@
 #pragma once
 #include <atomic>
 #include <chrono>
-#include <cstdlib>
-#include <iostream>
 #include "BistroSample.h"
 #include "GraphSample.h"
+#include "Particles.h"
+#include "SampleBase.h"
 #include "VirtualTexture.h"
 #include "WindowEvent.h"
 #include "World.h"
-#include "common.h"
 #include "shadow/ContactShadow.h"
 #include "shadow/ShadowMap.h"
 
@@ -23,12 +22,11 @@ public:
     Sample(int argc, char** argv) {
         _world = new framework::World();
         auto& director = _world->director();
-        auto device = director.device();
 
         _window = std::make_shared<platform::Window>(argc, argv, s_width, s_height);
         _window->show();
         _lastFpsTime = std::chrono::steady_clock::now();
-        _tickID = _window->addTick([&](std::chrono::milliseconds miliSec) {
+        _tickID = _window->addTick([&](std::chrono::milliseconds) {
             auto now = std::chrono::steady_clock::now();
             _frameCount.fetch_add(1, std::memory_order_relaxed);
             auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - _lastFpsTime).count();
@@ -54,21 +52,24 @@ public:
             // std::make_shared<sample::GraphSample>(&_world->director()),
 
             std::make_shared<sample::BistroSample>(&_world->director()),
+            // std::make_shared<sample::ParticlesSample>(&_world->director()),
             // std::make_shared<sample::VirtualTextureSample>(&_world->director()),
             // std::make_shared<sample::ShadowMapSample>(&_world->director()),
             // std::make_shared<sample::ContactShadowSample>(&_world->director()),
 
         };
-        _inited.resize(_samples.size(), 0);
-
-        _samples[_currIndex]->init();
-        _inited[_currIndex] = 1;
+        if (!_samples.empty()) {
+            _samples[_currIndex]->activate();
+        }
     }
 
     ~Sample() {
         _window->removeTick(_tickID);
         _resizeListener.remove();
         _closeListener.remove();
+        if (_currIndex < _samples.size()) {
+            _samples[_currIndex]->deactivate();
+        }
         _samples.clear();
         delete _world;
         _world = nullptr;
@@ -80,7 +81,7 @@ public:
 
     void show() {
         if (_currIndex < _samples.size()) {
-            _samples[_currIndex]->show();
+            _samples[_currIndex]->render();
         }
     }
 
@@ -92,12 +93,12 @@ public:
         if (index >= _samples.size() || index == _currIndex) {
             return false;
         }
-        _samples[_currIndex]->hide();
-        if (!_inited[index]) {
-            _samples[index]->init();
-            _inited[index] = 1;
-        }
+        // Initialize first so a failed lazy initialization leaves the current
+        // sample active and usable.
+        _samples[index]->initialize();
+        _samples[_currIndex]->deactivate();
         _currIndex = index;
+        _samples[_currIndex]->activate();
         auto ppl = _world->director().pipeline();
         ppl->graphScheduler().needWarmUp();
         return true;
@@ -125,7 +126,6 @@ public:
 private:
     uint32_t _currIndex{0};
     std::vector<std::shared_ptr<sample::SampleBase>> _samples;
-    std::vector<uint32_t> _inited;
     platform::WindowPtr _window;
     framework::World* _world{nullptr};
     framework::EventListener<framework::ResizeEventTag> _resizeListener;
