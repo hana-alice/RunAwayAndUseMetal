@@ -13,6 +13,7 @@
 #include <QScrollArea>
 #include <QSizePolicy>
 #include <QSplitter>
+#include <QStyle>
 #include <QStyleFactory>
 #include <QTimer>
 #include <QVBoxLayout>
@@ -22,17 +23,17 @@
 #include "widgets/CameraInspector.h"
 
 #if defined(_WIN32)
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
-#include <Windows.h>
-#include <dwmapi.h>
+    #ifndef NOMINMAX
+        #define NOMINMAX
+    #endif
+    #include <Windows.h>
+    #include <dwmapi.h>
 #endif
 
 namespace raum::sample {
 namespace {
 
-constexpr int kInspectorWidth = 336;
+constexpr int kInspectorWidth = 320;
 constexpr int kUiRefreshIntervalMs = 100;
 
 QLabel* makeLabel(const QString& text, const char* objectName, QWidget* parent = nullptr) {
@@ -41,12 +42,18 @@ QLabel* makeLabel(const QString& text, const char* objectName, QWidget* parent =
     return label;
 }
 
-QFrame* makeSeparator(QWidget* parent = nullptr) {
-    auto* separator = new QFrame(parent);
-    separator->setObjectName("statusSeparator");
-    separator->setFrameShape(QFrame::VLine);
-    separator->setFixedHeight(16);
-    return separator;
+QFrame* makeVerticalDivider(const char* objectName, QWidget* parent) {
+    auto* divider = new QFrame(parent);
+    divider->setObjectName(objectName);
+    divider->setFrameShape(QFrame::VLine);
+    divider->setFixedSize(1, 16);
+    return divider;
+}
+
+void refreshStyle(QWidget* widget) {
+    widget->style()->unpolish(widget);
+    widget->style()->polish(widget);
+    widget->update();
 }
 
 void enableDarkTitleBar(QWidget* window) {
@@ -75,22 +82,22 @@ struct UI::Impl {
 
         _mainWindow = std::make_unique<QMainWindow>();
         _mainWindow->setObjectName("raumMainWindow");
-        _mainWindow->setWindowTitle(QStringLiteral("RAUM - Realtime Renderer"));
-        _mainWindow->setMinimumSize(960, 640);
-        _mainWindow->resize(1440, 900);
+        _mainWindow->setWindowTitle(QStringLiteral("Raum Renderer Lab"));
+        _mainWindow->setMinimumSize(1024, 680);
+        _mainWindow->resize(1480, 900);
 
         auto* root = new QWidget(_mainWindow.get());
         root->setObjectName("workspaceRoot");
         auto* rootLayout = new QVBoxLayout(root);
         rootLayout->setContentsMargins(0, 0, 0, 0);
         rootLayout->setSpacing(0);
-
-        rootLayout->addWidget(buildTopBar(root));
+        rootLayout->addWidget(buildCommandBar(root));
         rootLayout->addWidget(buildWorkspace(root), 1);
         rootLayout->addWidget(buildStatusBar(root));
         _mainWindow->setCentralWidget(root);
 
         connectUi();
+        updateSampleLabels();
         syncCameraState(true);
         updateTelemetry();
 
@@ -110,7 +117,7 @@ struct UI::Impl {
     }
 
     void show() {
-        _mainWindow->show();
+        _mainWindow->showMaximized();
         enableDarkTitleBar(_mainWindow.get());
         _sample->showWindow();
     }
@@ -123,66 +130,64 @@ private:
         }
     }
 
-    QWidget* buildTopBar(QWidget* parent) {
-        auto* topBar = new QWidget(parent);
-        topBar->setObjectName("topBar");
-        topBar->setFixedHeight(64);
-        auto* layout = new QHBoxLayout(topBar);
-        layout->setContentsMargins(18, 0, 18, 0);
-        layout->setSpacing(12);
+    QWidget* buildCommandBar(QWidget* parent) {
+        auto* commandBar = new QWidget(parent);
+        commandBar->setObjectName("commandBar");
+        commandBar->setFixedHeight(50);
+        auto* layout = new QHBoxLayout(commandBar);
+        layout->setContentsMargins(14, 0, 14, 0);
+        layout->setSpacing(10);
 
-        auto* brandMark = makeLabel(QStringLiteral("R"), "brandMark", topBar);
+        auto* brandMark = makeLabel(QStringLiteral("R"), "brandMark", commandBar);
         brandMark->setAlignment(Qt::AlignCenter);
-        brandMark->setFixedSize(34, 34);
+        brandMark->setFixedSize(26, 26);
         layout->addWidget(brandMark);
+        layout->addWidget(makeLabel(QStringLiteral("Raum"), "productTitle", commandBar));
+        layout->addWidget(makeLabel(QStringLiteral("Renderer Lab"), "workspaceName", commandBar));
+        layout->addSpacing(3);
+        layout->addWidget(makeVerticalDivider("commandDivider", commandBar));
+        layout->addSpacing(3);
 
-        auto* titleBlock = new QWidget(topBar);
-        auto* titleLayout = new QVBoxLayout(titleBlock);
-        titleLayout->setContentsMargins(0, 0, 0, 0);
-        titleLayout->setSpacing(1);
-        titleLayout->addWidget(makeLabel(QStringLiteral("RAUM"), "productTitle", titleBlock));
-        titleLayout->addWidget(makeLabel(QStringLiteral("REALTIME RENDERER"), "productSubtitle", titleBlock));
-        layout->addWidget(titleBlock);
-        layout->addStretch(1);
-
-        layout->addWidget(makeLabel(QStringLiteral("SCENE"), "toolbarLabel", topBar));
-        _sampleSelector = new QComboBox(topBar);
+        layout->addWidget(makeLabel(QStringLiteral("Sample"), "commandLabel", commandBar));
+        _sampleSelector = new QComboBox(commandBar);
         _sampleSelector->setObjectName("sampleSelector");
-        _sampleSelector->setMinimumWidth(190);
+        _sampleSelector->setMinimumWidth(184);
         for (const auto& sample : _sample->samples()) {
             _sampleSelector->addItem(QString::fromStdString(sample->name()));
         }
         _sampleSelector->setCurrentIndex(static_cast<int>(_sample->currentSampleIndex()));
         layout->addWidget(_sampleSelector);
+        layout->addStretch(1);
 
-        auto* apiBadge = new QFrame(topBar);
-        apiBadge->setObjectName("apiBadge");
-        auto* apiLayout = new QHBoxLayout(apiBadge);
-        apiLayout->setContentsMargins(10, 5, 10, 5);
-        apiLayout->setSpacing(7);
-        auto* apiDot = makeLabel(QStringLiteral(""), "apiDot", apiBadge);
-        apiDot->setFixedSize(7, 7);
-        apiLayout->addWidget(apiDot);
-        apiLayout->addWidget(makeLabel(QStringLiteral("VULKAN"), "apiLabel", apiBadge));
-        layout->addWidget(apiBadge);
+        auto* backend = new QWidget(commandBar);
+        backend->setObjectName("backendStatus");
+        auto* backendLayout = new QHBoxLayout(backend);
+        backendLayout->setContentsMargins(0, 0, 0, 0);
+        backendLayout->setSpacing(7);
+        auto* backendDot = makeLabel({}, "backendDot", backend);
+        backendDot->setFixedSize(6, 6);
+        backendLayout->addWidget(backendDot);
+        backendLayout->addWidget(makeLabel(QStringLiteral("Vulkan"), "backendText", backend));
+        layout->addWidget(backend);
+        layout->addWidget(makeVerticalDivider("commandDivider", commandBar));
 
-        _resetCameraButton = new QPushButton(QStringLiteral("Reset camera"), topBar);
+        _resetCameraButton = new QPushButton(QStringLiteral("Reset camera"), commandBar);
         _resetCameraButton->setObjectName("resetCameraButton");
-        _resetCameraButton->setMinimumHeight(34);
+        _resetCameraButton->setFixedHeight(30);
         layout->addWidget(_resetCameraButton);
-        return topBar;
+        return commandBar;
     }
 
     QWidget* buildWorkspace(QWidget* parent) {
         auto* splitter = new QSplitter(Qt::Horizontal, parent);
         splitter->setObjectName("workspaceSplitter");
         splitter->setChildrenCollapsible(false);
-        splitter->setHandleWidth(1);
+        splitter->setHandleWidth(3);
         splitter->addWidget(buildViewport(splitter));
         splitter->addWidget(buildInspector(splitter));
         splitter->setStretchFactor(0, 1);
         splitter->setStretchFactor(1, 0);
-        splitter->setSizes({1080, kInspectorWidth});
+        splitter->setSizes({1120, kInspectorWidth});
         return splitter;
     }
 
@@ -195,101 +200,132 @@ private:
 
         auto* header = new QWidget(viewport);
         header->setObjectName("viewportHeader");
-        header->setFixedHeight(42);
+        header->setFixedHeight(38);
         auto* headerLayout = new QHBoxLayout(header);
-        headerLayout->setContentsMargins(16, 0, 14, 0);
+        headerLayout->setContentsMargins(12, 0, 12, 0);
         headerLayout->setSpacing(8);
-        headerLayout->addWidget(makeLabel(QStringLiteral("VIEWPORT"), "panelTitle", header));
+        auto* viewportDot = makeLabel({}, "viewportDot", header);
+        viewportDot->setFixedSize(7, 7);
+        headerLayout->addWidget(viewportDot);
+        headerLayout->addWidget(makeLabel(QStringLiteral("Viewport"), "panelTitle", header));
+        headerLayout->addWidget(makeVerticalDivider("panelDivider", header));
+        _viewportTitle = makeLabel({}, "viewportSample", header);
+        headerLayout->addWidget(_viewportTitle);
         headerLayout->addStretch(1);
-        _viewportResolution = makeLabel(QStringLiteral("-- x --"), "resolutionBadge", header);
+        headerLayout->addWidget(makeLabel(QStringLiteral("Perspective"), "viewMode", header));
+        _viewportResolution = makeLabel(QStringLiteral("-- x --"), "resolutionLabel", header);
         headerLayout->addWidget(_viewportResolution);
         layout->addWidget(header);
-
-        auto* canvas = new QWidget(viewport);
-        canvas->setObjectName("viewportCanvas");
-        auto* canvasLayout = new QVBoxLayout(canvas);
-        canvasLayout->setContentsMargins(10, 10, 10, 10);
-        canvasLayout->setSpacing(0);
 
         auto* engineWidget = static_cast<QWidget*>(_engineWindow->container());
         engineWidget->setObjectName("renderSurface");
         engineWidget->setMinimumSize(480, 270);
         engineWidget->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-        canvasLayout->addWidget(engineWidget);
-        layout->addWidget(canvas, 1);
+        layout->addWidget(engineWidget, 1);
         return viewport;
     }
 
     QWidget* buildInspector(QWidget* parent) {
-        auto* scrollArea = new QScrollArea(parent);
+        auto* dock = new QWidget(parent);
+        dock->setObjectName("inspectorDock");
+        dock->setMinimumWidth(kInspectorWidth);
+        dock->setMaximumWidth(380);
+        auto* dockLayout = new QVBoxLayout(dock);
+        dockLayout->setContentsMargins(0, 0, 0, 0);
+        dockLayout->setSpacing(0);
+
+        auto* header = new QWidget(dock);
+        header->setObjectName("inspectorHeader");
+        header->setFixedHeight(58);
+        auto* headerLayout = new QHBoxLayout(header);
+        headerLayout->setContentsMargins(16, 0, 14, 0);
+        headerLayout->setSpacing(8);
+
+        auto* heading = new QWidget(header);
+        auto* headingLayout = new QVBoxLayout(heading);
+        headingLayout->setContentsMargins(0, 0, 0, 0);
+        headingLayout->setSpacing(1);
+        headingLayout->addWidget(makeLabel(QStringLiteral("Camera"), "inspectorTitle", heading));
+        headingLayout->addWidget(makeLabel(QStringLiteral("Active view properties"), "inspectorSubtitle", heading));
+        headerLayout->addWidget(heading);
+        headerLayout->addStretch(1);
+
+        _cameraStatusDot = makeLabel({}, "cameraStatusDot", header);
+        _cameraStatusDot->setFixedSize(6, 6);
+        headerLayout->addWidget(_cameraStatusDot);
+        _cameraStatusText = makeLabel(QStringLiteral("Live"), "cameraStatusText", header);
+        headerLayout->addWidget(_cameraStatusText);
+        dockLayout->addWidget(header);
+
+        auto* scrollArea = new QScrollArea(dock);
         scrollArea->setObjectName("inspectorScrollArea");
         scrollArea->setFrameShape(QFrame::NoFrame);
         scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
         scrollArea->setWidgetResizable(true);
-        scrollArea->setMinimumWidth(kInspectorWidth);
-        scrollArea->setMaximumWidth(420);
 
         auto* panel = new QWidget(scrollArea);
         panel->setObjectName("inspectorPanel");
-        auto* layout = new QVBoxLayout(panel);
-        layout->setContentsMargins(16, 16, 16, 18);
-        layout->setSpacing(12);
-
-        auto* headingRow = new QWidget(panel);
-        auto* headingLayout = new QHBoxLayout(headingRow);
-        headingLayout->setContentsMargins(0, 0, 0, 2);
-        headingLayout->setSpacing(8);
-        auto* headingText = new QWidget(headingRow);
-        auto* headingTextLayout = new QVBoxLayout(headingText);
-        headingTextLayout->setContentsMargins(0, 0, 0, 0);
-        headingTextLayout->setSpacing(2);
-        headingTextLayout->addWidget(makeLabel(QStringLiteral("CAMERA"), "inspectorTitle", headingText));
-        headingTextLayout->addWidget(makeLabel(QStringLiteral("Transform and projection"), "inspectorSubtitle", headingText));
-        headingLayout->addWidget(headingText);
-        headingLayout->addStretch(1);
-        auto* liveBadge = makeLabel(QStringLiteral("LIVE"), "liveBadge", headingRow);
-        liveBadge->setAlignment(Qt::AlignCenter);
-        headingLayout->addWidget(liveBadge);
-        layout->addWidget(headingRow);
-
+        auto* panelLayout = new QVBoxLayout(panel);
+        panelLayout->setContentsMargins(0, 0, 0, 0);
+        panelLayout->setSpacing(0);
         _cameraInspector = new CameraInspector(panel);
-        layout->addWidget(_cameraInspector);
-        layout->addStretch(1);
-
-        auto* help = new QFrame(panel);
-        help->setObjectName("controlsHint");
-        auto* helpLayout = new QVBoxLayout(help);
-        helpLayout->setContentsMargins(12, 10, 12, 10);
-        helpLayout->setSpacing(4);
-        helpLayout->addWidget(makeLabel(QStringLiteral("VIEWPORT CONTROLS"), "hintTitle", help));
-        helpLayout->addWidget(makeLabel(QStringLiteral("WASD to move  /  Drag to look"), "hintText", help));
-        layout->addWidget(help);
-
+        panelLayout->addWidget(_cameraInspector);
+        panelLayout->addStretch(1);
         scrollArea->setWidget(panel);
-        return scrollArea;
+        dockLayout->addWidget(scrollArea, 1);
+        dockLayout->addWidget(buildShortcutPanel(dock));
+        return dock;
+    }
+
+    QWidget* buildShortcutPanel(QWidget* parent) {
+        auto* panel = new QWidget(parent);
+        panel->setObjectName("shortcutPanel");
+        auto* layout = new QVBoxLayout(panel);
+        layout->setContentsMargins(16, 12, 16, 13);
+        layout->setSpacing(7);
+        layout->addWidget(makeLabel(QStringLiteral("Viewport controls"), "shortcutTitle", panel));
+
+        const auto addShortcut = [layout, panel](const QString& key, const QString& action) {
+            auto* row = new QWidget(panel);
+            auto* rowLayout = new QHBoxLayout(row);
+            rowLayout->setContentsMargins(0, 0, 0, 0);
+            rowLayout->setSpacing(8);
+            auto* keyLabel = makeLabel(key, "keycap", row);
+            keyLabel->setAlignment(Qt::AlignCenter);
+            keyLabel->setMinimumWidth(58);
+            keyLabel->setFixedHeight(21);
+            rowLayout->addWidget(keyLabel);
+            rowLayout->addWidget(makeLabel(action, "shortcutAction", row));
+            rowLayout->addStretch(1);
+            layout->addWidget(row);
+        };
+        addShortcut(QStringLiteral("W A S D"), QStringLiteral("Move camera"));
+        addShortcut(QStringLiteral("Drag"), QStringLiteral("Look around"));
+        return panel;
     }
 
     QWidget* buildStatusBar(QWidget* parent) {
         auto* statusBar = new QWidget(parent);
         statusBar->setObjectName("statusBar");
-        statusBar->setFixedHeight(32);
+        statusBar->setFixedHeight(28);
         auto* layout = new QHBoxLayout(statusBar);
-        layout->setContentsMargins(14, 0, 14, 0);
-        layout->setSpacing(9);
+        layout->setContentsMargins(12, 0, 12, 0);
+        layout->setSpacing(8);
 
-        auto* runningDot = makeLabel(QStringLiteral(""), "runningDot", statusBar);
-        runningDot->setFixedSize(7, 7);
+        auto* runningDot = makeLabel({}, "runningDot", statusBar);
+        runningDot->setFixedSize(6, 6);
         layout->addWidget(runningDot);
-        layout->addWidget(makeLabel(QStringLiteral("RUNNING"), "runningText", statusBar));
-        layout->addWidget(makeSeparator(statusBar));
-        layout->addWidget(makeLabel(QStringLiteral("FPS"), "metricLabel", statusBar));
-        _fpsValue = makeLabel(QStringLiteral("--"), "metricValue", statusBar);
+        layout->addWidget(makeLabel(QStringLiteral("Renderer ready"), "statusPrimary", statusBar));
+        layout->addWidget(makeVerticalDivider("statusDivider", statusBar));
+        layout->addWidget(makeLabel(QStringLiteral("Vulkan"), "statusSecondary", statusBar));
+        layout->addStretch(1);
+
+        _fpsValue = makeLabel(QStringLiteral("-- FPS"), "metricValue", statusBar);
         layout->addWidget(_fpsValue);
-        layout->addWidget(makeSeparator(statusBar));
-        layout->addWidget(makeLabel(QStringLiteral("FRAME"), "metricLabel", statusBar));
+        layout->addWidget(makeVerticalDivider("statusDivider", statusBar));
         _frameTimeValue = makeLabel(QStringLiteral("-- ms"), "metricValue", statusBar);
         layout->addWidget(_frameTimeValue);
-        layout->addStretch(1);
+        layout->addWidget(makeVerticalDivider("statusDivider", statusBar));
         _statusResolution = makeLabel(QStringLiteral("-- x --"), "statusResolution", statusBar);
         layout->addWidget(_statusResolution);
         return statusBar;
@@ -305,6 +341,7 @@ private:
                     return;
                 }
                 _resetCameraState.reset();
+                updateSampleLabels();
                 syncCameraState(true);
             });
 
@@ -324,12 +361,22 @@ private:
         });
     }
 
+    void updateSampleLabels() {
+        const auto* current = _sample->currentSample();
+        _viewportTitle->setText(current ? QString::fromStdString(current->name()) : QStringLiteral("No sample"));
+    }
+
     void syncCameraState(bool captureResetState) {
         auto* current = _sample->currentSample();
         const auto state = current ? current->cameraControlState() : std::nullopt;
         const bool available = state.has_value();
         _cameraInspector->setEnabled(available);
         _resetCameraButton->setEnabled(available);
+        _cameraStatusDot->setProperty("active", available);
+        _cameraStatusText->setProperty("active", available);
+        _cameraStatusText->setText(available ? QStringLiteral("Live") : QStringLiteral("Unavailable"));
+        refreshStyle(_cameraStatusDot);
+        refreshStyle(_cameraStatusText);
         if (!available) {
             _resetCameraState.reset();
             return;
@@ -345,7 +392,7 @@ private:
 
     void updateTelemetry() {
         const float fps = _sample->getFps();
-        _fpsValue->setText(fps > 0.0f ? QString::number(fps, 'f', 0) : QStringLiteral("--"));
+        _fpsValue->setText(fps > 0.0f ? QStringLiteral("%1 FPS").arg(fps, 0, 'f', 0) : QStringLiteral("-- FPS"));
         _frameTimeValue->setText(
             fps > 0.0f ? QStringLiteral("%1 ms").arg(1000.0f / fps, 0, 'f', 2) : QStringLiteral("-- ms"));
 
@@ -363,7 +410,10 @@ private:
     QComboBox* _sampleSelector{nullptr};
     QPushButton* _resetCameraButton{nullptr};
     CameraInspector* _cameraInspector{nullptr};
+    QLabel* _viewportTitle{nullptr};
     QLabel* _viewportResolution{nullptr};
+    QLabel* _cameraStatusDot{nullptr};
+    QLabel* _cameraStatusText{nullptr};
     QLabel* _fpsValue{nullptr};
     QLabel* _frameTimeValue{nullptr};
     QLabel* _statusResolution{nullptr};

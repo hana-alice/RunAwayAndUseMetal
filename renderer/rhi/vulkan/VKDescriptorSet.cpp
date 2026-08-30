@@ -1,4 +1,5 @@
 #include "VKDescriptorSet.h"
+#include <algorithm>
 #include <numeric>
 #include "VKBuffer.h"
 #include "VKDescriptorPool.h"
@@ -22,18 +23,26 @@ DescriptorSet::DescriptorSet(const DescriptorSetInfo& info, DescriptorPool* pool
 
     VK_EXPECT(vkAllocateDescriptorSets(_device->device(), &allocInfo, &_descriptorSet));
 
-    for(auto& bd : _info.bindingInfos.samplerBindings) {
+    for (auto& bd : _info.bindingInfos.samplerBindings) {
         updateSampler(bd);
     }
-    for(auto& bd : _info.bindingInfos.imageBindings) {
+    for (auto& bd : _info.bindingInfos.imageBindings) {
         updateImage(bd);
     }
-    for(auto& bd : _info.bindingInfos.bufferBindings) {
+    for (auto& bd : _info.bindingInfos.bufferBindings) {
         updateBuffer(bd);
     }
-    for(auto& bd : _info.bindingInfos.texelBufferBindings) {
+    for (auto& bd : _info.bindingInfos.texelBufferBindings) {
         updateTexelBuffer(bd);
     }
+}
+
+bool DescriptorSet::isImmutableSamplerBinding(uint32_t binding) const {
+    const auto& bindings = _info.layout->info().descriptorBindings;
+    const auto iter = std::ranges::find_if(bindings, [binding](const DescriptorBinding& descriptorBinding) {
+        return descriptorBinding.binding == binding;
+    });
+    return iter != bindings.end() && !iter->immutableSamplers.empty();
 }
 
 void DescriptorSet::update(const BindingInfo& bindingInfo) {
@@ -97,7 +106,7 @@ void DescriptorSet::update(const BindingInfo& bindingInfo) {
 
     accIndex = 0;
     for (const auto& samplerBinding : bindingInfo.samplerBindings) {
-        if (samplerBinding.samplers.empty()) {
+        if (samplerBinding.samplers.empty() || isImmutableSamplerBinding(samplerBinding.binding)) {
             continue;
         }
         auto& write = writes.emplace_back();
@@ -182,7 +191,7 @@ void DescriptorSet::updateImage(const ImageBinding& info) {
 }
 
 void DescriptorSet::updateSampler(const SamplerBinding& info) {
-    if (info.samplers.empty()) {
+    if (info.samplers.empty() || isImmutableSamplerBinding(info.binding)) {
         return;
     }
     std::vector<VkDescriptorImageInfo> samplers;

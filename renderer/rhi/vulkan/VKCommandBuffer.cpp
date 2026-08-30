@@ -1,17 +1,17 @@
 #include "VKCommandBuffer.h"
 #include <type_traits>
+#include "RHIUtils.h"
 #include "VKBlitEncoder.h"
 #include "VKBuffer.h"
+#include "VKCommandPool.h"
 #include "VKComputeEncoder.h"
+#include "VKDescriptorSet.h"
 #include "VKDevice.h"
 #include "VKImage.h"
 #include "VKQueue.h"
 #include "VKRenderEncoder.h"
-#include "VKUtils.h"
-#include "VKDescriptorSet.h"
-#include "VKCommandPool.h"
 #include "VKSparseImage.h"
-#include "RHIUtils.h"
+#include "VKUtils.h"
 namespace raum::rhi {
 CommandBuffer::CommandBuffer(const CommandBufferInfo& info, CommandPool* commandPool, RHIDevice* device)
 : RHICommandBuffer(info, device),
@@ -96,14 +96,14 @@ void CommandBuffer::applyBarrier(DependencyFlags flags) {
         bufferBarriers[i].srcQueueFamilyIndex = _bufferBarriers[i].srcQueueIndex;
         bufferBarriers[i].dstQueueFamilyIndex = _bufferBarriers[i].dstQueueIndex;
         bufferBarriers[i].offset = _bufferBarriers[i].offset;
-        bufferBarriers[i].size = _bufferBarriers[i].size;
+        bufferBarriers[i].size = _bufferBarriers[i].size == 0 ? VK_WHOLE_SIZE : _bufferBarriers[i].size;
     }
 
     for (size_t i = 0; i < _imageBarriers.size(); ++i) {
         srcStageMask |= pipelineStageFlags(_imageBarriers[i].srcStage);
         dstStageMask |= pipelineStageFlags(_imageBarriers[i].dstStage);
         imageBarriers[i].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-        if(isSparse(_imageBarriers[i].image)) {
+        if (isSparse(_imageBarriers[i].image)) {
             imageBarriers[i].image = static_cast<SparseImage*>(_imageBarriers[i].image)->image();
         } else {
             imageBarriers[i].image = static_cast<Image*>(_imageBarriers[i].image)->image();
@@ -121,7 +121,7 @@ void CommandBuffer::applyBarrier(DependencyFlags flags) {
         imageBarriers[i].subresourceRange.levelCount = _imageBarriers[i].range.mipCount;
     }
 
-    for(size_t i = 0; i < _executionBarriers.size(); ++i) {
+    for (size_t i = 0; i < _executionBarriers.size(); ++i) {
         srcStageMask |= pipelineStageFlags(_executionBarriers[i].srcStage);
         dstStageMask |= pipelineStageFlags(_executionBarriers[i].dstStage);
         executionBarriers[i].srcAccessMask = accessFlags(_executionBarriers[i].srcAccessFlag);

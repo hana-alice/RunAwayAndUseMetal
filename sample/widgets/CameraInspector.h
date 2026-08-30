@@ -26,18 +26,20 @@ public:
     bool isEditing() const;
 
 private:
-    QFrame* makeCard(const QString& title, const QString& description);
-    QWidget* makeAxisEditor(const QString& axis, const QString& color, QDoubleSpinBox*& editor, QWidget* parent);
+    QFrame* makeSection(const QString& title, const QString& description);
     QWidget* makeValueEditor(
         const QString& name,
+        const QString& axis,
+        const QString& axisColor,
         QDoubleSpinBox*& editor,
         double minimum,
         double maximum,
         double step,
+        int decimals,
+        const QString& suffix,
         QWidget* parent);
-    QFrame* buildPositionCard();
-    QFrame* buildOrientationCard();
-    QFrame* buildLensCard();
+    QFrame* buildTransformSection();
+    QFrame* buildProjectionSection();
     void notifyChanged();
 
     std::array<QDoubleSpinBox*, 3> _position{};

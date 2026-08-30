@@ -24,7 +24,6 @@ public:
         auto& director = _world->director();
 
         _window = std::make_shared<platform::Window>(argc, argv, s_width, s_height);
-        _window->show();
         _lastFpsTime = std::chrono::steady_clock::now();
         _tickID = _window->addTick([&](std::chrono::milliseconds) {
             auto now = std::chrono::steady_clock::now();

@@ -27,15 +27,24 @@ void configureSpinBox(
     double maximum,
     double step,
     int decimals,
-    const QString& suffix = {}) {
+    const QString& suffix) {
     spinBox->setRange(minimum, maximum);
     spinBox->setSingleStep(step);
     spinBox->setDecimals(decimals);
     spinBox->setSuffix(suffix);
     spinBox->setKeyboardTracking(false);
     spinBox->setButtonSymbols(QAbstractSpinBox::NoButtons);
-    spinBox->setAlignment(Qt::AlignRight);
-    spinBox->setMinimumHeight(34);
+    spinBox->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    spinBox->setFixedHeight(28);
+    spinBox->setMinimumWidth(116);
+}
+
+QFrame* makeDivider(QWidget* parent) {
+    auto* divider = new QFrame(parent);
+    divider->setObjectName("propertyDivider");
+    divider->setFrameShape(QFrame::HLine);
+    divider->setFixedHeight(1);
+    return divider;
 }
 
 } // namespace
@@ -45,10 +54,9 @@ CameraInspector::CameraInspector(QWidget* parent) : QWidget(parent) {
 
     auto* layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
-    layout->setSpacing(10);
-    layout->addWidget(buildPositionCard());
-    layout->addWidget(buildOrientationCard());
-    layout->addWidget(buildLensCard());
+    layout->setSpacing(0);
+    layout->addWidget(buildTransformSection());
+    layout->addWidget(buildProjectionSection());
 
     for (auto* editor : _position) {
         connect(editor, qOverload<double>(&QDoubleSpinBox::valueChanged), this, [this] {
@@ -118,93 +126,92 @@ bool CameraInspector::isEditing() const {
     return _yaw->hasFocus() || _pitch->hasFocus() || _fov->hasFocus() || _fovSlider->hasFocus();
 }
 
-QFrame* CameraInspector::makeCard(const QString& title, const QString& description) {
-    auto* card = new QFrame(this);
-    card->setObjectName("inspectorCard");
+QFrame* CameraInspector::makeSection(const QString& title, const QString& description) {
+    auto* section = new QFrame(this);
+    section->setObjectName("propertySection");
 
-    auto* cardLayout = new QVBoxLayout(card);
-    cardLayout->setContentsMargins(14, 13, 14, 14);
-    cardLayout->setSpacing(10);
-    cardLayout->addWidget(makeLabel(title, "sectionTitle", card));
-    cardLayout->addWidget(makeLabel(description, "sectionDescription", card));
-    return card;
-}
-
-QWidget* CameraInspector::makeAxisEditor(
-    const QString& axis,
-    const QString& color,
-    QDoubleSpinBox*& editor,
-    QWidget* parent) {
-    auto* column = new QWidget(parent);
-    auto* layout = new QVBoxLayout(column);
-    layout->setContentsMargins(0, 0, 0, 0);
-    layout->setSpacing(5);
-
-    auto* axisLabel = makeLabel(axis, "axisLabel", column);
-    axisLabel->setProperty("axisColor", color);
-    editor = new QDoubleSpinBox(column);
-    configureSpinBox(editor, -10000.0, 10000.0, 0.1, 2);
-
-    layout->addWidget(axisLabel);
-    layout->addWidget(editor);
-    return column;
+    auto* sectionLayout = new QVBoxLayout(section);
+    sectionLayout->setContentsMargins(16, 15, 16, 16);
+    sectionLayout->setSpacing(5);
+    sectionLayout->addWidget(makeLabel(title, "sectionTitle", section));
+    sectionLayout->addWidget(makeLabel(description, "sectionDescription", section));
+    sectionLayout->addSpacing(8);
+    return section;
 }
 
 QWidget* CameraInspector::makeValueEditor(
     const QString& name,
+    const QString& axis,
+    const QString& axisColor,
     QDoubleSpinBox*& editor,
     double minimum,
     double maximum,
     double step,
+    int decimals,
+    const QString& suffix,
     QWidget* parent) {
     auto* row = new QWidget(parent);
+    row->setObjectName("propertyRow");
     auto* layout = new QHBoxLayout(row);
-    layout->setContentsMargins(0, 0, 0, 0);
-    layout->setSpacing(12);
+    layout->setContentsMargins(0, 3, 0, 3);
+    layout->setSpacing(9);
 
+    auto* axisLabel = makeLabel(axis, "axisToken", row);
+    axisLabel->setProperty("axisColor", axisColor);
+    axisLabel->setAlignment(Qt::AlignCenter);
+    axisLabel->setFixedSize(20, 20);
+    layout->addWidget(axisLabel);
     layout->addWidget(makeLabel(name, "fieldLabel", row));
     layout->addStretch(1);
+
     editor = new QDoubleSpinBox(row);
-    editor->setMinimumWidth(132);
-    configureSpinBox(editor, minimum, maximum, step, 1, QStringLiteral(" deg"));
+    configureSpinBox(editor, minimum, maximum, step, decimals, suffix);
     layout->addWidget(editor);
     return row;
 }
 
-QFrame* CameraInspector::buildPositionCard() {
-    auto* card = makeCard(QStringLiteral("POSITION"), QStringLiteral("World-space camera origin"));
-    auto* cardLayout = qobject_cast<QVBoxLayout*>(card->layout());
-    auto* editorRow = new QWidget(card);
-    auto* rowLayout = new QHBoxLayout(editorRow);
-    rowLayout->setContentsMargins(0, 0, 0, 0);
-    rowLayout->setSpacing(8);
-    rowLayout->addWidget(makeAxisEditor(QStringLiteral("X"), QStringLiteral("x"), _position[0], editorRow));
-    rowLayout->addWidget(makeAxisEditor(QStringLiteral("Y"), QStringLiteral("y"), _position[1], editorRow));
-    rowLayout->addWidget(makeAxisEditor(QStringLiteral("Z"), QStringLiteral("z"), _position[2], editorRow));
-    cardLayout->addWidget(editorRow);
-    return card;
+QFrame* CameraInspector::buildTransformSection() {
+    auto* section = makeSection(QStringLiteral("Transform"), QStringLiteral("World-space camera pose"));
+    auto* layout = qobject_cast<QVBoxLayout*>(section->layout());
+
+    layout->addWidget(makeValueEditor(
+        QStringLiteral("Position X"), QStringLiteral("X"), QStringLiteral("x"), _position[0], -10000.0, 10000.0, 0.1, 2, {}, section));
+    layout->addWidget(makeValueEditor(
+        QStringLiteral("Position Y"), QStringLiteral("Y"), QStringLiteral("y"), _position[1], -10000.0, 10000.0, 0.1, 2, {}, section));
+    layout->addWidget(makeValueEditor(
+        QStringLiteral("Position Z"), QStringLiteral("Z"), QStringLiteral("z"), _position[2], -10000.0, 10000.0, 0.1, 2, {}, section));
+    layout->addSpacing(7);
+    layout->addWidget(makeDivider(section));
+    layout->addSpacing(7);
+    layout->addWidget(makeValueEditor(
+        QStringLiteral("Yaw"), QStringLiteral("Y"), QStringLiteral("y"), _yaw, -360.0, 360.0, 1.0, 1, QStringLiteral(" deg"), section));
+    layout->addWidget(makeValueEditor(
+        QStringLiteral("Pitch"), QStringLiteral("P"), QStringLiteral("pitch"), _pitch, -89.9, 89.9, 1.0, 1, QStringLiteral(" deg"), section));
+    return section;
 }
 
-QFrame* CameraInspector::buildOrientationCard() {
-    auto* card = makeCard(QStringLiteral("ORIENTATION"), QStringLiteral("Euler angles in degrees"));
-    auto* cardLayout = qobject_cast<QVBoxLayout*>(card->layout());
-    cardLayout->addWidget(makeValueEditor(QStringLiteral("Yaw"), _yaw, -360.0, 360.0, 1.0, card));
-    cardLayout->addWidget(makeValueEditor(QStringLiteral("Pitch"), _pitch, -89.9, 89.9, 1.0, card));
-    return card;
-}
+QFrame* CameraInspector::buildProjectionSection() {
+    auto* section = makeSection(QStringLiteral("Projection"), QStringLiteral("Perspective camera settings"));
+    auto* layout = qobject_cast<QVBoxLayout*>(section->layout());
+    layout->addWidget(makeValueEditor(
+        QStringLiteral("Field of view"), QStringLiteral("F"), QStringLiteral("fov"), _fov, 30.0, 120.0, 1.0, 1, QStringLiteral(" deg"), section));
 
-QFrame* CameraInspector::buildLensCard() {
-    auto* card = makeCard(QStringLiteral("LENS"), QStringLiteral("Perspective projection"));
-    auto* cardLayout = qobject_cast<QVBoxLayout*>(card->layout());
-    cardLayout->addWidget(makeValueEditor(QStringLiteral("Field of view"), _fov, 30.0, 120.0, 1.0, card));
-
-    _fovSlider = new QSlider(Qt::Horizontal, card);
+    _fovSlider = new QSlider(Qt::Horizontal, section);
     _fovSlider->setObjectName("fovSlider");
     _fovSlider->setRange(30, 120);
     _fovSlider->setSingleStep(1);
     _fovSlider->setPageStep(5);
-    cardLayout->addWidget(_fovSlider);
-    return card;
+    layout->addSpacing(3);
+    layout->addWidget(_fovSlider);
+
+    auto* rangeRow = new QWidget(section);
+    auto* rangeLayout = new QHBoxLayout(rangeRow);
+    rangeLayout->setContentsMargins(1, 0, 1, 0);
+    rangeLayout->addWidget(makeLabel(QStringLiteral("30 deg"), "rangeLabel", rangeRow));
+    rangeLayout->addStretch(1);
+    rangeLayout->addWidget(makeLabel(QStringLiteral("120 deg"), "rangeLabel", rangeRow));
+    layout->addWidget(rangeRow);
+    return section;
 }
 
 void CameraInspector::notifyChanged() {
