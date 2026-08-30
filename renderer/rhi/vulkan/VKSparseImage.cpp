@@ -1,5 +1,4 @@
 #include "VKSparseImage.h"
-#include <stdexcept>
 #include "RHIUtils.h"
 #include "VKBuffer.h"
 #include "VKDevice.h"
@@ -40,11 +39,7 @@ SparseImage::SparseImage(const SparseImageInfo& info, Device* dev)
     allocInfo.flags = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT;
     allocInfo.priority = 1.0f;
 
-    VkResult res = vkCreateImage(_device->device(), &createInfo, nullptr, &_sparseImage);
-    RAUM_ERROR_IF(res != VK_SUCCESS, "Failed to create image.");
-    if (res != VK_SUCCESS) {
-        throw std::runtime_error("Failed to create Vulkan sparse image");
-    }
+    VK_EXPECT(vkCreateImage(_device->device(), &createInfo, nullptr, &_sparseImage));
 
     std::vector<VkSparseImageMemoryRequirements> reqs;
     uint32_t count{0};
@@ -52,8 +47,8 @@ SparseImage::SparseImage(const SparseImageInfo& info, Device* dev)
     if (!count) {
         vkDestroyImage(_device->device(), _sparseImage, nullptr);
         _sparseImage = VK_NULL_HANDLE;
-        throw std::runtime_error("Vulkan sparse image has no sparse memory requirements");
     }
+    VK_ENSURE(count, "Vulkan sparse image has no sparse memory requirements");
     reqs.resize(count);
     vkGetImageSparseMemoryRequirements(_device->device(), _sparseImage, &count, reqs.data());
     vkGetImageMemoryRequirements(_device->device(), _sparseImage, &_memReq);
@@ -72,12 +67,11 @@ SparseImage::SparseImage(const SparseImageInfo& info, Device* dev)
         }
         bits >>= 1;
     }
-    raum_check(typeIndex != 0xFFFFFFFF, "can't find request memory type");
     if (typeIndex == 0xFFFFFFFF) {
         vkDestroyImage(_device->device(), _sparseImage, nullptr);
         _sparseImage = VK_NULL_HANDLE;
-        throw std::runtime_error("No compatible Vulkan memory type exists for the sparse image");
     }
+    VK_ENSURE(typeIndex != 0xFFFFFFFF, "No compatible Vulkan memory type exists for the sparse image");
     _memTypeIndex = typeIndex;
 
     _granularity = {
@@ -204,10 +198,7 @@ void SparseImage::prepare(RHICommandBuffer* cmdBuffer, uint32_t numCols, uint32_
     VmaAllocationCreateInfo aci{};
     aci.usage = VMA_MEMORY_USAGE_GPU_ONLY;
     aci.memoryTypeBits = memrequires.memoryTypeBits;
-    auto res = vmaAllocateMemoryPages(_device->allocator(), &memrequires, &aci, 1, &_miptailAlloc, &ai);
-    if (res != VK_SUCCESS) {
-        throw std::runtime_error("Failed to allocate Vulkan sparse image mip tail");
-    }
+    VK_EXPECT(vmaAllocateMemoryPages(_device->allocator(), &memrequires, &aci, 1, &_miptailAlloc, &ai));
 
     _miptailBind = {};
     _miptailBind.size = miptailSize;

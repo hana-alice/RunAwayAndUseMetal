@@ -47,12 +47,7 @@ Shader::Shader(const ShaderSourceInfo& shaderInfo, RHIDevice* device)
     createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
     createInfo.codeSize = (result.end() - result.begin())*4;
     createInfo.pCode = reinterpret_cast<const uint32_t*>(result.cbegin());
-    VkResult res = vkCreateShaderModule(_device->device(), &createInfo, nullptr, &_shaderModule);
-
-    RAUM_ERROR_IF(res != VK_SUCCESS, "Failed to create shader module");
-    if (res != VK_SUCCESS) {
-        throw std::runtime_error("Failed to create Vulkan shader module");
-    }
+    VK_EXPECT(vkCreateShaderModule(_device->device(), &createInfo, nullptr, &_shaderModule));
 }
 
 Shader::Shader(const raum::rhi::ShaderBinaryInfo& shaderInfo, raum::rhi::RHIDevice* device)
@@ -66,12 +61,7 @@ Shader::Shader(const raum::rhi::ShaderBinaryInfo& shaderInfo, raum::rhi::RHIDevi
     createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
     createInfo.codeSize = shaderInfo.stage.spv.size() * 4;
     createInfo.pCode = shaderInfo.stage.spv.data();
-    VkResult res = vkCreateShaderModule(_device->device(), &createInfo, nullptr, &_shaderModule);
-
-    RAUM_ERROR_IF(res != VK_SUCCESS, "Failed to create shader module");
-    if (res != VK_SUCCESS) {
-        throw std::runtime_error("Failed to create Vulkan shader module");
-    }
+    VK_EXPECT(vkCreateShaderModule(_device->device(), &createInfo, nullptr, &_shaderModule));
 }
 
 Shader::~Shader() {

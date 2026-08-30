@@ -1,5 +1,4 @@
 #include "VKCommandBuffer.h"
-#include <stdexcept>
 #include <type_traits>
 #include "VKBlitEncoder.h"
 #include "VKBuffer.h"
@@ -23,9 +22,7 @@ CommandBuffer::CommandBuffer(const CommandBufferInfo& info, CommandPool* command
     createInfo.commandBufferCount = 1;
     createInfo.commandPool = commandPool->commandPool();
     createInfo.level = commandBufferLevel(info.type);
-    if (vkAllocateCommandBuffers(_device->device(), &createInfo, &_commandBuffer) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to allocate Vulkan command buffer");
-    }
+    VK_EXPECT(vkAllocateCommandBuffers(_device->device(), &createInfo, &_commandBuffer));
 }
 
 CommandBuffer::~CommandBuffer() {
@@ -54,9 +51,7 @@ void CommandBuffer::begin(const CommandBufferBeginInfo& info) {
     VkCommandBufferBeginInfo beginInfo{};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     beginInfo.flags = commandBufferUsage(info.flags);
-    if (vkBeginCommandBuffer(_commandBuffer, &beginInfo) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to begin Vulkan command buffer");
-    }
+    VK_EXPECT(vkBeginCommandBuffer(_commandBuffer, &beginInfo));
 }
 
 void CommandBuffer::enqueue(RHIQueue* queue) {
@@ -66,15 +61,11 @@ void CommandBuffer::enqueue(RHIQueue* queue) {
 }
 
 void CommandBuffer::commit() {
-    if (vkEndCommandBuffer(_commandBuffer) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to end Vulkan command buffer");
-    }
+    VK_EXPECT(vkEndCommandBuffer(_commandBuffer));
 }
 
 void CommandBuffer::reset() {
-    if (vkResetCommandBuffer(_commandBuffer, VkCommandBufferResetFlagBits{}) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to reset Vulkan command buffer");
-    }
+    VK_EXPECT(vkResetCommandBuffer(_commandBuffer, VkCommandBufferResetFlagBits{}));
 }
 
 void CommandBuffer::appendImageBarrier(const ImageBarrierInfo& info) {

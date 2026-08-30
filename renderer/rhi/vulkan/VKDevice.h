@@ -1,11 +1,11 @@
 #pragma once
 
-#include <vulkan/vulkan.h>
 #include <map>
 #include <memory>
 #include <queue>
 #include <unordered_map>
 #include "RHIDevice.h"
+#include "VKDefine.h"
 #include "vk_mem_alloc.h"
 namespace raum::rhi {
 class Queue;

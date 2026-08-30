@@ -1,6 +1,5 @@
 #include "VKQueue.h"
 #include <optional>
-#include <stdexcept>
 #include <vector>
 #include "VKCommandBuffer.h"
 #include "VKDevice.h"
@@ -37,11 +36,8 @@ Queue::Queue(const QueueInfo& info, Device* device)
     }
 
     // vs warning
-    if (index.has_value()) {
-        _index = index.value();
-    } else {
-        throw std::runtime_error("Requested Vulkan queue type is not supported");
-    }
+    VK_ENSURE(index.has_value(), "Requested Vulkan queue type is not supported");
+    _index = index.value();
 }
 
 void Queue::initQueue() {
@@ -49,10 +45,7 @@ void Queue::initQueue() {
     for (auto& fence : _frameFence) {
         VkFenceCreateInfo info{};
         info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-        const auto result = vkCreateFence(_device->device(), &info, nullptr, &fence);
-        if (result != VK_SUCCESS) {
-            throw std::runtime_error("Failed to create Vulkan queue fence");
-        }
+        VK_EXPECT(vkCreateFence(_device->device(), &info, nullptr, &fence));
     }
 }
 
@@ -118,19 +111,10 @@ void Queue::submit(bool enableFrameFence) {
         lastFence = _frameFence[(_currFrameIndex + FRAMES_IN_FLIGHT - 1 ) % FRAMES_IN_FLIGHT];
         fenceCount = 1;
     }
-    auto result = vkQueueSubmit(_vkQueue, 1, &info, lastFence);
-    if (result != VK_SUCCESS) {
-        throw std::runtime_error("Failed to submit Vulkan command buffers");
-    }
+    VK_EXPECT(vkQueueSubmit(_vkQueue, 1, &info, lastFence));
     if (fenceCount) {
-        result = vkWaitForFences(_device->device(), fenceCount, &lastFence, VK_TRUE, UINT64_MAX);
-        if (result != VK_SUCCESS) {
-            throw std::runtime_error("Failed while waiting for Vulkan queue fence");
-        }
-        result = vkResetFences(_device->device(), fenceCount, &lastFence);
-        if (result != VK_SUCCESS) {
-            throw std::runtime_error("Failed to reset Vulkan queue fence");
-        }
+        VK_EXPECT(vkWaitForFences(_device->device(), fenceCount, &lastFence, VK_TRUE, UINT64_MAX));
+        VK_EXPECT(vkResetFences(_device->device(), fenceCount, &lastFence));
         _device->resetStagingBuffer(_index);
     }
 
@@ -201,9 +185,7 @@ void Queue::bindSparse(const SparseBindingInfo& info, SparseType type) {
         bindInfo.signalSemaphoreCount = 0;
     }
 
-    if (vkQueueBindSparse(_vkQueue, 1, &bindInfo, VK_NULL_HANDLE) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to submit Vulkan sparse bindings");
-    }
+    VK_EXPECT(vkQueueBindSparse(_vkQueue, 1, &bindInfo, VK_NULL_HANDLE));
 
     _commandBuffers.clear();
 }

@@ -17,7 +17,7 @@ void ProgramCache::validate() {
     VkPipelineBinaryKeyKHR globalKey{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_BINARY_KEY_KHR
     };
-    pfn_vkGetPipelineKeyKHR(_device->device(), nullptr, &globalKey);
+    VK_EXPECT(pfn_vkGetPipelineKeyKHR(_device->device(), nullptr, &globalKey));
 
     const auto& resourcePath = utils::resourceDirectory();
     auto psoCache = resourcePath / "PSOCache" / "PipelineCache.bin";

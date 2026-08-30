@@ -16,7 +16,7 @@ GraphicsPipeline::GraphicsPipeline(const GraphicsPipelineInfo& pipelineInfo, Dev
 : RHIGraphicsPipeline(pipelineInfo, device), 
 _device(static_cast<Device*>(device)), 
 _layout(static_cast<PipelineLayout*>(pipelineInfo.pipelineLayout)) {
-    RAUM_ERROR_IF(pipelineInfo.shaders.size() < 2, "At least two shaders are required!");
+    VK_ENSURE(pipelineInfo.shaders.size() >= 2, "At least two shaders are required");
 
     VkGraphicsPipelineCreateInfo pipelineCreateInfo = {};
     pipelineCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
@@ -211,10 +211,7 @@ _layout(static_cast<PipelineLayout*>(pipelineInfo.pipelineLayout)) {
     pipelineCreateInfo.layout = static_cast<PipelineLayout*>(pipelineInfo.pipelineLayout)->layout();
     pipelineCreateInfo.renderPass = static_cast<RenderPass*>(pipelineInfo.renderPass)->renderPass();
 
-    VkResult res = vkCreateGraphicsPipelines(_device->device(), VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &_pipeline);
-    if (res != VK_SUCCESS) {
-        throw std::runtime_error("Failed to create Vulkan graphics pipeline");
-    }
+    VK_EXPECT(vkCreateGraphicsPipelines(_device->device(), VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &_pipeline));
 }
 
 GraphicsPipeline::~GraphicsPipeline() {

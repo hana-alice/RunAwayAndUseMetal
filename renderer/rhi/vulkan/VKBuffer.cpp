@@ -1,6 +1,5 @@
 #include "VKBuffer.h"
 #include <algorithm>
-#include <stdexcept>
 #include "VKDevice.h"
 #include "VKUtils.h"
 
@@ -85,11 +84,7 @@ Buffer::Buffer(const BufferInfo& info, RHIDevice* device) : RHIBuffer(info, devi
 
     VmaAllocator& allocator = _device->allocator();
 
-    VkResult res = vmaCreateBuffer(allocator, &bufferInfo, &allocaInfo, &_buffer, &_allocation, &_allocInfo);
-    RAUM_ERROR_IF(res != VK_SUCCESS, "Failed to create buffer!");
-    if (res != VK_SUCCESS) {
-        throw std::runtime_error("Failed to create Vulkan buffer");
-    }
+    VK_EXPECT(vmaCreateBuffer(allocator, &bufferInfo, &allocaInfo, &_buffer, &_allocation, &_allocInfo));
 }
 
 Buffer::Buffer(const BufferSourceInfo& info, RHIDevice* device) : RHIBuffer(info, device), _device(static_cast<Device*>(device)) {
@@ -111,11 +106,7 @@ Buffer::Buffer(const BufferSourceInfo& info, RHIDevice* device) : RHIBuffer(info
 
     VmaAllocator& allocator = _device->allocator();
 
-    VkResult res = vmaCreateBuffer(allocator, &bufferInfo, &allocaInfo, &_buffer, &_allocation, &_allocInfo);
-    RAUM_ERROR_IF(res != VK_SUCCESS, "Failed to create buffer!");
-    if (res != VK_SUCCESS) {
-        throw std::runtime_error("Failed to create Vulkan buffer with source data");
-    }
+    VK_EXPECT(vmaCreateBuffer(allocator, &bufferInfo, &allocaInfo, &_buffer, &_allocation, &_allocInfo));
 
     memcpy(_allocInfo.pMappedData, info.data, info.size);
 }
@@ -140,7 +131,8 @@ StagingBuffer::StagingBuffer(VmaAllocator allocator) : _allocator(allocator) {
                             VMA_ALLOCATION_CREATE_MAPPED_BIT;
 
     VmaAllocationInfo allocInfo;
-    vmaCreateBuffer(allocator, &bufCreateInfo, &allocCreateInfo, &chunk.buffer, &chunk.allocation, &allocInfo);
+    VK_EXPECT(vmaCreateBuffer(
+        allocator, &bufCreateInfo, &allocCreateInfo, &chunk.buffer, &chunk.allocation, &allocInfo));
 }
 
 StagingInfo StagingBuffer::alloc(uint32_t size) {
@@ -158,7 +150,8 @@ StagingInfo StagingBuffer::alloc(uint32_t size) {
                                 VMA_ALLOCATION_CREATE_MAPPED_BIT;
 
         VmaAllocationInfo allocInfo;
-        vmaCreateBuffer(_allocator, &bufCreateInfo, &allocCreateInfo, &curChunk->buffer, &curChunk->allocation, &allocInfo);
+        VK_EXPECT(vmaCreateBuffer(
+            _allocator, &bufCreateInfo, &allocCreateInfo, &curChunk->buffer, &curChunk->allocation, &allocInfo));
 
     }
     StagingInfo info;
@@ -169,7 +162,7 @@ StagingInfo StagingBuffer::alloc(uint32_t size) {
 }
 
 void Buffer::map(uint32_t offset, uint32_t size) {
-    vkMapMemory(_device->device(), _allocInfo.deviceMemory, offset, size, 0, &_allocInfo.pMappedData);
+    VK_EXPECT(vkMapMemory(_device->device(), _allocInfo.deviceMemory, offset, size, 0, &_allocInfo.pMappedData));
 }
 
 void Buffer::unmap() {

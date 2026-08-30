@@ -13,9 +13,7 @@ BufferView::BufferView(const BufferViewInfo& info, RHIDevice* device)
     createInfo.offset = info.offset;
     createInfo.range = info.size;
 
-    if (vkCreateBufferView(_device->device(), &createInfo, nullptr, &_bufferView) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to create Vulkan buffer view");
-    }
+    VK_EXPECT(vkCreateBufferView(_device->device(), &createInfo, nullptr, &_bufferView));
 }
 
 BufferView::~BufferView() {

@@ -31,45 +31,28 @@ void Swapchain::initialize(uintptr_t hwnd, SyncType type, uint32_t width, uint32
         surfaceInfo.hinstance = GetModuleHandle(nullptr);
 
         auto instance = static_cast<VkInstance>(_device->instance());
-        VkResult res = vkCreateWin32SurfaceKHR(instance, &surfaceInfo, nullptr, &_surface);
-        RAUM_CRITICAL_IF(res != VK_SUCCESS, "failed to create surface");
-        if (res != VK_SUCCESS) {
-            throw std::runtime_error("Failed to create Vulkan window surface");
-        }
+        VK_EXPECT(vkCreateWin32SurfaceKHR(instance, &surfaceInfo, nullptr, &_surface));
         VkBool32 support{false};
 
-        res = vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, qIndex, _surface, &support);
-        RAUM_CRITICAL_IF(!support, "surface presentation not supported");
-        if (res != VK_SUCCESS || !support) {
-            throw std::runtime_error("The graphics queue cannot present to the Vulkan surface");
-        }
+        VK_EXPECT(vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, qIndex, _surface, &support));
+        VK_ENSURE(support, "The graphics queue cannot present to the Vulkan surface");
     }
 
     VkSurfaceCapabilitiesKHR caps{};
-    if (vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, _surface, &caps) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to query Vulkan surface capabilities");
-    }
+    VK_EXPECT(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, _surface, &caps));
 
     uint32_t formatCount{0};
-    if (vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, _surface, &formatCount, nullptr) != VK_SUCCESS || !formatCount) {
-        throw std::runtime_error("The Vulkan surface has no supported formats");
-    }
+    VK_EXPECT(vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, _surface, &formatCount, nullptr));
+    VK_ENSURE(formatCount, "The Vulkan surface has no supported formats");
     std::vector<VkSurfaceFormatKHR> formats(formatCount);
-    if (vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, _surface, &formatCount, formats.data()) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to query Vulkan surface formats");
-    }
+    VK_EXPECT(vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, _surface, &formatCount, formats.data()));
 
     uint32_t presentModeCount{0};
-    if (vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, _surface, &presentModeCount, nullptr) != VK_SUCCESS || !presentModeCount) {
-        throw std::runtime_error("The Vulkan surface has no supported present modes");
-    }
+    VK_EXPECT(vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, _surface, &presentModeCount, nullptr));
+    VK_ENSURE(presentModeCount, "The Vulkan surface has no supported present modes");
 
     std::vector<VkPresentModeKHR> presentModes(presentModeCount);
-    if (vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, _surface, &presentModeCount, presentModes.data()) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to query Vulkan present modes");
-    }
-
-    RAUM_CRITICAL_IF(!formatCount || !presentModeCount, "no available format or present mode");
+    VK_EXPECT(vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, _surface, &presentModeCount, presentModes.data()));
 
     VkSurfaceFormatKHR preferred = formats[0];
     if (formats.size() == 1 && formats[0].format == VK_FORMAT_UNDEFINED) {
@@ -155,19 +138,12 @@ void Swapchain::initialize(uintptr_t hwnd, SyncType type, uint32_t width, uint32
     createInfo.clipped = VK_TRUE;
     createInfo.oldSwapchain = VK_NULL_HANDLE;
 
-    auto res = vkCreateSwapchainKHR(_device->device(), &createInfo, nullptr, &_swapchain);
-    RAUM_CRITICAL_IF(res != VK_SUCCESS, "failed to create swapchain");
-    if (res != VK_SUCCESS) {
-        throw std::runtime_error("Failed to create Vulkan swapchain");
-    }
+    VK_EXPECT(vkCreateSwapchainKHR(_device->device(), &createInfo, nullptr, &_swapchain));
 
-    if (vkGetSwapchainImagesKHR(_device->device(), _swapchain, &_imageCount, nullptr) != VK_SUCCESS || !_imageCount) {
-        throw std::runtime_error("Failed to query Vulkan swapchain images");
-    }
+    VK_EXPECT(vkGetSwapchainImagesKHR(_device->device(), _swapchain, &_imageCount, nullptr));
+    VK_ENSURE(_imageCount, "The Vulkan swapchain has no images");
     _vkImages.resize(_imageCount);
-    if (vkGetSwapchainImagesKHR(_device->device(), _swapchain, &_imageCount, _vkImages.data()) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to retrieve Vulkan swapchain images");
-    }
+    VK_EXPECT(vkGetSwapchainImagesKHR(_device->device(), _swapchain, &_imageCount, _vkImages.data()));
 
     _valid.clear();
     _valid.resize(_imageCount, 0);
@@ -222,8 +198,8 @@ bool Swapchain::acquire() {
         if (result == VK_ERROR_OUT_OF_DATE_KHR) {
             return false;
         }
-        throw std::runtime_error("Failed to acquire a Vulkan swapchain image");
     }
+    VK_CHECK(result, VK_SUCCESS, VK_SUBOPTIMAL_KHR);
     if (_acquireSemaphores[_imageIndex]) [[likely]] {
         _semaphorePool.dealloccate(_acquireSemaphores[_imageIndex]);
     }
@@ -244,9 +220,7 @@ void Swapchain::present() {
     presentInfo.pResults = nullptr;
     const auto result = vkQueuePresentKHR(_presentQueue->_vkQueue, &presentInfo);
     _presentQueue->increaseFrameIndex();
-    if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR && result != VK_ERROR_OUT_OF_DATE_KHR) {
-        throw std::runtime_error("Failed to present a Vulkan swapchain image");
-    }
+    VK_CHECK(result, VK_SUCCESS, VK_SUBOPTIMAL_KHR, VK_ERROR_OUT_OF_DATE_KHR);
 }
 
 void Swapchain::destroy() {

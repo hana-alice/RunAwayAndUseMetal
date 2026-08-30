@@ -27,9 +27,7 @@ DescriptorSetLayout::DescriptorSetLayout(const DescriptorSetLayoutInfo& info, RH
     descLayoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
     descLayoutInfo.pBindings = bindings.data();
 
-    if (vkCreateDescriptorSetLayout(_device->device(), &descLayoutInfo, nullptr, &_descriptorSetLayout) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to create Vulkan descriptor set layout");
-    }
+    VK_EXPECT(vkCreateDescriptorSetLayout(_device->device(), &descLayoutInfo, nullptr, &_descriptorSetLayout));
 }
 
 DescriptorSetLayout::~DescriptorSetLayout() {

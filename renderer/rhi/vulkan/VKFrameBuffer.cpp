@@ -19,11 +19,7 @@ FrameBuffer::FrameBuffer(const FrameBufferInfo& info, RHIDevice* device)
     createInfo.attachmentCount = static_cast<uint32_t>(imageViews.size());
     createInfo.pAttachments = imageViews.data();
 
-    VkResult res = vkCreateFramebuffer(_device->device(), &createInfo, nullptr, &_framebuffer);
-    RAUM_ERROR_IF(res != VK_SUCCESS, "Failed to create framebuffer");
-    if (res != VK_SUCCESS) {
-        throw std::runtime_error("Failed to create Vulkan framebuffer");
-    }
+    VK_EXPECT(vkCreateFramebuffer(_device->device(), &createInfo, nullptr, &_framebuffer));
 }
 
 FrameBuffer::~FrameBuffer() {

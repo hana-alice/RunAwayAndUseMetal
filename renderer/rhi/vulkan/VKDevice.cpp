@@ -65,10 +65,7 @@ bool checkRequiredExtensions(const std::vector<const char*>& reqs, const std::ve
                 break;
             }
         }
-        if (!found) {
-            raum_error("Could not find required extension: {}", require);
-            allFound = false;
-        }
+        allFound &= found;
     }
     return allFound;
 }
@@ -191,35 +188,25 @@ void Device::initInstance() {
     appInfo.apiVersion = VK_API_VERSION_1_4;
 
     // extension
-    VkResult result = VK_SUCCESS;
     {
         uint32_t extensionNum{0};
-        result = vkEnumerateInstanceExtensionProperties(nullptr, &extensionNum, nullptr);
-        RAUM_CRITICAL_IF(!extensionNum || result != VK_SUCCESS, "Failed to get vulkan instance extension properties");
+        VK_EXPECT(vkEnumerateInstanceExtensionProperties(nullptr, &extensionNum, nullptr));
+        VK_ENSURE(extensionNum, "No Vulkan instance extensions are available");
         std::vector<VkExtensionProperties> availableExts(extensionNum);
-        result = vkEnumerateInstanceExtensionProperties(nullptr, &extensionNum, availableExts.data());
-        RAUM_CRITICAL_IF(result != VK_SUCCESS, "Failed to get vulkan instance extension properties");
-        if (result != VK_SUCCESS) {
-            throw std::runtime_error("Failed to enumerate Vulkan instance extensions");
-        }
+        VK_EXPECT(vkEnumerateInstanceExtensionProperties(nullptr, &extensionNum, availableExts.data()));
         raum::log(availableExts);
 
         uint32_t layerNum{0};
-        result = vkEnumerateInstanceLayerProperties(&layerNum, nullptr);
-        RAUM_CRITICAL_IF(result != VK_SUCCESS, "vkEnumerateInstanceExtensionProperties");
+        VK_EXPECT(vkEnumerateInstanceLayerProperties(&layerNum, nullptr));
         std::vector<VkLayerProperties> availableLayers(layerNum);
-        result = vkEnumerateInstanceLayerProperties(&layerNum, availableLayers.data());
+        VK_EXPECT(vkEnumerateInstanceLayerProperties(&layerNum, availableLayers.data()));
         raum::log(availableLayers);
 
         std::vector<const char*> requiredLayers;
         if constexpr (enableValidationLayer) {
             requiredLayers.emplace_back("VK_LAYER_KHRONOS_validation");
         }
-        bool res = checkRequiredLayers(requiredLayers, availableLayers);
-        RAUM_CRITICAL_IF(!res, "required layers not found!");
-        if (!res) {
-            throw std::runtime_error("Required Vulkan layers were not found");
-        }
+        VK_ENSURE(checkRequiredLayers(requiredLayers, availableLayers), "Required Vulkan layers were not found");
 
         VkInstanceCreateInfo instInfo{};
         instInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
@@ -234,20 +221,14 @@ void Device::initInstance() {
         requiredExts.emplace_back("VK_KHR_win32_surface");
 #endif
 
-        if (!checkRequiredExtensions(requiredExts, availableExts)) {
-            throw std::runtime_error("Required Vulkan instance extensions were not found");
-        }
+        VK_ENSURE(checkRequiredExtensions(requiredExts, availableExts), "Required Vulkan instance extensions were not found");
 
         instInfo.enabledExtensionCount = static_cast<uint32_t>(requiredExts.size());
         instInfo.ppEnabledExtensionNames = requiredExts.data();
         instInfo.enabledLayerCount = static_cast<uint32_t>(requiredLayers.size());
         instInfo.ppEnabledLayerNames = requiredLayers.data();
 
-        result = vkCreateInstance(&instInfo, nullptr, &_instance);
-        RAUM_CRITICAL_IF(result != VK_SUCCESS, "vkCreateInstance");
-        if (result != VK_SUCCESS) {
-            throw std::runtime_error("Failed to create Vulkan instance");
-        }
+        VK_EXPECT(vkCreateInstance(&instInfo, nullptr, &_instance));
 
         if constexpr (enableValidationLayer) {
             VkDebugUtilsMessengerCreateInfoEXT dbgMsgInfo{};
@@ -257,28 +238,18 @@ void Device::initInstance() {
             dbgMsgInfo.pfnUserCallback = debugCallback;
             dbgMsgInfo.pUserData = nullptr;
 
-            result = createDebugMessengerExt(_instance, &dbgMsgInfo, nullptr, &_debugMessenger);
-            RAUM_ERROR_IF(result == VK_ERROR_EXTENSION_NOT_PRESENT, "validation ext not found.");
-            if (result != VK_SUCCESS) {
-                throw std::runtime_error("Failed to create Vulkan debug messenger");
-            }
+            VK_EXPECT(createDebugMessengerExt(_instance, &dbgMsgInfo, nullptr, &_debugMessenger));
         }
     }
 }
 
 void Device::initDevice() {
     uint32_t deviceCount{0};
-    auto enumerateResult = vkEnumeratePhysicalDevices(_instance, &deviceCount, nullptr);
-    RAUM_CRITICAL_IF(!deviceCount, "can't find any physic device.");
-    if (enumerateResult != VK_SUCCESS || !deviceCount) {
-        throw std::runtime_error("No Vulkan physical device is available");
-    }
+    VK_EXPECT(vkEnumeratePhysicalDevices(_instance, &deviceCount, nullptr));
+    VK_ENSURE(deviceCount, "No Vulkan physical device is available");
 
     std::vector<VkPhysicalDevice> devices(deviceCount);
-    enumerateResult = vkEnumeratePhysicalDevices(_instance, &deviceCount, devices.data());
-    if (enumerateResult != VK_SUCCESS) {
-        throw std::runtime_error("Failed to enumerate Vulkan physical devices");
-    }
+    VK_EXPECT(vkEnumeratePhysicalDevices(_instance, &deviceCount, devices.data()));
 
     _physicalDevice = rankDevices(devices);
 
@@ -320,9 +291,9 @@ void Device::initDevice() {
     deviceInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
 
     uint32_t extNum{0};
-    vkEnumerateDeviceExtensionProperties(_physicalDevice, nullptr, &extNum, nullptr);
+    VK_EXPECT(vkEnumerateDeviceExtensionProperties(_physicalDevice, nullptr, &extNum, nullptr));
     std::vector<VkExtensionProperties> availableExts(extNum);
-    vkEnumerateDeviceExtensionProperties(_physicalDevice, nullptr, &extNum, availableExts.data());
+    VK_EXPECT(vkEnumerateDeviceExtensionProperties(_physicalDevice, nullptr, &extNum, availableExts.data()));
     log(availableExts);
 
     auto isExtAvailable = [&](const char* name) {
@@ -346,9 +317,8 @@ void Device::initDevice() {
     }
     vkGetPhysicalDeviceFeatures2(_physicalDevice, &supportedFeatures);
 
-    if (!supportedTimelineFeatures.timelineSemaphore) {
-        throw std::runtime_error("The selected Vulkan device does not support timeline semaphores");
-    }
+    VK_ENSURE(supportedTimelineFeatures.timelineSemaphore,
+              "The selected Vulkan device does not support timeline semaphores");
 
     const bool hasSparseQueue = _queues.contains(QueueType::SPARSE);
     const bool sparseResidencySupported = hasSparseQueue &&
@@ -389,9 +359,7 @@ void Device::initDevice() {
         deviceFeatures2.pNext = &timelineSemaphoreFeatures;
     }
 
-    if (!checkRequiredExtensions(exts, availableExts)) {
-        throw std::runtime_error("Required Vulkan device extensions were not found");
-    }
+    VK_ENSURE(checkRequiredExtensions(exts, availableExts), "Required Vulkan device extensions were not found");
 
     deviceInfo.pNext = &deviceFeatures2;
     deviceInfo.pQueueCreateInfos = queueInfos.data();
@@ -401,21 +369,14 @@ void Device::initDevice() {
     deviceInfo.ppEnabledExtensionNames = exts.data();
     deviceInfo.enabledLayerCount = 0;
 
-    VkResult res = vkCreateDevice(_physicalDevice, &deviceInfo, nullptr, &_device);
-    RAUM_CRITICAL_IF(res != VK_SUCCESS, "failed to create logic device.");
-    if (res != VK_SUCCESS) {
-        throw std::runtime_error("Failed to create Vulkan logical device");
-    }
+    VK_EXPECT(vkCreateDevice(_physicalDevice, &deviceInfo, nullptr, &_device));
 
     VmaAllocatorCreateInfo allocInfo{};
     allocInfo.device = _device;
     allocInfo.physicalDevice = _physicalDevice;
     allocInfo.instance = _instance;
     allocInfo.vulkanApiVersion = VK_API_VERSION_1_4;
-    res = vmaCreateAllocator(&allocInfo, &_allocator);
-    if (res != VK_SUCCESS) {
-        throw std::runtime_error("Failed to create Vulkan memory allocator");
-    }
+    VK_EXPECT(vmaCreateAllocator(&allocInfo, &_allocator));
 
     for (auto [_, q] : _queues) {
         vkGetDeviceQueue(_device, q->_index, 0, &q->_vkQueue);
@@ -432,9 +393,7 @@ void Device::initDevice() {
 
 RHIQueue* Device::getQueue(const QueueInfo& info) {
     const auto iter = _queues.find(info.type);
-    if (iter == _queues.end()) {
-        throw std::runtime_error("Requested Vulkan queue type is not supported");
-    }
+    VK_ENSURE(iter != _queues.end(), "Requested Vulkan queue type is not supported");
     return iter->second;
 }
 
@@ -514,9 +473,7 @@ RHIPipelineLayout* Device::createPipelineLayout(const PipelineLayoutInfo& info) 
 }
 
 RHISparseImage* Device::createSparseImage(const raum::rhi::SparseImageInfo& info) {
-    if (!_queues.contains(QueueType::SPARSE)) {
-        throw std::runtime_error("Sparse images are not supported by the selected Vulkan device");
-    }
+    VK_ENSURE(_queues.contains(QueueType::SPARSE), "Sparse images are not supported by the selected Vulkan device");
     return new SparseImage(info, this);
 }
 
@@ -525,16 +482,14 @@ RHISemaphore* Device::createSemaphore() {
 }
 
 SparseBindingRequirement Device::sparseBindingRequirement(RHIImage* image) {
-    raum_check(test(image->info().imageFlag, rhi::ImageFlag::SPARSE_BINDING), "not a sparse image!");
+    VK_ENSURE(test(image->info().imageFlag, rhi::ImageFlag::SPARSE_BINDING), "The image does not support sparse binding");
     const auto vkImage = dynamic_cast<SparseImage*>(image)
         ? static_cast<SparseImage*>(image)->image()
         : static_cast<Image*>(image)->image();
     std::vector<VkSparseImageMemoryRequirements> reqs;
     uint32_t count{0};
     vkGetImageSparseMemoryRequirements(_device, vkImage, &count, nullptr);
-    if (!count) {
-        throw std::runtime_error("The image has no sparse memory requirements");
-    }
+    VK_ENSURE(count, "The image has no sparse memory requirements");
     reqs.resize(count);
     vkGetImageSparseMemoryRequirements(_device, vkImage, &count, reqs.data());
 
@@ -598,12 +553,12 @@ void Device::resetStagingBuffer(uint8_t queueIndex) {
 
 
 void Device::waitDeviceIdle() {
-    vkDeviceWaitIdle(_device);
+    VK_EXPECT(vkDeviceWaitIdle(_device));
 }
 
 void Device::waitQueueIdle(raum::rhi::RHIQueue* q) {
     auto* queue = static_cast<Queue*>(q);
-    vkQueueWaitIdle(queue->_vkQueue);
+    VK_EXPECT(vkQueueWaitIdle(queue->_vkQueue));
 }
 
 Device* loadVK() {

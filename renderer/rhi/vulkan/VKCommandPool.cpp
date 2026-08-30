@@ -1,5 +1,4 @@
 #include "VKCommandPool.h"
-#include <stdexcept>
 #include "VKDevice.h"
 #include "VKCommandBuffer.h"
 namespace raum::rhi {
@@ -11,9 +10,7 @@ CommandPool::CommandPool(const CommandPoolInfo& info, RHIDevice* device)
     poolInfo.queueFamilyIndex = info.queueFamilyIndex;
     poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 
-    if (vkCreateCommandPool(_device->device(), &poolInfo, nullptr, &_pool) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to create Vulkan command pool");
-    }
+    VK_EXPECT(vkCreateCommandPool(_device->device(), &poolInfo, nullptr, &_pool));
 }
 
 CommandPool::~CommandPool() {

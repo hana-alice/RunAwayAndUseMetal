@@ -111,11 +111,7 @@ RenderPass::RenderPass(const RenderPassInfo& info, RHIDevice* device)
     createInfo.dependencyCount = static_cast<uint32_t>(dependencies.size());
     createInfo.pDependencies = dependencies.data();
 
-    VkResult res = vkCreateRenderPass(_device->device(), &createInfo, nullptr, &_renderPass);
-    RAUM_ERROR_IF(res != VK_SUCCESS, "Failed to create renderpass");
-    if (res != VK_SUCCESS) {
-        throw std::runtime_error("Failed to create Vulkan render pass");
-    }
+    VK_EXPECT(vkCreateRenderPass(_device->device(), &createInfo, nullptr, &_renderPass));
 }
 
 RenderPass::~RenderPass() {

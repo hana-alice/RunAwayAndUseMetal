@@ -20,9 +20,7 @@ DescriptorSet::DescriptorSet(const DescriptorSetInfo& info, DescriptorPool* pool
     allocInfo.descriptorSetCount = 1;
     allocInfo.pSetLayouts = &kLayout;
 
-    if (vkAllocateDescriptorSets(_device->device(), &allocInfo, &_descriptorSet) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to allocate Vulkan descriptor set");
-    }
+    VK_EXPECT(vkAllocateDescriptorSets(_device->device(), &allocInfo, &_descriptorSet));
 
     for(auto& bd : _info.bindingInfos.samplerBindings) {
         updateSampler(bd);

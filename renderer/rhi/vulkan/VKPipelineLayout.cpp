@@ -28,11 +28,7 @@ PipelineLayout::PipelineLayout(const PipelineLayoutInfo& info, RHIDevice* device
     createInfo.setLayoutCount = static_cast<uint32_t>(layouts.size());
     createInfo.pSetLayouts = layouts.data();
 
-    VkResult res = vkCreatePipelineLayout(_device->device(), &createInfo, nullptr, &_layout);
-    RAUM_ERROR_IF(res != VK_SUCCESS, "Failed to create pipeline layout");
-    if (res != VK_SUCCESS) {
-        throw std::runtime_error("Failed to create Vulkan pipeline layout");
-    }
+    VK_EXPECT(vkCreatePipelineLayout(_device->device(), &createInfo, nullptr, &_layout));
 }
 
 PipelineLayout::~PipelineLayout() {

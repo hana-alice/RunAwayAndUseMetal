@@ -22,9 +22,7 @@ Sampler::Sampler(const SamplerInfo& samplerInfo, RHIDevice* device)
     info.borderColor = borderColor(samplerInfo.borderColor);
     info.unnormalizedCoordinates = samplerInfo.unnormalizedCoordinates;
 
-    if (vkCreateSampler(_device->device(), &info, nullptr, &_sampler) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to create Vulkan sampler");
-    }
+    VK_EXPECT(vkCreateSampler(_device->device(), &info, nullptr, &_sampler));
 }
 
 Sampler::~Sampler() {

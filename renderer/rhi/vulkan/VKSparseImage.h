@@ -1,5 +1,4 @@
 #include <set>
-#include <stdexcept>
 #include "RHIDefine.h"
 #include "RHISparseImage.h"
 #include "VKBuffer.h"
@@ -62,10 +61,8 @@ private:
             aci.memoryTypeBits = req.memoryTypeBits;
             allocations.resize(PagesPerAlloc);
             allocInfos.resize(PagesPerAlloc);
-            auto res = vmaAllocateMemoryPages(device->allocator(), &memReq, &aci, PagesPerAlloc, allocations.data(), allocInfos.data());
-            if (res != VK_SUCCESS) {
-                throw std::runtime_error("Failed to allocate Vulkan sparse image pages");
-            }
+            VK_EXPECT(vmaAllocateMemoryPages(
+                device->allocator(), &memReq, &aci, PagesPerAlloc, allocations.data(), allocInfos.data()));
 
             for (size_t i = 0U; i < PagesPerAlloc; i++) {
                 availableIndex.insert(i);
