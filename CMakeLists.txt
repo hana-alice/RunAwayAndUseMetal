@@ -174,7 +174,6 @@ target_link_libraries(raum_renderer PUBLIC
         Boost::graph
 )
 
-find_package(Qt5 REQUIRED COMPONENTS Widgets)
 file(GLOB_RECURSE raum_ui_h ${CMAKE_CURRENT_LIST_DIR}/ui/*.h)
 file(GLOB_RECURSE raum_ui_cpp ${CMAKE_CURRENT_LIST_DIR}/ui/*.cpp)
 source_group("raum_ui_h" FILES ${raum_ui_h})
