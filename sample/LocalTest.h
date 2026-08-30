@@ -9,10 +9,10 @@
 
 namespace raum::sample {
 
-class BistroSample final : public CameraSample {
+class LocalTestSample final : public CameraSample {
 public:
-    explicit BistroSample(framework::Director* director)
-    : CameraSample(director, "BistroSample") {}
+    explicit LocalTestSample(framework::Director* director)
+    : CameraSample(director, "LocalTest") {}
 
 private:
     void onInitialize() override {

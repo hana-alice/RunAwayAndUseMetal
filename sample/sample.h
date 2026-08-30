@@ -1,8 +1,8 @@
 #pragma once
 #include <atomic>
 #include <chrono>
-#include "BistroSample.h"
 #include "GraphSample.h"
+#include "LocalTest.h"
 #include "Particles.h"
 #include "SampleBase.h"
 #include "VirtualTexture.h"
@@ -51,7 +51,7 @@ public:
         _samples = {
             // std::make_shared<sample::GraphSample>(&_world->director()),
 
-            std::make_shared<sample::BistroSample>(&_world->director()),
+            std::make_shared<sample::LocalTestSample>(&_world->director()),
             // std::make_shared<sample::ParticlesSample>(&_world->director()),
             // std::make_shared<sample::VirtualTextureSample>(&_world->director()),
             // std::make_shared<sample::ShadowMapSample>(&_world->director()),

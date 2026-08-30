@@ -1,5 +1,4 @@
 #include "SceneSerializer.h"
-#include "SceneCache.h"
 #include <array>
 #include <cstring>
 #include <functional>
@@ -11,6 +10,7 @@
 #include "RHIBlitEncoder.h"
 #include "RHICommandBuffer.h"
 #include "RHIUtils.h"
+#include "SceneCache.h"
 #include "Technique.h"
 #include "core/define.h"
 #include "core/thread/execution.h"
@@ -22,10 +22,10 @@
 #include "core/utils/utils.h"
 #include "tiny_gltf.h"
 
-#include "core/utils/Archive.h"
+#include "GraphIO.h"
 #include "RHIIO.h"
 #include "SceneIO.h"
-#include "GraphIO.h"
+#include "core/utils/Archive.h"
 
 namespace raum::asset::serialize {
 
@@ -127,8 +127,8 @@ float readAccessorComponent(const uint8_t* data, int componentType, bool normali
             uint32_t value{};
             std::memcpy(&value, data, sizeof(value));
             return normalized
-                ? static_cast<float>(static_cast<double>(value) / 4294967295.0)
-                : static_cast<float>(value);
+                       ? static_cast<float>(static_cast<double>(value) / 4294967295.0)
+                       : static_cast<float>(value);
         }
         case TINYGLTF_COMPONENT_TYPE_FLOAT: {
             float value{};
@@ -165,8 +165,8 @@ const float* decodeVertexAccessor(const tinygltf::Model& model,
     const auto dataOffset = bufferView.byteOffset + accessor.byteOffset;
     const auto packedElementSize = static_cast<size_t>(componentSize) * expectedComponents;
     const auto requiredSize = accessor.count
-        ? dataOffset + (accessor.count - 1) * static_cast<size_t>(byteStride) + packedElementSize
-        : dataOffset;
+                                  ? dataOffset + (accessor.count - 1) * static_cast<size_t>(byteStride) + packedElementSize
+                                  : dataOffset;
     if (requiredSize > buffer.data.size()) {
         throw std::runtime_error("glTF vertex accessor exceeds its source buffer");
     }
@@ -997,10 +997,12 @@ scene::TechniquePtr loadMaterialFromCache(
 void loadMeshFromCache(
     const std::filesystem::path& cachePath,
     std::string_view parentName,
+    std::string_view nodePrefix,
     graph::SceneGraph& sg,
     std::vector<std::pair<std::string, scene::Texture>>& textures,
     rhi::CommandBufferPtr cmdBuffer,
-    rhi::DevicePtr device) {
+    rhi::DevicePtr device,
+    std::vector<std::string>& loadedNodes) {
     const auto& meshCachePath = cachePath / "mesh";
     if (!std::filesystem::exists(meshCachePath)) {
         throw std::runtime_error("glTF mesh cache was not found: " + meshCachePath.string());
@@ -1012,14 +1014,16 @@ void loadMeshFromCache(
         }
 
         const auto meshName = entry.path().stem().string();
+        const auto nodeName = std::string{nodePrefix} + meshName;
         std::filesystem::path resPath = cachePath / "mesh" / meshName;
         resPath.replace_extension(".mesh");
         MeshCache cachedMesh;
         InputArchive archive(resPath);
         archive >> cachedMesh;
 
-        auto& modelNode = sg.addModel(meshName, parentName);
-        auto& sceneNode = sg.get(meshName);
+        auto& modelNode = sg.addModel(nodeName, parentName);
+        auto& sceneNode = sg.get(nodeName);
+        loadedNodes.emplace_back(nodeName);
 
         applyNodeTransform(cachedMesh.worldTransform, sceneNode);
 
@@ -1127,18 +1131,27 @@ void loadMeshFromCache(
 }
 
 // TODO: hierarchy
-void loadSceneFromCache(const std::filesystem::path& cachePath,
-                        graph::SceneGraph& sg,
-                        rhi::CommandBufferPtr cmdBuffer,
-                        rhi::DevicePtr device) {
-    auto& root = sg.addEmpty("Scene");
+std::vector<std::string> loadSceneFromCache(const std::filesystem::path& cachePath,
+                                            graph::SceneGraph& sg,
+                                            rhi::CommandBufferPtr cmdBuffer,
+                                            rhi::DevicePtr device,
+                                            std::string_view scope) {
+    const auto nodePrefix = scope.empty() ? std::string{} : std::string{scope} + "/";
+    const auto rootName = nodePrefix + "Scene";
+    sg.addEmpty(rootName);
+    std::vector<std::string> loadedNodes{rootName};
     std::vector<std::pair<std::string, scene::Texture>> textures;
     loadTexturesFromCache(cachePath, textures, device, cmdBuffer);
 
-    loadMeshFromCache(cachePath, "Scene", sg, textures, cmdBuffer, device);
+    loadMeshFromCache(cachePath, rootName, nodePrefix, sg, textures, cmdBuffer, device, loadedNodes);
+    return loadedNodes;
 }
 
-void loadFromCache(graph::SceneGraph& sg, const std::filesystem::path& cachePath, rhi::DevicePtr device) {
+std::vector<std::string> loadFromCache(
+    graph::SceneGraph& sg,
+    const std::filesystem::path& cachePath,
+    rhi::DevicePtr device,
+    std::string_view scope = {}) {
     const auto graphicsQueueIndex = device->getQueue({rhi::QueueType::GRAPHICS})->index();
     auto commandPool = rhi::CommandPoolPtr(device->createCoomandPool({graphicsQueueIndex}));
     auto commandBuffer = rhi::CommandBufferPtr(commandPool->makeCommandBuffer({}));
@@ -1146,7 +1159,7 @@ void loadFromCache(graph::SceneGraph& sg, const std::filesystem::path& cachePath
     commandBuffer->enqueue(queue);
     commandBuffer->begin({});
 
-    loadSceneFromCache(cachePath, sg, commandBuffer, device);
+    auto loadedNodes = loadSceneFromCache(cachePath, sg, commandBuffer, device, scope);
 
     commandBuffer->commit();
 
@@ -1155,6 +1168,7 @@ void loadFromCache(graph::SceneGraph& sg, const std::filesystem::path& cachePath
         commandPool.reset();
     });
     queue->submit(false);
+    return loadedNodes;
 }
 
 void load(graph::SceneGraph& sg, const std::filesystem::path& filePath, rhi::DevicePtr device) {
@@ -1168,6 +1182,26 @@ void load(graph::SceneGraph& sg, const std::filesystem::path& filePath, rhi::Dev
     }
     raum_expect(std::filesystem::exists(cachePath), "Failed to store cache file");
     loadFromCache(sg, cachePath, device);
+}
+
+std::vector<std::string> loadScoped(
+    graph::SceneGraph& sg,
+    const std::filesystem::path& filePath,
+    std::string_view scope,
+    rhi::DevicePtr device) {
+    if (scope.empty()) {
+        throw std::invalid_argument("A scoped scene load requires a non-empty scope");
+    }
+    const auto cachePath = raum::utils::resourceDirectory() / "cache" / filePath.stem();
+    if (!cacheIsCurrent(cachePath, filePath)) {
+        if (std::filesystem::exists(cachePath)) {
+            std::filesystem::remove_all(cachePath);
+        }
+        graph::SceneGraph offlineScene;
+        assetPreprocess(offlineScene, filePath);
+    }
+    raum_expect(std::filesystem::exists(cachePath), "Failed to store cache file");
+    return loadFromCache(sg, cachePath, device, scope);
 }
 
 void load(graph::SceneGraph& sg, const std::filesystem::path& filePath, std::string_view sceneName, rhi::DevicePtr device) {
