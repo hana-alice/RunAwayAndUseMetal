@@ -1,8 +1,9 @@
 #pragma once
-#include "Node.h"
+
 #include "Camera.h"
-#include "core/utils/Archive.h"
 #include "Light.h"
+#include "Node.h"
+#include "core/utils/Archive.h"
 
 #if defined(_WIN32)
     // minwindef.h
@@ -14,161 +15,133 @@
     #endif
 #endif
 
+namespace raum::scene {
+
+template <class Archive>
+void serialize(Archive& archive, PerspectiveFrustum& frustum) {
+    archive(frustum.fov, frustum.aspect, frustum.near, frustum.far);
+}
+
+template <class Archive>
+void serialize(Archive& archive, OrthoFrustum& frustum) {
+    archive(frustum.left, frustum.right, frustum.bottom, frustum.top, frustum.near, frustum.far);
+}
+
+struct CameraArchiveState {
+    Projection projection{Projection::PERSPECTIVE};
+    PerspectiveFrustum perspectiveFrustum;
+    OrthoFrustum orthoFrustum;
+    Vec3f position{0.0f};
+    Quaternion orientation{};
+    bool cullingEnabled{true};
+
+    template <class Archive>
+    void serialize(Archive& archive) {
+        archive(projection,
+                perspectiveFrustum,
+                orthoFrustum,
+                position,
+                orientation,
+                cullingEnabled);
+    }
+};
+
+struct NodeArchiveState {
+    bool enabled{true};
+    Mat4 transform{1.0f};
+
+    template <class Archive>
+    void serialize(Archive& archive) {
+        archive(enabled, transform);
+    }
+};
+
+inline CameraArchiveState cameraArchiveState(const Camera& camera) {
+    const auto& eye = camera.eye();
+    return CameraArchiveState{
+        .projection = eye.projectionType(),
+        .perspectiveFrustum = eye.getPerspectiveFrustum(),
+        .orthoFrustum = eye.getOrthoFrustum(),
+        .position = eye.getPosition(),
+        .orientation = eye.getOrientation(),
+        .cullingEnabled = camera.cullingEnabled(),
+    };
+}
+
+inline void applyCameraArchiveState(Camera& camera, const CameraArchiveState& state) {
+    auto& eye = camera.eye();
+    eye.setPosition(state.position);
+    eye.setOrientation(state.orientation);
+    eye.update();
+    state.cullingEnabled ? camera.enableCulling() : camera.disableCulling();
+    camera.update();
+}
+
+inline NodeArchiveState nodeArchiveState(const Node& node) {
+    return NodeArchiveState{
+        .enabled = node.enabled(),
+        .transform = node.transform(),
+    };
+}
+
+inline void applyNodeArchiveState(Node& node, const NodeArchiveState& state) {
+    state.enabled ? node.enable() : node.disable();
+    node.setTransform(state.transform);
+}
+
+template <class Archive>
+void save(Archive& archive, const Node& node) {
+    auto state = nodeArchiveState(node);
+    archive(state);
+}
+
+template <class Archive>
+void load(Archive& archive, Node& node) {
+    NodeArchiveState state;
+    archive(state);
+    applyNodeArchiveState(node, state);
+}
+
+template <class Archive>
+void save(Archive& archive, const Camera& camera) {
+    auto state = cameraArchiveState(camera);
+    archive(state);
+}
+
+template <class Archive>
+void serialize(Archive& archive, AABB& bounds) {
+    archive(bounds.minBound, bounds.maxBound);
+}
+
+template <class Archive>
+void serialize(Archive& archive, Model& model) {
+    // GPU-backed mesh renderers are rebuilt by the asset cache loader.
+    archive(model.aabb());
+}
+
+template <class Archive>
+void serialize(Archive&, Light&) {
+    // Light currently has no persistent state.
+}
+
+} // namespace raum::scene
+
 namespace cereal {
 
 template <>
 struct LoadAndConstruct<raum::scene::Camera> {
     template <class Archive>
-    static void load_and_construct(Archive& ar, cereal::construct<raum::scene::Camera>& camera) {
-        raum::scene::Projection projection;
-        raum::scene::PerspectiveFrustum perspectiveFrustum;
-        raum::scene::OrthoFrustum orthoFrustum;
-        ar(perspectiveFrustum);
-        ar(orthoFrustum);
+    static void load_and_construct(Archive& archive, cereal::construct<raum::scene::Camera>& camera) {
+        raum::scene::CameraArchiveState state;
+        archive(state);
 
-        if (projection == raum::scene::Projection::PERSPECTIVE) {
-            camera(perspectiveFrustum);
+        if (state.projection == raum::scene::Projection::PERSPECTIVE) {
+            camera(state.perspectiveFrustum);
         } else {
-            camera(orthoFrustum);
+            camera(state.orthoFrustum);
         }
-        auto& eye = camera->eye();
-        raum::Vec3f eyePosition;
-        raum::Vec3f eyeUp;
-        raum::Quaternion eyeOrientation;
-        ar(eyePosition, eyeUp, eyeOrientation);
-        eye.setPosition(eyePosition);
-        eye.setOrientation(eyeOrientation);
-        eye.update();
+        raum::scene::applyCameraArchiveState(*camera.ptr(), state);
     }
 };
-}
 
-namespace raum::scene {
-
-template <class Archive>
-void serialize(Archive& ar, Node& node) {
-    bool enable{false};
-    ar(enable);
-
-    Mat4 transform;
-    ar(transform);
-
-    enable ? node.enable() : node.disable();
-    node.setTransform(transform);
-}
-
-template <class Archive>
-void serialize(Archive& ar, utils::Degree& degree) {
-    ar(degree.value);
-}
-
-template <class Archive>
-void serialize(Archive& ar, PerspectiveFrustum& frustum) {
-    ar(frustum.fov);
-    ar(frustum.aspect);
-    ar(frustum.near);
-    ar(frustum.far);
-}
-
-template <class Archive>
-void serialize(Archive& ar, OrthoFrustum& frustum) {
-    ar(frustum.left);
-    ar(frustum.right);
-    ar(frustum.bottom);
-    ar(frustum.top);
-    ar(frustum.near);
-    ar(frustum.far);
-}
-
-template <class Archive>
-void save(Archive& ar, const Camera& camera) {
-    const auto& eye = camera.eye();
-    ar(eye.projection());
-    ar(eye.getPerspectiveFrustum());
-    ar(eye.getOrthoFrustum());
-    ar(eye.getPosition());
-    ar(eye.up());
-    ar(eye.getOrientation());
-}
-
-//
-// template <class Archive>
-// void save(Archive& ar, const CameraPtr& camera) {
-//     save(ar, *camera);
-// }
-//
-// template <class Archive>
-// void save(Archive& ar, CameraPtr& camera) {
-//     save(ar, *camera);
-// }
-//
-// template <class Archive>
-// void save(Archive& ar, CameraPtr camera) {
-//     save(ar, *camera);
-// }
-//
-// template <class Archive>
-// void load(Archive& ar, CameraPtr& camera) {
-//     Projection projection;
-//
-//     ar(projection);
-//     PerspectiveFrustum perspectiveFrustum;
-//     OrthoFrustum orthoFrustum;
-//     ar(perspectiveFrustum);
-//     ar(orthoFrustum);
-//
-//     if (projection == Projection::PERSPECTIVE) {
-//         camera = std::make_shared<Camera>(perspectiveFrustum);
-//     } else {
-//         camera = std::make_shared<Camera>(orthoFrustum);
-//     }
-//     auto& eye = camera->eye();
-//     Vec3f eyePosition;
-//     Vec3f eyeUp;
-//     Quaternion eyeOrientation;
-//     ar(eyePosition, eyeUp, eyeOrientation);
-//     eye.setPosition(eyePosition);
-//     eye.setOrientation(eyeOrientation);
-//     eye.update();
-// }
-
-template <class Archive>
-void serialize(Archive& ar, raum::scene::AABB& aabb) {
-    ar(aabb.minBound, aabb.maxBound);
-}
-
-template <class Archive>
-void serialize(Archive& ar, ModelPtr& model) {
-    ar(*model);
-}
-
-template <class Archive>
-void serialize(Archive& ar, ModelPtr model) {
-    ar(*model);
-}
-
-template <class Archive>
-void serialize(Archive& ar, Model& model) {
-    // serialized when loading gltf
-    // ar(model.meshRenderers());
-    ar(model.aabb());
-}
-
-template <class Archive>
-void serialize(Archive& ar, LightPtr& light) {
-    ar(*light);
-}
-
-template <class Archive>
-void serialize(Archive& ar, LightPtr light) {
-    ar(*light);
-}
-
-template <class Archive>
-void serialize(Archive& ar, Light& light) {
-    raum_error("not implemented");
-    // ar(light.color());
-}
-
-
-} // namespace scene
+} // namespace cereal

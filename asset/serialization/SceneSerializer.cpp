@@ -1,4 +1,6 @@
 #include "SceneSerializer.h"
+#include "SceneCache.h"
+#include <array>
 #include <cstring>
 #include <functional>
 #include <numeric>
@@ -31,32 +33,30 @@ using OutputArchive = utils::OutputArchive;
 using InputArchive = utils::InputArchive;
 
 namespace {
-constexpr uint32_t SceneCacheVersion{3};
-constexpr std::string_view SceneCacheMetadata{".raum-cache"};
-
 int64_t sourceTimestamp(const std::filesystem::path& filePath) {
     return std::filesystem::last_write_time(filePath).time_since_epoch().count();
 }
 
 bool cacheIsCurrent(const std::filesystem::path& cachePath, const std::filesystem::path& sourcePath) {
-    const auto metadataPath = cachePath / SceneCacheMetadata;
+    const auto metadataPath = cachePath / SceneCacheMetadataFile;
     if (!std::filesystem::exists(metadataPath)) {
         return false;
     }
 
-    InputArchive archive(metadataPath);
-    uint32_t version{0};
-    int64_t timestamp{0};
-    archive >> version;
-    archive >> timestamp;
-    return version == SceneCacheVersion && timestamp == sourceTimestamp(sourcePath);
+    SceneCacheMetadata metadata;
+    try {
+        InputArchive archive(metadataPath);
+        archive >> metadata;
+    } catch (const std::exception&) {
+        return false;
+    }
+    return metadata.version == SceneCacheVersion && metadata.sourceTimestamp == sourceTimestamp(sourcePath);
 }
 
 void writeCacheMetadata(const std::filesystem::path& cachePath, const std::filesystem::path& sourcePath) {
     std::filesystem::create_directories(cachePath);
-    OutputArchive archive(cachePath / SceneCacheMetadata);
-    archive << SceneCacheVersion;
-    archive << sourceTimestamp(sourcePath);
+    OutputArchive archive(cachePath / SceneCacheMetadataFile);
+    archive << SceneCacheMetadata{SceneCacheVersion, sourceTimestamp(sourcePath)};
 }
 
 Mat4 nodeLocalTransform(const tinygltf::Node& node) {
@@ -290,15 +290,36 @@ void texturePreprocess(const std::filesystem::path& cachePath,
 
         auto imgPath = texCachePath / resName;
         imgPath.replace_extension(".bin");
-        OutputArchive ar(imgPath);
-        ar << res.width;
-        ar << res.height;
-        ar << res.image;
-
         if (res.bits != 8 || res.component != 4) {
             throw std::runtime_error("Only 8-bit RGBA glTF images are supported");
         }
+
+        TextureCache cachedTexture{
+            .width = static_cast<uint32_t>(res.width),
+            .height = static_cast<uint32_t>(res.height),
+            .pixels = res.image,
+        };
+        OutputArchive archive(imgPath);
+        archive << cachedTexture;
     }
+}
+
+template <typename TextureInfo>
+MaterialTextureCache makeMaterialTextureCache(
+    const TextureInfo& textureInfo,
+    const std::vector<tinygltf::Texture>& textures) {
+    MaterialTextureCache cachedTexture{
+        .textureIndex = textureInfo.index,
+        .uvIndex = textureInfo.index >= 0 ? textureInfo.texCoord : -1,
+    };
+    if (!cachedTexture.enabled()) {
+        return cachedTexture;
+    }
+    if (textureInfo.index >= static_cast<int32_t>(textures.size())) {
+        throw std::runtime_error("glTF material refers to an invalid texture");
+    }
+    cachedTexture.imageIndex = textures[textureInfo.index].source;
+    return cachedTexture;
 }
 
 void materialPreprocess(
@@ -312,97 +333,36 @@ void materialPreprocess(
     }
     const auto& res = index >= 0 ? rawModel.materials[index] : defaultMaterial;
 
-    const auto& ef = res.emissiveFactor;
-    raum_check(ef.size() == 3, "Unexpected emissive factor components!");
-
-    std::vector<float> mrno(12); // metallic, roughness, normalscale, occlusionscale
-
     const auto& pmr = res.pbrMetallicRoughness;
     const auto& bcf = pmr.baseColorFactor;
-
-    // glTF spec: all factors are always present regardless of texture existence
-    mrno[0] = bcf[0];
-    mrno[1] = bcf[1];
-    mrno[2] = bcf[2];
-    mrno[3] = bcf[3];
-
-    mrno[4] = ef[0];
-    mrno[5] = ef[1];
-    mrno[6] = ef[2];
-    mrno[7] = 1.0f;
-
-    mrno[8]  = pmr.metallicFactor;
-    mrno[9]  = pmr.roughnessFactor;
-    mrno[10] = 1.0f; // normalScale default
-    mrno[11] = 1.0f; // occlusionStrength default
-
-    const auto& bc = pmr.baseColorTexture;
-    int bcSourceIndex{0};
-    int bcuvIndex{-1};
-    if (bc.index != -1) {
-        bcSourceIndex = rawTextures[bc.index].source;
-        bcuvIndex = pmr.baseColorTexture.texCoord;
+    const auto& ef = res.emissiveFactor;
+    if (bcf.size() != 4 || ef.size() != 3) {
+        throw std::runtime_error("glTF material factors have unexpected component counts");
     }
 
-    const auto& mr = pmr.metallicRoughnessTexture;
-    int mrSourceIndex{0};
-    int mruvIndex{-1};
-    if (mr.index != -1) {
-        mrSourceIndex = rawTextures[mr.index].source;
-        mruvIndex = pmr.metallicRoughnessTexture.texCoord;
-    }
-
-    const auto& nt = res.normalTexture;
-    int ntSourceIndex{0};
-    int ntuIndex{-1};
-    if (nt.index != -1) {
-        mrno[10] = nt.scale;
-        ntSourceIndex = rawTextures[nt.index].source;
-        ntuIndex = nt.texCoord;
-    }
-
-    const auto& ot = res.occlusionTexture;
-    int otSourceIndex{0};
-    int otuvIndex{-1};
-    if (ot.index != -1) {
-        mrno[11] = ot.strength;
-        otSourceIndex = rawTextures[ot.index].source;
-        otuvIndex = ot.texCoord;
-    }
-
-    const auto& et = res.emissiveTexture;
-    int etSourceIndex{0};
-    int etuvIndex{-1};
-    if (et.index != -1) {
-        etSourceIndex = rawTextures[et.index].source;
-        etuvIndex = et.texCoord;
-    }
+    MaterialCache cachedMaterial;
+    cachedMaterial.alphaMode = res.alphaMode;
+    cachedMaterial.doubleSided = res.doubleSided;
+    cachedMaterial.alphaCutoff = res.alphaCutoff;
+    cachedMaterial.baseColorFactor = Vec4f{bcf[0], bcf[1], bcf[2], bcf[3]};
+    cachedMaterial.emissiveFactor = Vec3f{ef[0], ef[1], ef[2]};
+    cachedMaterial.metallicFactor = static_cast<float>(pmr.metallicFactor);
+    cachedMaterial.roughnessFactor = static_cast<float>(pmr.roughnessFactor);
+    cachedMaterial.normalScale = static_cast<float>(res.normalTexture.scale);
+    cachedMaterial.occlusionStrength = static_cast<float>(res.occlusionTexture.strength);
+    cachedMaterial.baseColorTexture = makeMaterialTextureCache(pmr.baseColorTexture, rawTextures);
+    cachedMaterial.metallicRoughnessTexture = makeMaterialTextureCache(pmr.metallicRoughnessTexture, rawTextures);
+    cachedMaterial.normalTexture = makeMaterialTextureCache(res.normalTexture, rawTextures);
+    cachedMaterial.occlusionTexture = makeMaterialTextureCache(res.occlusionTexture, rawTextures);
+    cachedMaterial.emissiveTexture = makeMaterialTextureCache(res.emissiveTexture, rawTextures);
 
     auto matCachePath = cachePath / "material" / std::to_string(index);
     matCachePath.replace_extension(".mat");
     if (!std::filesystem::exists(matCachePath.parent_path())) {
         std::filesystem::create_directories(matCachePath.parent_path());
     }
-    OutputArchive ar(matCachePath);
-    ar << res.alphaMode;
-    ar << res.doubleSided;
-    ar << res.alphaCutoff;
-    ar << res.pbrMetallicRoughness.baseColorTexture.index;
-    ar << res.pbrMetallicRoughness.metallicRoughnessTexture.index;
-    ar << res.normalTexture.index;
-    ar << res.occlusionTexture.index;
-    ar << res.emissiveTexture.index;
-    ar << mrno;
-    ar << bcSourceIndex;
-    ar << bcuvIndex;
-    ar << mrSourceIndex;
-    ar << mruvIndex;
-    ar << ntSourceIndex;
-    ar << ntuIndex;
-    ar << otSourceIndex;
-    ar << otuvIndex;
-    ar << etSourceIndex;
-    ar << etuvIndex;
+    OutputArchive archive(matCachePath);
+    archive << cachedMaterial;
 }
 
 void applyNodeTransform(const Mat4& transform, graph::SceneNode& node) {
@@ -438,9 +398,9 @@ void meshPreprocess(
     if (!std::filesystem::exists(resPath.parent_path())) {
         std::filesystem::create_directories(resPath.parent_path());
     }
-    OutputArchive ar(resPath);
-    ar << worldTransform;
-    ar << rawMesh.primitives.size();
+    MeshCache cachedMesh;
+    cachedMesh.worldTransform = worldTransform;
+    cachedMesh.primitives.reserve(rawMesh.primitives.size());
 
     // TODO: Morph.
     for (const auto& prim : rawMesh.primitives) {
@@ -677,30 +637,31 @@ void meshPreprocess(
             meshData.indexBuffer.type = rhi::IndexType::FULL;
         }
 
-        std::vector<char> indexData;
+        std::vector<uint8_t> indexData;
         if (indexBufferSource.size) {
-            const auto* serializedIndexData = static_cast<const char*>(indexBufferSource.data);
+            const auto* serializedIndexData = static_cast<const uint8_t*>(indexBufferSource.data);
             indexData.assign(serializedIndexData, serializedIndexData + indexBufferSource.size);
         }
 
         auto localMatIndex = prim.material;
         materialPreprocess(cachePath, rawModel, localMatIndex);
 
-        // vertexbuffer data
-        ar << meshData.vertexCount;
-        ar << data;
-        // indexbuffer data
-        ar << meshData.indexCount;
-        ar << meshData.indexBuffer.type;
-        ar << indexData;
-
-        ar << meshData.shaderAttrs;
-        ar << meshData.vertexLayout;
-
-        ar << localMatIndex;
-        ar << (prim.mode < 0 ? TINYGLTF_MODE_TRIANGLES : prim.mode);
-        ar << aabb;
+        cachedMesh.primitives.emplace_back(MeshPrimitiveCache{
+            .vertexCount = meshData.vertexCount,
+            .vertexData = std::move(data),
+            .indexCount = meshData.indexCount,
+            .indexType = meshData.indexBuffer.type,
+            .indexData = std::move(indexData),
+            .shaderAttributes = meshData.shaderAttrs,
+            .vertexLayout = std::move(meshData.vertexLayout),
+            .materialIndex = localMatIndex,
+            .primitiveMode = prim.mode < 0 ? TINYGLTF_MODE_TRIANGLES : prim.mode,
+            .bounds = aabb,
+        });
     }
+
+    OutputArchive archive(resPath);
+    archive << cachedMesh;
 }
 
 void loadCamera(const tinygltf::Model& rawModel,
@@ -853,7 +814,6 @@ void loadTexturesFromCache(
 
         textures.resize(files.size());
 
-        synchronized_pool_resource pool{std::pmr::get_default_resource()};
         auto& threadPool = getIOThreadPool();
         auto sched = threadPool.get_scheduler();
 
@@ -864,15 +824,28 @@ void loadTexturesFromCache(
             auto& entry = files[i];
             std::string texName = entry.filename().string();
             std::string texIndex = texName.substr(0, texName.find_last_of('.'));
-            InputArchive ar(entry);
-            PmrVector<uint8_t> imgData{&pool};
-            uint32_t width{0}, height{0};
-            ar >> width;
-            ar >> height;
-            ar >> imgData;
+            TextureCache cachedTexture;
+            InputArchive archive(entry);
+            archive >> cachedTexture;
+
+            const auto expectedPixelBytes = static_cast<uint64_t>(cachedTexture.width) *
+                                            cachedTexture.height *
+                                            rhi::getFormatSize(rhi::Format::RGBA8_UNORM);
+            if (cachedTexture.width == 0 ||
+                cachedTexture.height == 0 ||
+                expectedPixelBytes > std::numeric_limits<uint32_t>::max() ||
+                cachedTexture.pixels.size() != expectedPixelBytes) {
+                throw std::runtime_error("Cached glTF texture data has an unexpected size");
+            }
 
             std::lock_guard<std::mutex> lock(taskMutex);
-            loadTexture(texIndex, width, height, imgData.data(), device, cmdBuffer, textures);
+            loadTexture(texIndex,
+                        cachedTexture.width,
+                        cachedTexture.height,
+                        cachedTexture.pixels.data(),
+                        device,
+                        cmdBuffer,
+                        textures);
         };
 
         auto sender = stdexec::schedule(sched) | stdexec::bulk(files.size(), std::move(imgTask));
@@ -893,35 +866,23 @@ scene::TechniquePtr loadMaterialFromCache(
     rhi::DevicePtr device) {
     auto matCachePath = cachePath / "material" / std::to_string(matIndex);
     matCachePath.replace_extension(".mat");
-    InputArchive ar(matCachePath);
+    MaterialCache cachedMaterial;
+    InputArchive archive(matCachePath);
+    archive >> cachedMaterial;
 
-    std::string alphaMode{};
-    bool doubleSided{false};
-    double alphaCutoff{0.5f};
-    ar >> alphaMode;
-    ar >> doubleSided;
-    ar >> alphaCutoff;
-
-    int32_t baseColorIndex{-1}, metallicRoughnessIndex{-1}, normalIndex{-1}, occlusionIndex{-1}, emissiveIndex{-1};
-    ar >> baseColorIndex;
-    ar >> metallicRoughnessIndex;
-    ar >> normalIndex;
-    ar >> occlusionIndex;
-    ar >> emissiveIndex;
-
-    if (baseColorIndex != -1) {
+    if (cachedMaterial.baseColorTexture.enabled()) {
         matTemplate->addDefine("BASE_COLOR_MAP");
     }
-    if (metallicRoughnessIndex != -1) {
+    if (cachedMaterial.metallicRoughnessTexture.enabled()) {
         matTemplate->addDefine("MATALLIC_ROUGHNESS_MAP");
     }
-    if (normalIndex != -1) {
+    if (cachedMaterial.normalTexture.enabled()) {
         matTemplate->addDefine("NORMAL_MAP");
     }
-    if (occlusionIndex != -1) {
+    if (cachedMaterial.occlusionTexture.enabled()) {
         matTemplate->addDefine("OCCLUSION_MAP");
     }
-    if (emissiveIndex != -1) {
+    if (cachedMaterial.emissiveTexture.enabled()) {
         matTemplate->addDefine("EMISSIVE_MAP");
     }
 
@@ -937,12 +898,12 @@ scene::TechniquePtr loadMaterialFromCache(
     auto& bs = tech->blendInfo();
     bs.attachmentBlends.emplace_back();
 
-    if (alphaMode == "OPAQUE") {
+    if (cachedMaterial.alphaMode == "OPAQUE") {
         // TODO: cmake introduce <wingdi.h> cause `OPAQUE` was preprocessed by macro.
         pbrMat->setAlphaMode(scene::PBRMaterial::AlphaMode::AM_OPAQUE);
-    } else if (alphaMode == "MASK") {
+    } else if (cachedMaterial.alphaMode == "MASK") {
         pbrMat->setAlphaMode(scene::PBRMaterial::AlphaMode::AM_MASK);
-    } else if (alphaMode == "BLEND") {
+    } else if (cachedMaterial.alphaMode == "BLEND") {
         pbrMat->setAlphaMode(scene::PBRMaterial::AlphaMode::AM_BLEND);
         auto& colorBlend = bs.attachmentBlends.back();
         colorBlend.blendEnable = true;
@@ -951,81 +912,56 @@ scene::TechniquePtr loadMaterialFromCache(
         colorBlend.srcAlphaBlendFactor = rhi::BlendFactor::ONE;
         colorBlend.dstAlphaBlendFactor = rhi::BlendFactor::ZERO;
     }
-    pbrMat->setDoubleSided(doubleSided);
-    pbrMat->setAlphaCutoff(alphaCutoff);
+    pbrMat->setDoubleSided(cachedMaterial.doubleSided);
+    pbrMat->setAlphaCutoff(cachedMaterial.alphaCutoff);
+    pbrMat->setBaseColorFactor(cachedMaterial.baseColorFactor.r,
+                               cachedMaterial.baseColorFactor.g,
+                               cachedMaterial.baseColorFactor.b,
+                               cachedMaterial.baseColorFactor.a);
+    pbrMat->setEmissiveFactor(cachedMaterial.emissiveFactor.r,
+                              cachedMaterial.emissiveFactor.g,
+                              cachedMaterial.emissiveFactor.b);
+    pbrMat->setMetallicFactor(cachedMaterial.metallicFactor);
+    pbrMat->setRoughnessFactor(cachedMaterial.roughnessFactor);
+    pbrMat->setNormalScale(cachedMaterial.normalScale);
+    pbrMat->setOcclusionStrength(cachedMaterial.occlusionStrength);
 
-    std::vector<float> mrno; // metallic, roughness, normalscale, occlusionscale
-    ar >> mrno;
+    auto bindTexture = [&](const MaterialTextureCache& cachedTexture, std::string_view slot) {
+        if (!cachedTexture.enabled()) {
+            return;
+        }
+        if (cachedTexture.imageIndex < 0 || cachedTexture.imageIndex >= static_cast<int32_t>(textures.size())) {
+            throw std::runtime_error("Cached glTF material refers to an invalid image");
+        }
+        auto& texture = textures[cachedTexture.imageIndex].second;
+        texture.uvIndex = cachedTexture.uvIndex;
+        pbrMat->set(slot, texture);
+    };
+    bindTexture(cachedMaterial.baseColorTexture, "albedoMap");
+    bindTexture(cachedMaterial.metallicRoughnessTexture, "metallicRoughnessMap");
+    bindTexture(cachedMaterial.normalTexture, "normalMap");
+    bindTexture(cachedMaterial.occlusionTexture, "aoMap");
+    bindTexture(cachedMaterial.emissiveTexture, "emissiveMap");
 
-    if (mrno.size() != 12) {
-        throw std::runtime_error("Cached glTF material parameters have an unexpected size");
-    }
-    pbrMat->setBaseColorFactor(mrno[0], mrno[1], mrno[2], mrno[3]);
-    pbrMat->setEmissiveFactor(mrno[4], mrno[5], mrno[6]);
-    pbrMat->setMetallicFactor(mrno[8]);
-    pbrMat->setRoughnessFactor(mrno[9]);
-    pbrMat->setNormalScale(mrno[10]);
-    pbrMat->setOcclusionStrength(mrno[11]);
-
-    int32_t bcSourceIndex{0};
-    int32_t bcuvIndex{-1};
-    ar >> bcSourceIndex;
-    ar >> bcuvIndex;
-    if (baseColorIndex != -1) {
-        auto imageIndex = bcSourceIndex;
-        auto& baseColor = textures[imageIndex].second;
-        baseColor.uvIndex = bcuvIndex;
-        pbrMat->set("albedoMap", baseColor);
-    }
-
-    int metallicRoughnessSourceIndex{0};
-    int mruvIndex{-1};
-    ar >> metallicRoughnessSourceIndex;
-    ar >> mruvIndex;
-    if (metallicRoughnessIndex != -1) {
-        auto imageIndex = metallicRoughnessSourceIndex;
-        auto& metallicRoughness = textures[imageIndex].second;
-        metallicRoughness.uvIndex = mruvIndex;
-        pbrMat->set("metallicRoughnessMap", metallicRoughness);
-    }
-
-    int normalSourceIndex{0};
-    int normaluvIndex{-1};
-    ar >> normalSourceIndex;
-    ar >> normaluvIndex;
-    if (normalIndex != -1) {
-        auto imageIndex = normalSourceIndex;
-        auto& normal = textures[imageIndex].second;
-        normal.uvIndex = normaluvIndex;
-        pbrMat->set("normalMap", normal);
-    }
-
-    int occlusionSourceIndex{0};
-    int occlusionuvIndex{-1};
-    ar >> occlusionSourceIndex;
-    ar >> occlusionuvIndex;
-    if (occlusionIndex != -1) {
-        auto imageIndex = occlusionSourceIndex;
-        auto& occlusion = textures[imageIndex].second;
-        occlusion.uvIndex = occlusionuvIndex;
-        pbrMat->set("aoMap", occlusion);
-    }
-
-    int emissiveSourceIndex{0};
-    int emissiveuvIndex{-1};
-    ar >> emissiveSourceIndex;
-    ar >> emissiveuvIndex;
-    if (emissiveIndex != -1) {
-        auto imageIndex = emissiveSourceIndex;
-        auto& emissive = textures[imageIndex].second;
-        emissive.uvIndex = emissiveuvIndex;
-        pbrMat->set("emissiveMap", emissive);
-    }
+    const std::array materialParameters{
+        cachedMaterial.baseColorFactor.r,
+        cachedMaterial.baseColorFactor.g,
+        cachedMaterial.baseColorFactor.b,
+        cachedMaterial.baseColorFactor.a,
+        cachedMaterial.emissiveFactor.r,
+        cachedMaterial.emissiveFactor.g,
+        cachedMaterial.emissiveFactor.b,
+        1.0f,
+        cachedMaterial.metallicFactor,
+        cachedMaterial.roughnessFactor,
+        cachedMaterial.normalScale,
+        cachedMaterial.occlusionStrength,
+    };
 
     rhi::BufferSourceInfo bufferInfo{
         .bufferUsage = rhi::BufferUsage::UNIFORM | rhi::BufferUsage::TRANSFER_DST,
-        .size = static_cast<uint32_t>(mrno.size() * sizeof(float)),
-        .data = mrno.data(),
+        .size = static_cast<uint32_t>(materialParameters.size() * sizeof(float)),
+        .data = materialParameters.data(),
     };
     auto mrnoBuffer = rhi::BufferPtr(device->createBuffer(bufferInfo));
     pbrMat->set("PBRParams", scene::Buffer{mrnoBuffer});
@@ -1078,76 +1014,69 @@ void loadMeshFromCache(
         const auto meshName = entry.path().stem().string();
         std::filesystem::path resPath = cachePath / "mesh" / meshName;
         resPath.replace_extension(".mesh");
-        InputArchive ar(resPath);
-
-        if (!std::filesystem::exists(resPath.parent_path())) {
-            std::filesystem::create_directories(resPath.parent_path());
-        }
-
-        Mat4 worldTransform{1.0f};
-        ar >> worldTransform;
+        MeshCache cachedMesh;
+        InputArchive archive(resPath);
+        archive >> cachedMesh;
 
         auto& modelNode = sg.addModel(meshName, parentName);
         auto& sceneNode = sg.get(meshName);
 
-        applyNodeTransform(worldTransform, sceneNode);
+        applyNodeTransform(cachedMesh.worldTransform, sceneNode);
 
         modelNode.model = std::make_shared<scene::Model>();
         auto& model = *modelNode.model;
 
-        size_t primCount{0};
-        ar >> primCount;
-
-        for (size_t i = 0; i < primCount; i++) {
+        for (const auto& cachedPrimitive : cachedMesh.primitives) {
             auto mesh = std::make_shared<scene::Mesh>();
             auto& meshData = mesh->meshData();
-            const float* position{nullptr};
-            const float* normal{nullptr};
-            const float* uv{nullptr};
-            const float* tangent{nullptr};
-            const float* color{nullptr};
-            bool color4{true};
 
-            ar >> meshData.vertexCount;
-            std::vector<float> data;
-            ar >> data;
+            if (cachedPrimitive.vertexLayout.vertexBufferAttrs.size() != 1 ||
+                cachedPrimitive.vertexLayout.vertexBufferAttrs.front().stride % sizeof(float) != 0) {
+                throw std::runtime_error("Cached glTF vertex layout is invalid");
+            }
+            const auto vertexStride = cachedPrimitive.vertexLayout.vertexBufferAttrs.front().stride;
+            const auto expectedVertexBytes = static_cast<uint64_t>(cachedPrimitive.vertexCount) * vertexStride;
+            if (cachedPrimitive.vertexCount == 0 ||
+                expectedVertexBytes > std::numeric_limits<uint32_t>::max() ||
+                expectedVertexBytes != cachedPrimitive.vertexData.size() * sizeof(float)) {
+                throw std::runtime_error("Cached glTF vertex data has an unexpected size");
+            }
+
+            meshData.vertexCount = cachedPrimitive.vertexCount;
+            meshData.indexCount = cachedPrimitive.indexCount;
+            meshData.indexBuffer.type = cachedPrimitive.indexType;
+            meshData.shaderAttrs = cachedPrimitive.shaderAttributes;
+            meshData.vertexLayout = cachedPrimitive.vertexLayout;
+            mesh->aabb() = cachedPrimitive.bounds;
+
             rhi::BufferSourceInfo bufferSourceInfo{
                 .bufferUsage = rhi::BufferUsage::VERTEX,
-                .size = static_cast<uint32_t>(data.size() * sizeof(float)),
-                .data = data.data(),
+                .size = static_cast<uint32_t>(cachedPrimitive.vertexData.size() * sizeof(float)),
+                .data = cachedPrimitive.vertexData.data(),
             };
             meshData.vertexBuffer.buffer = rhi::BufferPtr(device->createBuffer(bufferSourceInfo));
-
-            ar >> meshData.indexCount;
-            ar >> meshData.indexBuffer.type;
-            std::vector<uint8_t> indexData;
-            ar >> indexData;
-
-            ar >> meshData.shaderAttrs;
-            ar >> meshData.vertexLayout;
 
             rhi::BufferSourceInfo indexBufferSource{
                 .bufferUsage = rhi::BufferUsage::INDEX,
             };
-            std::vector<uint16_t> u16arr;
             switch (meshData.indexBuffer.type) {
                 case rhi::IndexType::FULL: {
                     indexBufferSource.size = meshData.indexCount * sizeof(rhi::FullIndexType);
-                    indexBufferSource.data = indexData.data();
+                    indexBufferSource.data = cachedPrimitive.indexData.data();
                     break;
                 }
                 case rhi::IndexType::HALF: {
                     indexBufferSource.size = meshData.indexCount * sizeof(rhi::HalfIndexType);
-                    indexBufferSource.data = indexData.data();
+                    indexBufferSource.data = cachedPrimitive.indexData.data();
                     break;
                 }
                 default: {
-                    raum_error("wrong index type: {}", static_cast<uint8_t>(meshData.indexBuffer.type));
+                    throw std::runtime_error("Cached glTF mesh has an unsupported index type");
                 }
             }
             if (meshData.indexCount) {
                 const auto expectedIndexDataSize = indexBufferSource.size;
-                if (indexData.size() != expectedIndexDataSize) {
+                if (cachedPrimitive.indexData.size() != expectedIndexDataSize) {
                     throw std::runtime_error("Cached glTF index data has an unexpected size");
                 }
                 meshData.indexBuffer.buffer = rhi::BufferPtr(device->createBuffer(indexBufferSource));
@@ -1166,26 +1095,21 @@ void loadMeshFromCache(
             if (test(meshData.shaderAttrs, scene::ShaderAttribute::COLOR)) {
                 matTemplate->addDefine("VERTEX_COLOR");
             }
-            int32_t localMatIndex{0};
-            ar >> localMatIndex;
-            int primMode{0};
-            ar >> primMode;
-            ar >> mesh->aabb();
-
             auto tech = loadMaterialFromCache(
-                cachePath, cachePath.filename().string(), localMatIndex, textures, matTemplate, device);
-            if (primMode == TINYGLTF_MODE_TRIANGLES) {
+                cachePath, cachePath.filename().string(), cachedPrimitive.materialIndex, textures, matTemplate, device);
+            if (cachedPrimitive.primitiveMode == TINYGLTF_MODE_TRIANGLES) {
                 tech->setPrimitiveType(rhi::PrimitiveType::TRIANGLE_LIST);
-            } else if (primMode == TINYGLTF_MODE_TRIANGLE_STRIP) {
+            } else if (cachedPrimitive.primitiveMode == TINYGLTF_MODE_TRIANGLE_STRIP) {
                 tech->setPrimitiveType(rhi::PrimitiveType::TRIANGLE_STRIP);
-            } else if (primMode == TINYGLTF_MODE_POINTS) {
+            } else if (cachedPrimitive.primitiveMode == TINYGLTF_MODE_POINTS) {
                 tech->setPrimitiveType(rhi::PrimitiveType::POINT_LIST);
-            } else if (primMode == TINYGLTF_MODE_LINE) {
+            } else if (cachedPrimitive.primitiveMode == TINYGLTF_MODE_LINE) {
                 tech->setPrimitiveType(rhi::PrimitiveType::LINE_LIST);
-            } else if (primMode == TINYGLTF_MODE_LINE_STRIP) {
+            } else if (cachedPrimitive.primitiveMode == TINYGLTF_MODE_LINE_STRIP) {
                 tech->setPrimitiveType(rhi::PrimitiveType::LINE_STRIP);
             } else {
-                throw std::runtime_error("Unsupported glTF primitive mode: " + std::to_string(primMode));
+                throw std::runtime_error(
+                    "Unsupported glTF primitive mode: " + std::to_string(cachedPrimitive.primitiveMode));
             }
 
             auto meshRenderer = model.meshRenderers().emplace_back(std::make_shared<scene::MeshRenderer>(mesh));

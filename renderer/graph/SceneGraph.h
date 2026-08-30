@@ -83,7 +83,7 @@ public:
     void enable(std::string_view name);
     void disable(std::string_view name);
 
-    void reset() {};
+    void reset() { _graph.clear(); }
 
     SceneGraphImpl& impl() { return _graph; }
 

@@ -300,3 +300,14 @@ else ()
 #)
 
 endif ()
+
+include(CTest)
+if (BUILD_TESTING)
+    add_executable(raum_serialization_tests
+            tests/SerializationRoundTrip.cpp
+    )
+    target_link_libraries(raum_serialization_tests PRIVATE
+            raum_asset
+    )
+    add_test(NAME serialization_roundtrip COMMAND raum_serialization_tests)
+endif ()
