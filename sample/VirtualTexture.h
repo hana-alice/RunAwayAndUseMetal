@@ -6,8 +6,6 @@
 #include "ImageLoader.h"
 #include "PBRMaterial.h"
 #include "Pipeline.h"
-#include "RHICommandBuffer.h"
-#include "RHICommandPool.h"
 #include "RHIDevice.h"
 #include "core/utils/utils.h"
 #include "renderer/feature/VirtualTexture.h"
@@ -53,11 +51,12 @@ private:
             }
         }
 
-        prepareVirtualTexture();
+        _lastSparseSemaphore = rhi::SemaphorePtr(device()->createSemaphore());
+        _lastGraphicsSemaphore = rhi::SemaphorePtr(device()->createSemaphore());
 
         const auto& quadName = resource("quad");
         auto& quadNode = sceneGraph().addModel(quadName);
-        quadNode.model = asset::BuiltinRes::quad().model();
+        quadNode.model = asset::BuiltinRes::quad().model()->createInstance();
         trackSceneNode(quadName);
 
         auto materialTemplate = std::make_shared<scene::MaterialTemplate>("asset/layout/sparse");
@@ -153,37 +152,31 @@ private:
             .addUniformBuffer(resource("mvp"), "Mat");
     }
 
-    void prepareVirtualTexture() {
-        auto graphicsQueue = device()->getQueue({rhi::QueueType::GRAPHICS});
-        _commandPool = rhi::CommandPoolPtr(device()->createCoomandPool({graphicsQueue->index()}));
-        auto commandBuffer = rhi::CommandBufferPtr(_commandPool->makeCommandBuffer({}));
-        commandBuffer->enqueue(graphicsQueue);
-        commandBuffer->begin({});
-
-        auto sparseQueue = device()->getQueue({rhi::QueueType::SPARSE});
-        _lastSparseSemaphore = device()->createSemaphore();
-        sparseQueue->addSignal(_lastSparseSemaphore);
-        _lastGraphicsSemaphore = device()->createSemaphore();
-        _virtualTexture->prepare(commandBuffer);
-        commandBuffer->commit();
-
-        graphicsQueue->addWait(_lastSparseSemaphore);
-        graphicsQueue->submit(false);
-        commandBuffer->onComplete([commandBuffer]() mutable { commandBuffer.reset(); });
-    }
-
     void createRenderTasks() {
         _preRenderTask = framework::RenderTask{
             [this](std::chrono::milliseconds, rhi::CommandBufferPtr commandBuffer, rhi::DevicePtr taskDevice) {
                 auto sparseQueue = taskDevice->getQueue({rhi::QueueType::SPARSE});
                 auto graphicsQueue = taskDevice->getQueue({rhi::QueueType::GRAPHICS});
+
+                // Lazy sample switches happen while the renderer is already running.
+                // Record the initial sparse-image upload into the frame command
+                // buffer instead of submitting a second buffer while the frame is
+                // still being recorded.
+                if (!_virtualTexturePrepared) {
+                    sparseQueue->addSignal(_lastSparseSemaphore.get());
+                    _virtualTexture->prepare(commandBuffer);
+                    graphicsQueue->addWait(_lastSparseSemaphore.get());
+                    graphicsQueue->addSignal(_lastGraphicsSemaphore.get());
+                    _virtualTexturePrepared = true;
+                }
+
                 _virtualTexture->resetAccessCounter(commandBuffer);
                 _virtualTexture->analyze(commandBuffer);
                 if (_virtualTexture->hasRemainedTask()) {
-                    sparseQueue->addWait(_lastGraphicsSemaphore);
-                    sparseQueue->addSignal(_lastSparseSemaphore);
-                    graphicsQueue->addWait(_lastSparseSemaphore);
-                    graphicsQueue->addSignal(_lastGraphicsSemaphore);
+                    sparseQueue->addWait(_lastGraphicsSemaphore.get());
+                    sparseQueue->addSignal(_lastSparseSemaphore.get());
+                    graphicsQueue->addWait(_lastSparseSemaphore.get());
+                    graphicsQueue->addSignal(_lastGraphicsSemaphore.get());
                 }
                 _virtualTexture->update(commandBuffer);
             }};
@@ -205,9 +198,9 @@ private:
     render::VirtualTexturePtr _virtualTexture;
     framework::RenderTask _preRenderTask;
     framework::RenderTask _postRenderTask;
-    rhi::RHISemaphore* _lastGraphicsSemaphore{nullptr};
-    rhi::RHISemaphore* _lastSparseSemaphore{nullptr};
-    rhi::CommandPoolPtr _commandPool;
+    rhi::SemaphorePtr _lastGraphicsSemaphore;
+    rhi::SemaphorePtr _lastSparseSemaphore;
+    bool _virtualTexturePrepared{false};
     bool _renderTasksRegistered{false};
 };
 

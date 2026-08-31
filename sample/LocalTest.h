@@ -31,7 +31,7 @@ private:
             .position = cameraPosition,
             .yawDegrees = 180.0f,
         });
-        enableFlyCamera({.moveSpeed = 18.0f});
+        enableFlyCamera({.moveSpeed = 4.0f});
 
         {
             auto materialTemplate = std::make_shared<scene::MaterialTemplate>("asset/layout/fullscreen/rasterBlit");
@@ -52,7 +52,7 @@ private:
 
         const auto& skyboxName = resource("skybox");
         auto& skyboxNode = sceneGraph().addModel(skyboxName);
-        skyboxNode.model = asset::BuiltinRes::skybox().model();
+        skyboxNode.model = asset::BuiltinRes::skybox().model()->createInstance();
         skyboxNode.hint = graph::ModelHint::NO_CULLING;
         trackSceneNode(skyboxName);
 
@@ -75,7 +75,7 @@ private:
 
         auto uploadPass = renderGraph.addCopyPass("cameraBufferUpdate");
         uploadCamera(uploadPass);
-        uploadLight(uploadPass, Vec4f{5.0f, 5.0f, 0.0f, 1.0f});
+        uploadLight(uploadPass);
 
         auto forwardPass = renderGraph.addRenderPass("forward");
         forwardPass

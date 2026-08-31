@@ -24,8 +24,8 @@ void main () {
 #ifdef VERTEX_TANGENT
     f_tan = vec4(mat3(modelMat) * v_tangent.xyz, v_tangent.w);
 #endif
-    f_normal = (transpose(inverse(modelMat)) * vec4(v_normal, 1.0f)).xyz;
-    f_normal = normalize(f_normal);
+    mat3 normalMat = transpose(inverse(mat3(modelMat)));
+    f_normal = normalize(normalMat * v_normal);
     vec4 worldPos = modelMat * vec4(aPos.xyz, 1.0f);
     f_worldPos = (worldPos / worldPos.w).xyz;
     gl_Position =  projectMat * viewMat * modelMat * vec4(aPos.xyz, 1.0f);

@@ -19,7 +19,7 @@ struct PerspectiveCameraConfig {
 
 struct FlyCameraConfig {
     // World units per second.
-    float moveSpeed{6.0f};
+    float moveSpeed{4.0f};
     float lookSensitivity{0.1f};
     float minimumPitch{-89.9f};
     float maximumPitch{89.9f};
@@ -31,6 +31,8 @@ public:
 
     std::optional<CameraControlState> cameraControlState() const override;
     void applyCameraControlState(const CameraControlState& state) override;
+    std::optional<LightingControlState> lightingControlState() const override;
+    void applyLightingControlState(const LightingControlState& state) override;
 
 protected:
     void createPerspectiveCamera(const PerspectiveCameraConfig& config = {});
@@ -43,7 +45,7 @@ protected:
     void ensureCameraResources(bool includePosition = true);
     void ensureLightResource();
     void uploadCamera(graph::CopyPass& uploadPass, bool includePosition = true);
-    void uploadLight(graph::CopyPass& uploadPass, const Vec4f& position, const Vec4f& color = Vec4f{1.0f});
+    void uploadLight(graph::CopyPass& uploadPass);
 
     const std::string& cameraBuffer() const { return resource("camera"); }
     const std::string& cameraPositionBuffer() const { return resource("cameraPosition"); }
@@ -57,6 +59,7 @@ private:
     FlyCameraConfig _flyConfig;
     float _yawDegrees{0.0f};
     float _pitchDegrees{0.0f};
+    LightingControlState _lighting;
     bool _flyCameraEnabled{false};
     bool _dragging{false};
     framework::EventListener<framework::MouseButtonEventTag> _mouseButtonListener;

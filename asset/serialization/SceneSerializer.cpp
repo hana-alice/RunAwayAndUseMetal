@@ -1,10 +1,14 @@
 #include "SceneSerializer.h"
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstring>
 #include <functional>
 #include <numeric>
+#include <optional>
 #include <stdexcept>
+#include <unordered_map>
+#include <unordered_set>
 #include "BuiltinRes.h"
 #include "Mesh.h"
 #include "PBRMaterial.h"
@@ -191,6 +195,187 @@ const float* decodeVertexAccessor(const tinygltf::Model& model,
 }
 } // namespace
 
+namespace {
+
+struct AlphaMaskMipInfo {
+    float cutoff{0.5f};
+    bool srgbColor{true};
+};
+
+struct TextureMipUpload {
+    std::vector<uint8_t> pixels;
+    std::vector<rhi::BufferImageCopyRegion> regions;
+};
+
+float srgbToLinear(float value) {
+    return value <= 0.04045f
+               ? value / 12.92f
+               : std::pow((value + 0.055f) / 1.055f, 2.4f);
+}
+
+float linearToSrgb(float value) {
+    value = std::clamp(value, 0.0f, 1.0f);
+    return value <= 0.0031308f
+               ? value * 12.92f
+               : 1.055f * std::pow(value, 1.0f / 2.4f) - 0.055f;
+}
+
+float alphaCoverage(const std::vector<uint8_t>& pixels, float cutoff, float scale = 1.0f) {
+    if (pixels.empty()) {
+        return 0.0f;
+    }
+    const auto alphaCutoff = cutoff * 255.0f;
+    size_t covered{0};
+    for (size_t i = 3; i < pixels.size(); i += 4) {
+        covered += std::min(static_cast<float>(pixels[i]) * scale, 255.0f) >= alphaCutoff;
+    }
+    return static_cast<float>(covered) / static_cast<float>(pixels.size() / 4);
+}
+
+void preserveAlphaCoverage(std::vector<uint8_t>& pixels, float cutoff, float targetCoverage) {
+    if (pixels.empty() || targetCoverage <= 0.0f) {
+        return;
+    }
+
+    float low = 0.0f;
+    float high = 8.0f;
+    for (uint32_t iteration = 0; iteration < 16; ++iteration) {
+        const float scale = (low + high) * 0.5f;
+        if (alphaCoverage(pixels, cutoff, scale) < targetCoverage) {
+            low = scale;
+        } else {
+            high = scale;
+        }
+    }
+
+    const float lowError = std::abs(alphaCoverage(pixels, cutoff, low) - targetCoverage);
+    const float highError = std::abs(alphaCoverage(pixels, cutoff, high) - targetCoverage);
+    const float scale = lowError < highError ? low : high;
+    for (size_t i = 3; i < pixels.size(); i += 4) {
+        pixels[i] = static_cast<uint8_t>(std::clamp(
+            std::round(static_cast<float>(pixels[i]) * scale), 0.0f, 255.0f));
+    }
+}
+
+TextureMipUpload generateAlphaMaskMipChain(
+    uint32_t width,
+    uint32_t height,
+    const uint8_t* data,
+    uint32_t mipCount,
+    const AlphaMaskMipInfo& info) {
+    TextureMipUpload upload;
+    std::vector<uint8_t> previous(data, data + static_cast<size_t>(width) * height * 4);
+    const float targetCoverage = alphaCoverage(previous, info.cutoff);
+    uint32_t mipWidth = width;
+    uint32_t mipHeight = height;
+
+    for (uint32_t mip = 0; mip < mipCount; ++mip) {
+        const auto offset = static_cast<uint32_t>(upload.pixels.size());
+        upload.pixels.insert(upload.pixels.end(), previous.begin(), previous.end());
+        upload.regions.emplace_back(rhi::BufferImageCopyRegion{
+            .bufferSize = static_cast<uint32_t>(previous.size()),
+            .bufferOffset = offset,
+            .bufferRowLength = 0,
+            .bufferImageHeight = 0,
+            .imageAspect = rhi::AspectMask::COLOR,
+            .baseMip = mip,
+            .imageExtent = {mipWidth, mipHeight, 1},
+        });
+
+        if (mip + 1 == mipCount) {
+            break;
+        }
+
+        const uint32_t nextWidth = std::max(1U, mipWidth / 2);
+        const uint32_t nextHeight = std::max(1U, mipHeight / 2);
+        std::vector<uint8_t> next(static_cast<size_t>(nextWidth) * nextHeight * 4);
+        for (uint32_t y = 0; y < nextHeight; ++y) {
+            for (uint32_t x = 0; x < nextWidth; ++x) {
+                const uint32_t beginX = x * mipWidth / nextWidth;
+                const uint32_t endX = std::max(beginX + 1, (x + 1) * mipWidth / nextWidth);
+                const uint32_t beginY = y * mipHeight / nextHeight;
+                const uint32_t endY = std::max(beginY + 1, (y + 1) * mipHeight / nextHeight);
+                float channels[4]{};
+                uint32_t samples{0};
+                for (uint32_t sourceY = beginY; sourceY < endY; ++sourceY) {
+                    for (uint32_t sourceX = beginX; sourceX < endX; ++sourceX) {
+                        const size_t source = (static_cast<size_t>(sourceY) * mipWidth + sourceX) * 4;
+                        for (uint32_t channel = 0; channel < 3; ++channel) {
+                            const float value = static_cast<float>(previous[source + channel]) / 255.0f;
+                            channels[channel] += info.srgbColor ? srgbToLinear(value) : value;
+                        }
+                        channels[3] += static_cast<float>(previous[source + 3]) / 255.0f;
+                        ++samples;
+                    }
+                }
+                const size_t destination = (static_cast<size_t>(y) * nextWidth + x) * 4;
+                for (uint32_t channel = 0; channel < 3; ++channel) {
+                    float value = channels[channel] / static_cast<float>(samples);
+                    if (info.srgbColor) {
+                        value = linearToSrgb(value);
+                    }
+                    next[destination + channel] = static_cast<uint8_t>(
+                        std::clamp(std::round(value * 255.0f), 0.0f, 255.0f));
+                }
+                next[destination + 3] = static_cast<uint8_t>(std::clamp(
+                    std::round(channels[3] / static_cast<float>(samples) * 255.0f),
+                    0.0f,
+                    255.0f));
+            }
+        }
+
+        preserveAlphaCoverage(next, info.cutoff, targetCoverage);
+        previous = std::move(next);
+        mipWidth = nextWidth;
+        mipHeight = nextHeight;
+    }
+    return upload;
+}
+
+std::unordered_map<int32_t, AlphaMaskMipInfo> collectAlphaMaskMipInfo(
+    const std::filesystem::path& cachePath) {
+    std::unordered_map<int32_t, AlphaMaskMipInfo> alphaMasks;
+    std::unordered_set<int32_t> dataImages;
+    const auto materialPath = cachePath / "material";
+    if (!std::filesystem::exists(materialPath)) {
+        return alphaMasks;
+    }
+
+    for (const auto& entry : std::filesystem::directory_iterator(materialPath)) {
+        if (!entry.is_regular_file() || entry.path().extension() != ".mat") {
+            continue;
+        }
+        MaterialCache material;
+        InputArchive archive(entry.path());
+        archive >> material;
+
+        for (const auto* texture : {
+                 &material.metallicRoughnessTexture,
+                 &material.normalTexture,
+                 &material.occlusionTexture}) {
+            if (texture->enabled()) {
+                dataImages.emplace(texture->imageIndex);
+            }
+        }
+        if (material.alphaMode == "MASK" && material.baseColorTexture.enabled()) {
+            const float factorAlpha = material.baseColorFactor.a;
+            const float textureCutoff = factorAlpha > 0.0f
+                                            ? static_cast<float>(material.alphaCutoff) / factorAlpha
+                                            : 1.0f;
+            alphaMasks.try_emplace(
+                material.baseColorTexture.imageIndex,
+                AlphaMaskMipInfo{.cutoff = std::clamp(textureCutoff, 0.0f, 1.0f)});
+        }
+    }
+
+    for (auto& [imageIndex, info] : alphaMasks) {
+        info.srgbColor = !dataImages.contains(imageIndex);
+    }
+    return alphaMasks;
+}
+
+} // namespace
+
 void loadTexture(
     std::string_view name,
     uint32_t width,
@@ -198,14 +383,24 @@ void loadTexture(
     const uint8_t* data,
     rhi::DevicePtr device,
     rhi::CommandBufferPtr cmdBuffer,
-    std::vector<std::pair<std::string, scene::Texture>>& textures) {
+    std::vector<std::pair<std::string, scene::Texture>>& textures,
+    std::optional<AlphaMaskMipInfo> alphaMaskMipInfo = std::nullopt) {
     rhi::ImageInfo info{};
     info.extent = {width, height, 1};
     info.usage = rhi::ImageUsage::TRANSFER_DST | rhi::ImageUsage::SAMPLED | rhi::ImageUsage::TRANSFER_SRC;
 
     info.format = rhi::Format::RGBA8_UNORM;
-    info.mipCount = std::floor(std::log2(std::min(width, height))) + 1;
+    info.mipCount = std::floor(std::log2(std::max(width, height))) + 1;
     auto img = rhi::ImagePtr(device->createImage(info));
+
+    std::optional<TextureMipUpload> alphaMaskUpload;
+    if (alphaMaskMipInfo) {
+        alphaMaskUpload = generateAlphaMaskMipChain(
+            width, height, data, info.mipCount, *alphaMaskMipInfo);
+        if (alphaMaskUpload->pixels.size() > std::numeric_limits<uint32_t>::max()) {
+            throw std::runtime_error("Alpha-mask texture mip chain is too large to upload");
+        }
+    }
 
     rhi::ImageBarrierInfo barrierInfo{
         .image = img.get(),
@@ -215,17 +410,19 @@ void loadTexture(
         .range = {
             .aspect = rhi::AspectMask::COLOR,
             .sliceCount = 1,
-            .mipCount = 1,
+            .mipCount = alphaMaskUpload ? info.mipCount : 1,
         },
     };
     cmdBuffer->appendImageBarrier(barrierInfo);
     cmdBuffer->applyBarrier({});
 
-    auto bufferSize = width * height * rhi::getFormatSize(info.format);
+    const auto bufferSize = alphaMaskUpload
+                                ? static_cast<uint32_t>(alphaMaskUpload->pixels.size())
+                                : width * height * rhi::getFormatSize(info.format);
     rhi::BufferSourceInfo bufferInfo{
         .bufferUsage = rhi::BufferUsage::TRANSFER_SRC,
         .size = bufferSize,
-        .data = data,
+        .data = alphaMaskUpload ? alphaMaskUpload->pixels.data() : data,
     };
     auto stagingBuffer = rhi::BufferPtr(device->createBuffer(bufferInfo));
     rhi::BufferImageCopyRegion region{
@@ -241,18 +438,29 @@ void loadTexture(
         },
     };
     auto blitEncoder = rhi::BlitEncoderPtr(cmdBuffer->makeBlitEncoder());
-    blitEncoder->copyBufferToImage(stagingBuffer.get(),
-                                   img.get(),
-                                   rhi::ImageLayout::TRANSFER_DST_OPTIMAL,
-                                   &region,
-                                   1);
-
-    rhi::generateMipmaps(img, rhi::ImageLayout::TRANSFER_DST_OPTIMAL, cmdBuffer, device);
+    if (alphaMaskUpload) {
+        blitEncoder->copyBufferToImage(stagingBuffer.get(),
+                                       img.get(),
+                                       rhi::ImageLayout::TRANSFER_DST_OPTIMAL,
+                                       alphaMaskUpload->regions.data(),
+                                       static_cast<uint32_t>(alphaMaskUpload->regions.size()));
+    } else {
+        blitEncoder->copyBufferToImage(stagingBuffer.get(),
+                                       img.get(),
+                                       rhi::ImageLayout::TRANSFER_DST_OPTIMAL,
+                                       &region,
+                                       1);
+        rhi::generateMipmaps(img, rhi::ImageLayout::TRANSFER_DST_OPTIMAL, cmdBuffer, device);
+    }
 
     // genmipmap turn image layout to TRANSFER_SRC_OPTIMAL, if mipcount > 1
-    barrierInfo.oldLayout = info.mipCount > 1 ? rhi::ImageLayout::TRANSFER_SRC_OPTIMAL : rhi::ImageLayout::TRANSFER_DST_OPTIMAL;
+    barrierInfo.oldLayout = alphaMaskUpload || info.mipCount == 1
+                                ? rhi::ImageLayout::TRANSFER_DST_OPTIMAL
+                                : rhi::ImageLayout::TRANSFER_SRC_OPTIMAL;
     barrierInfo.newLayout = rhi::ImageLayout::SHADER_READ_ONLY_OPTIMAL;
-    barrierInfo.srcAccessFlag = rhi::AccessFlags::TRANSFER_READ | rhi::AccessFlags::TRANSFER_WRITE;
+    barrierInfo.srcAccessFlag = alphaMaskUpload
+                                    ? rhi::AccessFlags::TRANSFER_WRITE
+                                    : rhi::AccessFlags::TRANSFER_READ | rhi::AccessFlags::TRANSFER_WRITE;
     barrierInfo.dstAccessFlag = rhi::AccessFlags::SHADER_READ;
     barrierInfo.srcStage = rhi::PipelineStage::TRANSFER;
     barrierInfo.dstStage = rhi::PipelineStage::VERTEX_SHADER | rhi::PipelineStage::FRAGMENT_SHADER;
@@ -806,6 +1014,7 @@ void loadTexturesFromCache(
     rhi::CommandBufferPtr cmdBuffer,
     const ProgressCallback& progress) {
     const auto texCachePath = cachePath / "textures";
+    const auto alphaMaskMipInfo = collectAlphaMaskMipInfo(cachePath);
     // raum_check(std::filesystem::exists(texCachePath), "textures cache not found: %s", texCachePath.string());
     if (std::filesystem::exists(texCachePath)) {
         std::vector<std::filesystem::path> files;
@@ -838,6 +1047,7 @@ void loadTexturesFromCache(
             auto& entry = files[i];
             std::string texName = entry.filename().string();
             std::string texIndex = texName.substr(0, texName.find_last_of('.'));
+            const int32_t imageIndex = std::stoi(texIndex);
             TextureCache cachedTexture;
             InputArchive archive(entry);
             archive >> cachedTexture;
@@ -853,13 +1063,17 @@ void loadTexturesFromCache(
             }
 
             std::lock_guard<std::mutex> lock(taskMutex);
+            const auto alphaMaskIt = alphaMaskMipInfo.find(imageIndex);
             loadTexture(texIndex,
                         cachedTexture.width,
                         cachedTexture.height,
                         cachedTexture.pixels.data(),
                         device,
                         cmdBuffer,
-                        textures);
+                        textures,
+                        alphaMaskIt == alphaMaskMipInfo.end()
+                            ? std::nullopt
+                            : std::optional{alphaMaskIt->second});
             ++completedTextures;
             reportProgress(
                 progress,
@@ -878,12 +1092,18 @@ void loadLightsFromCache() {}
 
 void loadCamerasFromCache() {}
 
-scene::TechniquePtr loadMaterialFromCache(
+struct LoadedMaterialTechniques {
+    scene::TechniquePtr forward;
+    scene::TechniquePtr alphaShadow;
+};
+
+LoadedMaterialTechniques loadMaterialFromCache(
     std::filesystem::path cachePath,
     std::string_view modelName,
     int32_t matIndex,
     std::vector<std::pair<std::string, scene::Texture>>& textures,
     scene::MaterialTemplatePtr matTemplate,
+    scene::ShaderAttribute shaderAttributes,
     rhi::DevicePtr device) {
     auto matCachePath = cachePath / "material" / std::to_string(matIndex);
     matCachePath.replace_extension(".mat");
@@ -906,6 +1126,14 @@ scene::TechniquePtr loadMaterialFromCache(
     if (cachedMaterial.emissiveTexture.enabled()) {
         matTemplate->addDefine("EMISSIVE_MAP");
     }
+    if (cachedMaterial.alphaMode == "MASK") {
+        matTemplate->addDefine("ALPHA_MASK");
+    } else if (cachedMaterial.alphaMode == "BLEND") {
+        matTemplate->addDefine("ALPHA_BLEND");
+    }
+    if (cachedMaterial.doubleSided) {
+        matTemplate->addDefine("DOUBLE_SIDED");
+    }
 
     std::string matName{modelName};
     matName.append("_");
@@ -916,6 +1144,11 @@ scene::TechniquePtr loadMaterialFromCache(
     auto& ds = tech->depthStencilInfo();
     ds.depthTestEnable = true;
     ds.depthWriteEnable = true;
+    auto& rasterization = tech->rasterizationInfo();
+    rasterization.cullMode = cachedMaterial.doubleSided
+                                 ? rhi::FaceMode::NONE
+                                 : rhi::FaceMode::BACK;
+    rasterization.frontFace = rhi::FrontFace::CLOCKWISE;
     auto& bs = tech->blendInfo();
     bs.attachmentBlends.emplace_back();
 
@@ -926,6 +1159,7 @@ scene::TechniquePtr loadMaterialFromCache(
         pbrMat->setAlphaMode(scene::PBRMaterial::AlphaMode::AM_MASK);
     } else if (cachedMaterial.alphaMode == "BLEND") {
         pbrMat->setAlphaMode(scene::PBRMaterial::AlphaMode::AM_BLEND);
+        ds.depthWriteEnable = false;
         auto& colorBlend = bs.attachmentBlends.back();
         colorBlend.blendEnable = true;
         colorBlend.srcColorBlendFactor = rhi::BlendFactor::SRC_ALPHA;
@@ -1012,7 +1246,50 @@ scene::TechniquePtr loadMaterialFromCache(
         .textureView = BuiltinRes::iblBrdfLUTView(),
     };
     pbrMat->set("brdfLUT", brdfLUT);
-    return tech;
+
+    scene::TechniquePtr alphaShadow;
+    if (cachedMaterial.alphaMode == "MASK" && cachedMaterial.baseColorTexture.enabled()) {
+        const auto imageIndex = cachedMaterial.baseColorTexture.imageIndex;
+        if (imageIndex < 0 || imageIndex >= static_cast<int32_t>(textures.size())) {
+            throw std::runtime_error("Cached alpha-mask material refers to an invalid image");
+        }
+
+        auto shadowTemplate = std::make_shared<scene::MaterialTemplate>("asset/layout/shadowMapAlpha");
+        if (test(shaderAttributes, scene::ShaderAttribute::NORMAL)) {
+            shadowTemplate->addDefine("VERTEX_NORMAL");
+        }
+        auto shadowMaterial = shadowTemplate->instantiate(
+            matName + "_alphaShadow", scene::MaterialType::CUSTOM);
+        shadowMaterial->set("albedoMap", textures[imageIndex].second);
+        shadowMaterial->set("linearSampler", {linearInfo});
+
+        const std::array alphaParameters{
+            static_cast<float>(cachedMaterial.alphaCutoff),
+            cachedMaterial.baseColorFactor.a,
+            0.0f,
+            0.0f,
+        };
+        rhi::BufferSourceInfo alphaBufferInfo{
+            .bufferUsage = rhi::BufferUsage::UNIFORM | rhi::BufferUsage::TRANSFER_DST,
+            .size = static_cast<uint32_t>(alphaParameters.size() * sizeof(float)),
+            .data = alphaParameters.data(),
+        };
+        shadowMaterial->set(
+            "AlphaParams",
+            scene::Buffer{rhi::BufferPtr(device->createBuffer(alphaBufferInfo))});
+
+        alphaShadow = std::make_shared<scene::Technique>(shadowMaterial, "shadowMap");
+        alphaShadow->depthStencilInfo().depthTestEnable = true;
+        alphaShadow->depthStencilInfo().depthWriteEnable = true;
+        auto& shadowRasterization = alphaShadow->rasterizationInfo();
+        shadowRasterization.cullMode = cachedMaterial.doubleSided
+                                           ? rhi::FaceMode::NONE
+                                           : rhi::FaceMode::BACK;
+        shadowRasterization.frontFace = rhi::FrontFace::CLOCKWISE;
+        alphaShadow->blendInfo().attachmentBlends.emplace_back();
+    }
+
+    return {.forward = std::move(tech), .alphaShadow = std::move(alphaShadow)};
 }
 
 void loadMeshFromCache(
@@ -1138,32 +1415,48 @@ void loadMeshFromCache(
             if (test(meshData.shaderAttrs, scene::ShaderAttribute::COLOR)) {
                 matTemplate->addDefine("VERTEX_COLOR");
             }
-            auto tech = loadMaterialFromCache(
-                cachePath, cachePath.filename().string(), cachedPrimitive.materialIndex, textures, matTemplate, device);
+            auto techniques = loadMaterialFromCache(
+                cachePath,
+                cachePath.filename().string(),
+                cachedPrimitive.materialIndex,
+                textures,
+                matTemplate,
+                meshData.shaderAttrs,
+                device);
+            rhi::PrimitiveType primitiveType;
             if (cachedPrimitive.primitiveMode == TINYGLTF_MODE_TRIANGLES) {
-                tech->setPrimitiveType(rhi::PrimitiveType::TRIANGLE_LIST);
+                primitiveType = rhi::PrimitiveType::TRIANGLE_LIST;
             } else if (cachedPrimitive.primitiveMode == TINYGLTF_MODE_TRIANGLE_STRIP) {
-                tech->setPrimitiveType(rhi::PrimitiveType::TRIANGLE_STRIP);
+                primitiveType = rhi::PrimitiveType::TRIANGLE_STRIP;
             } else if (cachedPrimitive.primitiveMode == TINYGLTF_MODE_POINTS) {
-                tech->setPrimitiveType(rhi::PrimitiveType::POINT_LIST);
+                primitiveType = rhi::PrimitiveType::POINT_LIST;
             } else if (cachedPrimitive.primitiveMode == TINYGLTF_MODE_LINE) {
-                tech->setPrimitiveType(rhi::PrimitiveType::LINE_LIST);
+                primitiveType = rhi::PrimitiveType::LINE_LIST;
             } else if (cachedPrimitive.primitiveMode == TINYGLTF_MODE_LINE_STRIP) {
-                tech->setPrimitiveType(rhi::PrimitiveType::LINE_STRIP);
+                primitiveType = rhi::PrimitiveType::LINE_STRIP;
             } else {
                 throw std::runtime_error(
                     "Unsupported glTF primitive mode: " + std::to_string(cachedPrimitive.primitiveMode));
             }
+            techniques.forward->setPrimitiveType(primitiveType);
+            if (techniques.alphaShadow) {
+                techniques.alphaShadow->setPrimitiveType(primitiveType);
+            }
 
             auto meshRenderer = model.meshRenderers().emplace_back(std::make_shared<scene::MeshRenderer>(mesh));
-            meshRenderer->addTechnique(tech);
+            meshRenderer->addTechnique(techniques.forward);
             meshRenderer->setVertexInfo(0, meshData.vertexCount, meshData.indexCount);
             meshRenderer->setTransform(sceneNode.node.transform());
             meshRenderer->setTransformSlot("LocalMat");
 
             auto embededTechSize = static_cast<uint32_t>(scene::EmbededTechnique::COUNT);
             for (size_t i = 0; i < embededTechSize; ++i) {
-                meshRenderer->addTechnique(scene::makeEmbededTechnique(static_cast<scene::EmbededTechnique>(i)));
+                const auto embedded = static_cast<scene::EmbededTechnique>(i);
+                if (embedded == scene::EmbededTechnique::SHADOWMAP && techniques.alphaShadow) {
+                    meshRenderer->addTechnique(techniques.alphaShadow);
+                } else {
+                    meshRenderer->addTechnique(scene::makeEmbededTechnique(embedded));
+                }
             }
         }
         if (modelBounds) {

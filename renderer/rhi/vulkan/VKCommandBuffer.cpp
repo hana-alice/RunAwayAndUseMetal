@@ -26,6 +26,9 @@ CommandBuffer::CommandBuffer(const CommandBufferInfo& info, CommandPool* command
 }
 
 CommandBuffer::~CommandBuffer() {
+    if (_enqueued && _queue) {
+        _queue->remove(this);
+    }
     if (_commandBuffer != VK_NULL_HANDLE) {
         vkFreeCommandBuffers(_device->device(), _commandPool->commandPool(), 1, &_commandBuffer);
     }
@@ -52,9 +55,11 @@ void CommandBuffer::begin(const CommandBufferBeginInfo& info) {
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     beginInfo.flags = commandBufferUsage(info.flags);
     VK_EXPECT(vkBeginCommandBuffer(_commandBuffer, &beginInfo));
+    _status = CommandBufferStatus::RENDERING;
 }
 
 void CommandBuffer::enqueue(RHIQueue* queue) {
+    VK_ENSURE(!_enqueued, "Command buffer is already enqueued");
     queue->enqueue(this);
     _enqueued = true;
     _queue = static_cast<Queue*>(queue);
@@ -62,10 +67,15 @@ void CommandBuffer::enqueue(RHIQueue* queue) {
 
 void CommandBuffer::commit() {
     VK_EXPECT(vkEndCommandBuffer(_commandBuffer));
+    _status = CommandBufferStatus::COMMITTED;
 }
 
 void CommandBuffer::reset() {
+    if (_enqueued && _queue) {
+        _queue->remove(this);
+    }
     VK_EXPECT(vkResetCommandBuffer(_commandBuffer, VkCommandBufferResetFlagBits{}));
+    _status = CommandBufferStatus::AVAILABLE;
 }
 
 void CommandBuffer::appendImageBarrier(const ImageBarrierInfo& info) {

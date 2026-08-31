@@ -1,6 +1,7 @@
 #include "ui.h"
 
 #include <algorithm>
+#include <exception>
 #include <functional>
 #include <optional>
 #include <utility>
@@ -17,6 +18,7 @@
 #include <QProgressBar>
 #include <QPushButton>
 #include <QScrollArea>
+#include <QSignalBlocker>
 #include <QSizePolicy>
 #include <QSplitter>
 #include <QStackedWidget>
@@ -168,9 +170,7 @@ struct UI::Impl {
 
         connectUi();
         updateSampleLabels();
-        if (_sampleSelector) {
-            _sampleSelector->setEnabled(false);
-        }
+        updateSampleNavigation();
         _cameraInspector->setEnabled(false);
         _resetCameraButton->setEnabled(false);
         updateTelemetry();
@@ -198,6 +198,7 @@ struct UI::Impl {
         }
         if (_cameraInspector) {
             _cameraInspector->setChangeHandler({});
+            _cameraInspector->setLightingChangeHandler({});
         }
         if (_sample) {
             _sample->shutdown();
@@ -249,6 +250,15 @@ private:
         headerLayout->addWidget(viewportDot);
         headerLayout->addWidget(makeLabel(QStringLiteral("Viewport"), "panelTitle", header));
         headerLayout->addWidget(makeVerticalDivider("panelDivider", header));
+
+        _previousSampleButton = new QPushButton(header);
+        _previousSampleButton->setObjectName("sampleNavigationButton");
+        _previousSampleButton->setIcon(header->style()->standardIcon(QStyle::SP_ArrowBack));
+        _previousSampleButton->setToolTip(QStringLiteral("Previous sample"));
+        _previousSampleButton->setAccessibleName(QStringLiteral("Previous sample"));
+        _previousSampleButton->setFixedSize(26, 26);
+        headerLayout->addWidget(_previousSampleButton);
+
         _viewportTitle = makeLabel({}, "viewportSample", header);
         headerLayout->addWidget(_viewportTitle);
         if (_sample->samples().size() > 1) {
@@ -262,6 +272,15 @@ private:
             _sampleSelector->setCurrentIndex(static_cast<int>(_sample->currentSampleIndex()));
             headerLayout->addWidget(_sampleSelector);
         }
+
+        _nextSampleButton = new QPushButton(header);
+        _nextSampleButton->setObjectName("sampleNavigationButton");
+        _nextSampleButton->setIcon(header->style()->standardIcon(QStyle::SP_ArrowForward));
+        _nextSampleButton->setToolTip(QStringLiteral("Next sample"));
+        _nextSampleButton->setAccessibleName(QStringLiteral("Next sample"));
+        _nextSampleButton->setFixedSize(26, 26);
+        headerLayout->addWidget(_nextSampleButton);
+
         headerLayout->addStretch(1);
         headerLayout->addWidget(makeLabel(QStringLiteral("Perspective"), "viewMode", header));
         _viewportResolution = makeLabel(QStringLiteral("-- x --"), "resolutionLabel", header);
@@ -356,8 +375,8 @@ private:
         auto* headingLayout = new QVBoxLayout(heading);
         headingLayout->setContentsMargins(0, 0, 0, 0);
         headingLayout->setSpacing(1);
-        headingLayout->addWidget(makeLabel(QStringLiteral("Camera"), "inspectorTitle", heading));
-        headingLayout->addWidget(makeLabel(QStringLiteral("Active view properties"), "inspectorSubtitle", heading));
+        headingLayout->addWidget(makeLabel(QStringLiteral("Scene"), "inspectorTitle", heading));
+        headingLayout->addWidget(makeLabel(QStringLiteral("Camera and directional light"), "inspectorSubtitle", heading));
         headerLayout->addWidget(heading);
         headerLayout->addStretch(1);
 
@@ -454,14 +473,36 @@ private:
                 qOverload<int>(&QComboBox::currentIndexChanged),
                 _mainWindow.get(),
                 [this](int index) {
-                    if (!_sample->ready() || index < 0 || !_sample->changeSample(static_cast<uint32_t>(index))) {
+                    if (index < 0) {
                         return;
                     }
-                    _resetCameraState.reset();
-                    updateSampleLabels();
-                    syncCameraState(true);
-                });
+                    selectSample(static_cast<uint32_t>(index));
+                },
+                Qt::QueuedConnection);
         }
+
+        QObject::connect(
+            _previousSampleButton,
+            &QPushButton::clicked,
+            _mainWindow.get(),
+            [this] {
+                const auto index = _sample->currentSampleIndex();
+                if (index > 0) {
+                    selectSample(index - 1);
+                }
+            },
+            Qt::QueuedConnection);
+        QObject::connect(
+            _nextSampleButton,
+            &QPushButton::clicked,
+            _mainWindow.get(),
+            [this] {
+                const auto index = _sample->currentSampleIndex();
+                if (index + 1 < _sample->samples().size()) {
+                    selectSample(index + 1);
+                }
+            },
+            Qt::QueuedConnection);
 
         QObject::connect(_resetCameraButton, &QPushButton::clicked, _mainWindow.get(), [this] {
             auto* current = _sample->currentSample();
@@ -470,6 +511,10 @@ private:
             }
             current->applyCameraControlState(*_resetCameraState);
             _cameraInspector->setState(*_resetCameraState);
+            if (_resetLightingState) {
+                current->applyLightingControlState(*_resetLightingState);
+                _cameraInspector->setLightingState(*_resetLightingState);
+            }
         });
 
         _cameraInspector->setChangeHandler([this](const CameraControlState& state) {
@@ -477,11 +522,90 @@ private:
                 current->applyCameraControlState(state);
             }
         });
+        _cameraInspector->setLightingChangeHandler([this](const LightingControlState& state) {
+            if (auto* current = _sample->currentSample()) {
+                current->applyLightingControlState(state);
+            }
+        });
     }
 
     void updateSampleLabels() {
         const auto* current = _sample->currentSample();
         _viewportTitle->setText(current ? QString::fromStdString(current->name()) : QStringLiteral("No sample"));
+    }
+
+    void selectSample(uint32_t index) {
+        if (!_sample->ready() || index >= _sample->samples().size()) {
+            updateSampleNavigation();
+            return;
+        }
+        if (index == _sample->currentSampleIndex()) {
+            updateSampleNavigation();
+            return;
+        }
+
+        try {
+            if (!_sample->changeSample(index)) {
+                updateSampleNavigation();
+                return;
+            }
+        } catch (const std::exception& error) {
+            _statusPrimary->setText(
+                QStringLiteral("Sample switch failed · %1").arg(QString::fromUtf8(error.what())));
+            updateSampleNavigation();
+            return;
+        }
+
+        _pendingSampleIndex = index;
+        _resetCameraState.reset();
+        _resetLightingState.reset();
+        _cameraInspector->setEnabled(false);
+        _resetCameraButton->setEnabled(false);
+        _statusPrimary->setText(
+            QStringLiteral("Switching to %1").arg(
+                QString::fromStdString(_sample->samples()[index]->name())));
+        updateSampleNavigation();
+    }
+
+    void finishPendingSampleChange() {
+        if (!_pendingSampleIndex || _sample->sampleSwitchPending()) {
+            return;
+        }
+
+        const auto targetIndex = *_pendingSampleIndex;
+        _pendingSampleIndex.reset();
+        if (_sample->currentSampleIndex() != targetIndex) {
+            const auto error = _sample->sampleSwitchError();
+            _statusPrimary->setText(
+                error.empty()
+                    ? QStringLiteral("Sample switch failed")
+                    : QStringLiteral("Sample switch failed · %1").arg(QString::fromStdString(error)));
+            updateSampleNavigation();
+            syncCameraState(false);
+            return;
+        }
+
+        updateSampleLabels();
+        updateSampleNavigation();
+        syncCameraState(true);
+        _statusPrimary->setText(QStringLiteral("Renderer ready"));
+    }
+
+    void updateSampleNavigation() {
+        const auto count = _sample->samples().size();
+        const auto index = _pendingSampleIndex.value_or(_sample->currentSampleIndex());
+        const bool ready = _sample->ready() && !_pendingSampleIndex;
+        _previousSampleButton->setEnabled(ready && index > 0);
+        _nextSampleButton->setEnabled(ready && index + 1 < count);
+        if (_sampleSelector) {
+            const QSignalBlocker blocker(_sampleSelector);
+            _sampleSelector->setCurrentIndex(static_cast<int>(index));
+            _sampleSelector->setEnabled(ready && count > 1);
+        }
+    }
+
+    void updatePendingSampleChange() {
+        finishPendingSampleChange();
     }
 
     void syncCameraState(bool captureResetState) {
@@ -492,6 +616,7 @@ private:
         }
         auto* current = _sample->currentSample();
         const auto state = current ? current->cameraControlState() : std::nullopt;
+        const auto lightingState = current ? current->lightingControlState() : std::nullopt;
         const bool available = state.has_value();
         _cameraInspector->setEnabled(available);
         _resetCameraButton->setEnabled(available);
@@ -502,14 +627,21 @@ private:
         refreshStyle(_cameraStatusText);
         if (!available) {
             _resetCameraState.reset();
+            _resetLightingState.reset();
             return;
         }
 
         if (captureResetState || !_resetCameraState) {
             _resetCameraState = state;
         }
+        if (lightingState && (captureResetState || !_resetLightingState)) {
+            _resetLightingState = lightingState;
+        }
         if (!_cameraInspector->isEditing()) {
             _cameraInspector->setState(*state);
+            if (lightingState) {
+                _cameraInspector->setLightingState(*lightingState);
+            }
         }
     }
 
@@ -525,9 +657,7 @@ private:
             _loadingProgress->setProperty("failed", true);
             refreshStyle(_loadingProgress);
             _loadingPercent->setText(QStringLiteral("Error"));
-            if (_sampleSelector) {
-                _sampleSelector->setEnabled(false);
-            }
+            updateSampleNavigation();
             _cameraInspector->setEnabled(false);
             _resetCameraButton->setEnabled(false);
             _statusPrimary->setText(QStringLiteral("Scene loading failed"));
@@ -547,9 +677,7 @@ private:
                     ? QStringLiteral("Preparing viewport")
                     : QStringLiteral("Loading Sponza scene"));
             _loadingMessage->setText(QString::fromStdString(status.message));
-            if (_sampleSelector) {
-                _sampleSelector->setEnabled(false);
-            }
+            updateSampleNavigation();
             _cameraInspector->setEnabled(false);
             _resetCameraButton->setEnabled(false);
             _statusPrimary->setText(QStringLiteral("Loading scene · %1%").arg(percent));
@@ -562,13 +690,13 @@ private:
             return;
         }
 
+        updatePendingSampleChange();
+
         if (!_readyUiInitialized) {
             _readyUiInitialized = true;
             _loadingSpinner->setRunning(false);
             _viewportStack->setCurrentWidget(_renderSurface);
-            if (_sampleSelector) {
-                _sampleSelector->setEnabled(true);
-            }
+            updateSampleNavigation();
             _statusPrimary->setText(QStringLiteral("Renderer ready"));
             syncCameraState(true);
         } else {
@@ -594,6 +722,8 @@ private:
     std::unique_ptr<::raum::Sample> _sample;
     platform::WindowPtr _engineWindow;
     QComboBox* _sampleSelector{nullptr};
+    QPushButton* _previousSampleButton{nullptr};
+    QPushButton* _nextSampleButton{nullptr};
     QPushButton* _resetCameraButton{nullptr};
     CameraInspector* _cameraInspector{nullptr};
     QStackedWidget* _viewportStack{nullptr};
@@ -614,6 +744,8 @@ private:
     QLabel* _statusPrimary{nullptr};
     QTimer* _refreshTimer{nullptr};
     std::optional<CameraControlState> _resetCameraState;
+    std::optional<LightingControlState> _resetLightingState;
+    std::optional<uint32_t> _pendingSampleIndex;
     bool _shuttingDown{false};
     bool _engineStarted{false};
     bool _readyUiInitialized{false};

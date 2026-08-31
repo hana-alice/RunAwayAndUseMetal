@@ -63,7 +63,19 @@ void Queue::enqueue(RHICommandBuffer* cmdBuffer) {
     _commandBuffers.emplace_back(static_cast<CommandBuffer*>(cmdBuffer));
 }
 
+void Queue::remove(CommandBuffer* commandBuffer) {
+    std::erase(_commandBuffers, commandBuffer);
+    commandBuffer->_enqueued = false;
+    commandBuffer->_queue = nullptr;
+}
+
 void Queue::submit(bool enableFrameFence) {
+    for (size_t index = 0; index < _commandBuffers.size(); ++index) {
+        const auto* commandBuffer = _commandBuffers[index];
+        VK_ENSURE(commandBuffer->_status == CommandBuffer::CommandBufferStatus::COMMITTED,
+                  "Queue contains a command buffer that has not been committed");
+    }
+
     VkSubmitInfo info{};
     info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
@@ -119,6 +131,10 @@ void Queue::submit(bool enableFrameFence) {
         _device->resetStagingBuffer(_index);
     }
 
+    for (auto* commandBuffer : _commandBuffers) {
+        commandBuffer->_enqueued = false;
+        commandBuffer->_queue = nullptr;
+    }
     _commandBuffers.clear();
 }
 

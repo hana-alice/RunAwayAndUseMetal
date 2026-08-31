@@ -33,6 +33,13 @@ struct CameraControlState {
     float yawDegrees{0.0f};
     float pitchDegrees{0.0f};
     float verticalFovDegrees{60.0f};
+    float moveSpeed{4.0f};
+};
+
+struct LightingControlState {
+    // Direction in which the directional light travels.
+    Vec3f direction{-0.45f, -1.0f, -0.35f};
+    Vec3f color{1.0f};
 };
 
 class SampleBase {
@@ -55,6 +62,8 @@ public:
 
     virtual std::optional<CameraControlState> cameraControlState() const { return std::nullopt; }
     virtual void applyCameraControlState(const CameraControlState&) {}
+    virtual std::optional<LightingControlState> lightingControlState() const { return std::nullopt; }
+    virtual void applyLightingControlState(const LightingControlState&) {}
 
 protected:
     virtual void onLoad(const LoadingProgressCallback&) {}

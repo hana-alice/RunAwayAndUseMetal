@@ -272,10 +272,12 @@ void Device::initDevice() {
     const bool sparseResidencySupported = hasSparseQueue &&
                                           supportedFeatures.features.sparseBinding &&
                                           supportedFeatures.features.sparseResidencyImage2D &&
-                                          supportedFeatures.features.shaderResourceResidency;
+                                          supportedFeatures.features.shaderResourceResidency &&
+                                          supportedFeatures.features.fragmentStoresAndAtomics;
     deviceFeatures.sparseBinding = sparseResidencySupported;
     deviceFeatures.sparseResidencyImage2D = sparseResidencySupported;
     deviceFeatures.shaderResourceResidency = sparseResidencySupported;
+    deviceFeatures.fragmentStoresAndAtomics = supportedFeatures.features.fragmentStoresAndAtomics;
     if (hasSparseQueue && !sparseResidencySupported) {
         delete _queues.at(QueueType::SPARSE);
         _queues.erase(QueueType::SPARSE);

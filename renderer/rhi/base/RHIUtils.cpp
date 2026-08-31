@@ -1,4 +1,5 @@
 #include "RHIUtils.h"
+#include <algorithm>
 #include <boost/functional/hash.hpp>
 #include <unordered_set>
 #include "RHIBlitEncoder.h"
@@ -713,8 +714,8 @@ void generateMipmaps(ImagePtr image, ImageLayout oldLayout, CommandBufferPtr cmd
                 .srcBaseMip = i - 1,
                 .dstBaseMip = i,
                 .sliceCount = info.sliceCount,
-                .srcExtent = {width >> (i - 1), height >> (i - 1), 1},
-                .dstExtent = {width >> i, height >> i, 1},
+                .srcExtent = {std::max(1U, width >> (i - 1)), std::max(1U, height >> (i - 1)), 1},
+                .dstExtent = {std::max(1U, width >> i), std::max(1U, height >> i), 1},
             };
 
             blitEncoder->blitImage(image.get(), ImageLayout::TRANSFER_SRC_OPTIMAL, image.get(), ImageLayout::TRANSFER_DST_OPTIMAL, &region, 1, Filter::LINEAR);

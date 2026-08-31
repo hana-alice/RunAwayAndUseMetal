@@ -19,6 +19,7 @@ std::optional<CameraControlState> CameraSample::cameraControlState() const {
         .yawDegrees = _yawDegrees,
         .pitchDegrees = _pitchDegrees,
         .verticalFovDegrees = _camera->fov().value,
+        .moveSpeed = _flyConfig.moveSpeed,
     };
 }
 
@@ -30,7 +31,21 @@ void CameraSample::applyCameraControlState(const CameraControlState& state) {
     _pitchDegrees = std::clamp(state.pitchDegrees, _flyConfig.minimumPitch, _flyConfig.maximumPitch);
     _camera->eye().setPosition(state.position);
     _camera->setFov(utils::Degree{std::clamp(state.verticalFovDegrees, 1.0f, 179.0f)});
+    _flyConfig.moveSpeed = std::clamp(state.moveSpeed, 0.05f, 100.0f);
     updateCameraOrientation();
+}
+
+std::optional<LightingControlState> CameraSample::lightingControlState() const {
+    return _lighting;
+}
+
+void CameraSample::applyLightingControlState(const LightingControlState& state) {
+    constexpr float MinimumDirectionLengthSquared = 0.000001f;
+    const float directionLengthSquared = glm::dot(state.direction, state.direction);
+    if (directionLengthSquared > MinimumDirectionLengthSquared) {
+        _lighting.direction = state.direction * glm::inversesqrt(directionLengthSquared);
+    }
+    _lighting.color = glm::max(state.color, Vec3f{0.0f});
 }
 
 void CameraSample::createPerspectiveCamera(const PerspectiveCameraConfig& config) {
@@ -145,8 +160,10 @@ void CameraSample::uploadCamera(graph::CopyPass& uploadPass, bool includePositio
     }
 }
 
-void CameraSample::uploadLight(graph::CopyPass& uploadPass, const Vec4f& position, const Vec4f& color) {
-    uploadPass.uploadBuffer(&position[0], sizeof(Vec4f), lightBuffer(), 0);
+void CameraSample::uploadLight(graph::CopyPass& uploadPass) {
+    const Vec4f direction{glm::normalize(_lighting.direction), 0.0f};
+    const Vec4f color{_lighting.color, 1.0f};
+    uploadPass.uploadBuffer(&direction[0], sizeof(Vec4f), lightBuffer(), 0);
     uploadPass.uploadBuffer(&color[0], sizeof(Vec4f), lightBuffer(), sizeof(Vec4f));
 }
 

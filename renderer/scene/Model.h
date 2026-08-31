@@ -9,6 +9,7 @@ namespace raum::scene {
 class Model {
 public:
     Model();
+    std::shared_ptr<Model> createInstance() const;
     std::vector<MeshRendererPtr>& meshRenderers();
     const std::vector<MeshRendererPtr>& meshRenderers() const;
     AABB& aabb();

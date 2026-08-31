@@ -242,7 +242,8 @@ void ResourceGraph::mount(std::string_view name) {
                    },
                    [&](SwapchainData& data) {
                        auto& swapchain = data.swapchain;
-                       if (!swapchain->imageValid(0)) {
+                       if (data.images.size() != swapchain->imageCount() ||
+                           data.imageViews.size() != swapchain->imageCount()) {
                            data.imageViews.clear();
                            data.images.clear();
                            for (uint32_t i = 0; i < swapchain->imageCount(); ++i) {

@@ -15,7 +15,7 @@ private:
     void onInitialize() override {
         const auto& skyboxName = resource("skybox");
         auto& skyboxNode = sceneGraph().addModel(skyboxName);
-        skyboxNode.model = asset::BuiltinRes::skybox().model();
+        skyboxNode.model = asset::BuiltinRes::skybox().model()->createInstance();
         trackSceneNode(skyboxName);
 
         createPerspectiveCamera({
@@ -32,10 +32,6 @@ private:
             "forwardDepth",
             rhi::ImageUsage::DEPTH_STENCIL_ATTACHMENT,
             rhi::Format::D24_UNORM_S8_UINT);
-        ensureBuffer(
-            "computeResult",
-            viewportWidth() * viewportHeight(),
-            rhi::BufferUsage::STORAGE);
         ensureCameraResources();
         ensureLightResource();
     }
@@ -46,11 +42,7 @@ private:
 
         auto uploadPass = renderGraph.addCopyPass("cameraBufferUpdate");
         uploadCamera(uploadPass);
-        uploadLight(uploadPass, Vec4f{5.0f, 5.0f, 0.0f, 1.0f});
-
-        renderGraph.addComputePass("compute")
-            .setProgramName("")
-            .addResource(resource("computeResult"), "", graph::Access::WRITE);
+        uploadLight(uploadPass);
 
         auto renderPass = renderGraph.addRenderPass("forward");
         renderPass

@@ -131,7 +131,9 @@ rhi::DescriptorSetPtr BindGroup::descriptorSet() const {
 
 void BindGroup::bindBuffer(std::string_view name, uint32_t index, rhi::BufferPtr buffer) {
     if(name.empty()) return;
-    auto bindingSlot = _bindingMap.at(name);
+    const auto binding = _bindingMap.find(name);
+    if (binding == _bindingMap.end()) return;
+    auto bindingSlot = binding->second;
     auto bindingIndex = _updateIndices[bindingSlot];
 
     auto& currentBinding = _currentBinding.bufferBindings[bindingIndex];
@@ -147,7 +149,9 @@ void BindGroup::bindBuffer(std::string_view name, uint32_t index, rhi::BufferPtr
 
 void BindGroup::bindBuffer(std::string_view name, uint32_t index, uint32_t offset, uint32_t size, rhi::BufferPtr buffer) {
     if(name.empty()) return;
-    auto bindingSlot = _bindingMap.at(name);
+    const auto binding = _bindingMap.find(name);
+    if (binding == _bindingMap.end()) return;
+    auto bindingSlot = binding->second;
     auto bindingIndex = _updateIndices[bindingSlot];
 
     auto& currentBinding = _currentBinding.bufferBindings[bindingIndex];
@@ -165,7 +169,9 @@ void BindGroup::bindBuffer(std::string_view name, uint32_t index, uint32_t offse
 
 void BindGroup::bindImage(std::string_view name, uint32_t index, rhi::ImageViewPtr imgView, rhi::ImageLayout layout) {
     if(name.empty()) return;
-    auto bindingSlot = _bindingMap.at(name);
+    const auto binding = _bindingMap.find(name);
+    if (binding == _bindingMap.end()) return;
+    auto bindingSlot = binding->second;
     auto bindingIndex = _updateIndices[bindingSlot];
 
     auto& currentBinding = _currentBinding.imageBindings[bindingIndex];
@@ -181,7 +187,9 @@ void BindGroup::bindImage(std::string_view name, uint32_t index, rhi::ImageViewP
 
 void BindGroup::bindSampler(std::string_view name, uint32_t index, const rhi::SamplerInfo& samplerInfo) {
     if(name.empty()) return;
-    auto bindingSlot = _bindingMap.at(name);
+    const auto binding = _bindingMap.find(name);
+    if (binding == _bindingMap.end()) return;
+    auto bindingSlot = binding->second;
     auto bindingIndex = _updateIndices[bindingSlot];
 
     auto& currentBinding = _currentBinding.samplerBindings[bindingIndex];
@@ -194,7 +202,9 @@ void BindGroup::bindSampler(std::string_view name, uint32_t index, const rhi::Sa
 
 void BindGroup::bindTexelBuffer(std::string_view name, uint32_t index, rhi::BufferViewPtr bufferView) {
     if(name.empty()) return;
-    auto bindingSlot = _bindingMap.at(name);
+    const auto binding = _bindingMap.find(name);
+    if (binding == _bindingMap.end()) return;
+    auto bindingSlot = binding->second;
     auto bindingIndex = _updateIndices[bindingSlot];
 
     auto& currentBinding = _currentBinding.texelBufferBindings[bindingIndex];

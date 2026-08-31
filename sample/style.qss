@@ -55,6 +55,28 @@ QComboBox#sampleSelector QAbstractItemView {
     selection-color: #ffffff;
 }
 
+QPushButton#sampleNavigationButton {
+    padding: 0;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 4px;
+}
+
+QPushButton#sampleNavigationButton:hover {
+    background: #2b2d32;
+    border-color: #44474f;
+}
+
+QPushButton#sampleNavigationButton:pressed {
+    background: #222429;
+    border-color: #4f8cff;
+}
+
+QPushButton#sampleNavigationButton:disabled {
+    background: transparent;
+    border-color: transparent;
+}
+
 QLabel#runningDot,
 QLabel#cameraStatusDot[active="true"] {
     background: #55c98b;
@@ -295,6 +317,26 @@ QLabel#axisToken[axisColor="fov"] {
     color: #efc477;
 }
 
+QLabel#axisToken[axisColor="speed"] {
+    background: #28384a;
+    color: #82b8f4;
+}
+
+QLabel#axisToken[axisColor="r"] {
+    background: #452a30;
+    color: #ff929b;
+}
+
+QLabel#axisToken[axisColor="g"] {
+    background: #213b30;
+    color: #75d9a6;
+}
+
+QLabel#axisToken[axisColor="b"] {
+    background: #23364c;
+    color: #80baff;
+}
+
 QDoubleSpinBox {
     padding: 0 8px;
     background: #27292e;
@@ -321,6 +363,27 @@ QDoubleSpinBox:disabled {
     background: #222328;
     border-color: #2e3035;
     color: #60646c;
+}
+
+QPushButton#colorPickerButton {
+    padding: 0 8px;
+    background: #27292e;
+    border: 1px solid #3a3d44;
+    border-radius: 3px;
+    color: #dfe1e4;
+    font-family: "Cascadia Mono";
+    font-size: 10px;
+    text-align: left;
+}
+
+QPushButton#colorPickerButton:hover {
+    background: #2d3035;
+    border-color: #50545d;
+}
+
+QPushButton#colorPickerButton:pressed {
+    background: #292d34;
+    border-color: #5b93f7;
 }
 
 QSlider#fovSlider {

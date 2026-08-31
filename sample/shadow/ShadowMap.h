@@ -20,7 +20,7 @@ private:
     void onInitialize() override {
         const auto& quadName = resource("quad");
         auto& quadNode = sceneGraph().addModel(quadName);
-        quadNode.model = asset::BuiltinRes::quad().model();
+        quadNode.model = asset::BuiltinRes::quad().model()->createInstance();
         trackSceneNode(quadName);
 
         auto& quadRenderer = quadNode.model->meshRenderers().front();
@@ -119,7 +119,7 @@ private:
         {
             auto uploadPass = renderGraph.addCopyPass("cameraBufferUpdate");
             uploadCamera(uploadPass);
-            uploadLight(uploadPass, Vec4f{3.0f, 3.0f, 3.0f, 1.0f});
+            uploadLight(uploadPass);
         }
 
         auto renderPass = renderGraph.addRenderPass("forward");

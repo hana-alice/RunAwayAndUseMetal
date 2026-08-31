@@ -80,10 +80,7 @@ void main() {
             vec3 sampleVec = tangentSample.x * right + tangentSample.y * up + tangentSample.z * normal;
 
             vec3 envColor = texture(samplerCube(environmentMap, linearSampler), sampleVec).rgb;
-            vec3 mapped = vec3(1.0) - exp(-envColor * 1.0f);
-            mapped = pow(mapped, vec3(1.0/2.2));
-
-            irradiance += mapped * cos(theta) * sin(theta);
+            irradiance += envColor * cos(theta) * sin(theta);
             nrSamples++;
         }
     }
@@ -184,10 +181,7 @@ void main() {
             float mipLevel = Roughness.val == 0.0 ? 0.0 : 0.5 * log2(saSample / saTexel);
 
             vec3 envColor = textureLod(samplerCube(environmentMap, linearSampler), L, mipLevel).rgb;
-            vec3 mapped = vec3(1.0) - exp(-envColor * 1.0f);
-            mapped = pow(mapped, vec3(1.0/2.2));
-
-            prefilteredColor += mapped * NdotL;
+            prefilteredColor += envColor * NdotL;
 
             totalWeight      += NdotL;
         }

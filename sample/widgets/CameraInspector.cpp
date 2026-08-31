@@ -1,13 +1,18 @@
 #include "CameraInspector.h"
 
+#include <algorithm>
 #include <cmath>
 #include <utility>
 
 #include <QAbstractSpinBox>
+#include <QColorDialog>
 #include <QDoubleSpinBox>
 #include <QFrame>
 #include <QHBoxLayout>
+#include <QIcon>
 #include <QLabel>
+#include <QPixmap>
+#include <QPushButton>
 #include <QSignalBlocker>
 #include <QSlider>
 #include <QVBoxLayout>
@@ -56,7 +61,9 @@ CameraInspector::CameraInspector(QWidget* parent) : QWidget(parent) {
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
     layout->addWidget(buildTransformSection());
+    layout->addWidget(buildNavigationSection());
     layout->addWidget(buildProjectionSection());
+    layout->addWidget(buildLightingSection());
 
     for (auto* editor : _position) {
         connect(editor, qOverload<double>(&QDoubleSpinBox::valueChanged), this, [this] {
@@ -69,6 +76,9 @@ CameraInspector::CameraInspector(QWidget* parent) : QWidget(parent) {
     connect(_pitch, qOverload<double>(&QDoubleSpinBox::valueChanged), this, [this] {
         notifyChanged();
     });
+    connect(_moveSpeed, qOverload<double>(&QDoubleSpinBox::valueChanged), this, [this] {
+        notifyChanged();
+    });
     connect(_fov, qOverload<double>(&QDoubleSpinBox::valueChanged), this, [this](double value) {
         const QSignalBlocker blocker(_fovSlider);
         _fovSlider->setValue(static_cast<int>(std::lround(value)));
@@ -79,10 +89,47 @@ CameraInspector::CameraInspector(QWidget* parent) : QWidget(parent) {
         _fov->setValue(static_cast<double>(value));
         notifyChanged();
     });
+    for (auto* editor : _lightDirection) {
+        connect(editor, qOverload<double>(&QDoubleSpinBox::valueChanged), this, [this] {
+            notifyLightingChanged();
+        });
+    }
+    for (auto* editor : _lightColor) {
+        connect(editor, qOverload<double>(&QDoubleSpinBox::valueChanged), this, [this] {
+            updateColorPreview();
+            notifyLightingChanged();
+        });
+    }
+    connect(_colorPicker, &QPushButton::clicked, this, [this] {
+        const auto light = lightingState();
+        const QColor initial = QColor::fromRgbF(
+            std::clamp(light.color.r, 0.0f, 1.0f),
+            std::clamp(light.color.g, 0.0f, 1.0f),
+            std::clamp(light.color.b, 0.0f, 1.0f));
+        const QColor selected = QColorDialog::getColor(
+            initial,
+            this,
+            QStringLiteral("Directional light color"));
+        if (!selected.isValid()) {
+            return;
+        }
+        const QSignalBlocker redBlocker(_lightColor[0]);
+        const QSignalBlocker greenBlocker(_lightColor[1]);
+        const QSignalBlocker blueBlocker(_lightColor[2]);
+        _lightColor[0]->setValue(selected.redF());
+        _lightColor[1]->setValue(selected.greenF());
+        _lightColor[2]->setValue(selected.blueF());
+        updateColorPreview();
+        notifyLightingChanged();
+    });
 }
 
 void CameraInspector::setChangeHandler(ChangeHandler handler) {
     _changeHandler = std::move(handler);
+}
+
+void CameraInspector::setLightingChangeHandler(LightingChangeHandler handler) {
+    _lightingChangeHandler = std::move(handler);
 }
 
 void CameraInspector::setState(const CameraControlState& state) {
@@ -93,6 +140,7 @@ void CameraInspector::setState(const CameraControlState& state) {
     const QSignalBlocker yawBlocker(_yaw);
     const QSignalBlocker pitchBlocker(_pitch);
     const QSignalBlocker fovBlocker(_fov);
+    const QSignalBlocker moveSpeedBlocker(_moveSpeed);
     const QSignalBlocker sliderBlocker(_fovSlider);
 
     _position[0]->setValue(state.position.x);
@@ -101,7 +149,27 @@ void CameraInspector::setState(const CameraControlState& state) {
     _yaw->setValue(state.yawDegrees);
     _pitch->setValue(state.pitchDegrees);
     _fov->setValue(state.verticalFovDegrees);
+    _moveSpeed->setValue(state.moveSpeed);
     _fovSlider->setValue(static_cast<int>(std::lround(state.verticalFovDegrees)));
+    _syncing = false;
+}
+
+void CameraInspector::setLightingState(const LightingControlState& state) {
+    _syncing = true;
+    const QSignalBlocker directionXBlocker(_lightDirection[0]);
+    const QSignalBlocker directionYBlocker(_lightDirection[1]);
+    const QSignalBlocker directionZBlocker(_lightDirection[2]);
+    const QSignalBlocker colorRBlocker(_lightColor[0]);
+    const QSignalBlocker colorGBlocker(_lightColor[1]);
+    const QSignalBlocker colorBBlocker(_lightColor[2]);
+
+    _lightDirection[0]->setValue(state.direction.x);
+    _lightDirection[1]->setValue(state.direction.y);
+    _lightDirection[2]->setValue(state.direction.z);
+    _lightColor[0]->setValue(state.color.r);
+    _lightColor[1]->setValue(state.color.g);
+    _lightColor[2]->setValue(state.color.b);
+    updateColorPreview();
     _syncing = false;
 }
 
@@ -114,6 +182,20 @@ CameraControlState CameraInspector::state() const {
         .yawDegrees = static_cast<float>(_yaw->value()),
         .pitchDegrees = static_cast<float>(_pitch->value()),
         .verticalFovDegrees = static_cast<float>(_fov->value()),
+        .moveSpeed = static_cast<float>(_moveSpeed->value()),
+    };
+}
+
+LightingControlState CameraInspector::lightingState() const {
+    return LightingControlState{
+        .direction = Vec3f(
+            static_cast<float>(_lightDirection[0]->value()),
+            static_cast<float>(_lightDirection[1]->value()),
+            static_cast<float>(_lightDirection[2]->value())),
+        .color = Vec3f(
+            static_cast<float>(_lightColor[0]->value()),
+            static_cast<float>(_lightColor[1]->value()),
+            static_cast<float>(_lightColor[2]->value())),
     };
 }
 
@@ -123,7 +205,18 @@ bool CameraInspector::isEditing() const {
             return true;
         }
     }
-    return _yaw->hasFocus() || _pitch->hasFocus() || _fov->hasFocus() || _fovSlider->hasFocus();
+    for (const auto* editor : _lightDirection) {
+        if (editor->hasFocus()) {
+            return true;
+        }
+    }
+    for (const auto* editor : _lightColor) {
+        if (editor->hasFocus()) {
+            return true;
+        }
+    }
+    return _yaw->hasFocus() || _pitch->hasFocus() || _fov->hasFocus() ||
+           _moveSpeed->hasFocus() || _fovSlider->hasFocus() || _colorPicker->hasFocus();
 }
 
 QFrame* CameraInspector::makeSection(const QString& title, const QString& description) {
@@ -214,10 +307,82 @@ QFrame* CameraInspector::buildProjectionSection() {
     return section;
 }
 
+QFrame* CameraInspector::buildNavigationSection() {
+    auto* section = makeSection(QStringLiteral("Navigation"), QStringLiteral("Fly-camera response"));
+    auto* layout = qobject_cast<QVBoxLayout*>(section->layout());
+    layout->addWidget(makeValueEditor(
+        QStringLiteral("Move speed"),
+        QStringLiteral("S"),
+        QStringLiteral("speed"),
+        _moveSpeed,
+        0.1,
+        50.0,
+        0.25,
+        2,
+        QStringLiteral(" u/s"),
+        section));
+    return section;
+}
+
+QFrame* CameraInspector::buildLightingSection() {
+    auto* section = makeSection(
+        QStringLiteral("Directional light"),
+        QStringLiteral("Direction of travel and linear HDR color"));
+    auto* layout = qobject_cast<QVBoxLayout*>(section->layout());
+
+    layout->addWidget(makeValueEditor(
+        QStringLiteral("Direction X"), QStringLiteral("X"), QStringLiteral("x"), _lightDirection[0], -1.0, 1.0, 0.05, 2, {}, section));
+    layout->addWidget(makeValueEditor(
+        QStringLiteral("Direction Y"), QStringLiteral("Y"), QStringLiteral("y"), _lightDirection[1], -1.0, 1.0, 0.05, 2, {}, section));
+    layout->addWidget(makeValueEditor(
+        QStringLiteral("Direction Z"), QStringLiteral("Z"), QStringLiteral("z"), _lightDirection[2], -1.0, 1.0, 0.05, 2, {}, section));
+    layout->addSpacing(7);
+    layout->addWidget(makeDivider(section));
+    layout->addSpacing(7);
+    layout->addWidget(makeValueEditor(
+        QStringLiteral("Color R"), QStringLiteral("R"), QStringLiteral("r"), _lightColor[0], 0.0, 8.0, 0.05, 2, {}, section));
+    layout->addWidget(makeValueEditor(
+        QStringLiteral("Color G"), QStringLiteral("G"), QStringLiteral("g"), _lightColor[1], 0.0, 8.0, 0.05, 2, {}, section));
+    layout->addWidget(makeValueEditor(
+        QStringLiteral("Color B"), QStringLiteral("B"), QStringLiteral("b"), _lightColor[2], 0.0, 8.0, 0.05, 2, {}, section));
+
+    auto* pickerRow = new QWidget(section);
+    pickerRow->setObjectName("propertyRow");
+    auto* pickerLayout = new QHBoxLayout(pickerRow);
+    pickerLayout->setContentsMargins(29, 5, 0, 1);
+    pickerLayout->addWidget(makeLabel(QStringLiteral("Color picker"), "fieldLabel", pickerRow));
+    pickerLayout->addStretch(1);
+    _colorPicker = new QPushButton(pickerRow);
+    _colorPicker->setObjectName("colorPickerButton");
+    _colorPicker->setFixedHeight(28);
+    _colorPicker->setMinimumWidth(116);
+    pickerLayout->addWidget(_colorPicker);
+    layout->addWidget(pickerRow);
+    return section;
+}
+
 void CameraInspector::notifyChanged() {
     if (!_syncing && _changeHandler) {
         _changeHandler(state());
     }
+}
+
+void CameraInspector::notifyLightingChanged() {
+    if (!_syncing && _lightingChangeHandler) {
+        _lightingChangeHandler(lightingState());
+    }
+}
+
+void CameraInspector::updateColorPreview() {
+    const auto light = lightingState();
+    const QColor color = QColor::fromRgbF(
+        std::clamp(light.color.r, 0.0f, 1.0f),
+        std::clamp(light.color.g, 0.0f, 1.0f),
+        std::clamp(light.color.b, 0.0f, 1.0f));
+    QPixmap swatch(14, 14);
+    swatch.fill(color);
+    _colorPicker->setIcon(QIcon(swatch));
+    _colorPicker->setText(color.name(QColor::HexRgb).toUpper());
 }
 
 } // namespace raum::sample

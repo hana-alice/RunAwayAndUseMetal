@@ -13,7 +13,7 @@ public:
         RENDERING,
         COMPUTING,
         TRANSFERING,
-        COMITTED,
+        COMMITTED,
     };
 
     explicit CommandBuffer(const CommandBufferInfo& info, CommandPool*cmdPool, RHIDevice* device);
@@ -50,5 +50,7 @@ private:
     std::vector<ExecutionBarrier> _executionBarriers;
 
     VkCommandBuffer _commandBuffer{VK_NULL_HANDLE};
+
+    friend class Queue;
 };
 } // namespace raum::rhi

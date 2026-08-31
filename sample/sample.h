@@ -1,7 +1,9 @@
 #pragma once
 #include <atomic>
 #include <chrono>
+#include <exception>
 #include <future>
+#include <limits>
 #include <mutex>
 #include <string>
 #include "GraphSample.h"
@@ -55,14 +57,12 @@ public:
         _world->attachWindow(_window);
 
         _samples = {
-            // std::make_shared<sample::GraphSample>(&_world->director()),
-
             std::make_shared<sample::LocalTestSample>(&_world->director()),
-            // std::make_shared<sample::ParticlesSample>(&_world->director()),
-            // std::make_shared<sample::VirtualTextureSample>(&_world->director()),
-            // std::make_shared<sample::ShadowMapSample>(&_world->director()),
-            // std::make_shared<sample::ContactShadowSample>(&_world->director()),
-
+            std::make_shared<sample::ParticlesSample>(&_world->director()),
+            std::make_shared<sample::VirtualTextureSample>(&_world->director()),
+            std::make_shared<sample::ShadowMapSample>(&_world->director()),
+            std::make_shared<sample::ContactShadowSample>(&_world->director()),
+            std::make_shared<sample::GraphSample>(&_world->director()),
         };
         if (!_samples.empty()) {
             beginInitialLoad();
@@ -105,6 +105,7 @@ public:
     void show(std::chrono::milliseconds deltaTime) {
         if (_loadingState.load(std::memory_order_acquire) == LoadingState::Ready &&
             _currIndex < _samples.size()) {
+            applyPendingSampleChange();
             _samples[_currIndex]->render(deltaTime);
         }
     }
@@ -163,15 +164,29 @@ public:
         if (!ready() || index >= _samples.size() || index == _currIndex) {
             return false;
         }
-        // Initialize first so a failed lazy initialization leaves the current
-        // sample active and usable.
-        _samples[index]->initialize();
-        _samples[_currIndex]->deactivate();
-        _currIndex = index;
-        _samples[_currIndex]->activate();
-        auto ppl = _world->director().pipeline();
-        ppl->graphScheduler().needWarmUp();
+
+        uint32_t expected = NoPendingSample;
+        if (!_pendingSampleIndex.compare_exchange_strong(
+                expected,
+                index,
+                std::memory_order_release,
+                std::memory_order_relaxed)) {
+            return false;
+        }
+        {
+            std::lock_guard lock(_sampleSwitchMutex);
+            _sampleSwitchError.clear();
+        }
         return true;
+    }
+
+    bool sampleSwitchPending() const {
+        return _pendingSampleIndex.load(std::memory_order_acquire) != NoPendingSample;
+    }
+
+    std::string sampleSwitchError() const {
+        std::lock_guard lock(_sampleSwitchMutex);
+        return _sampleSwitchError;
     }
 
     const std::vector<std::shared_ptr<sample::SampleBase>>& samples() const {
@@ -194,6 +209,38 @@ public:
     }
 
 private:
+    void applyPendingSampleChange() noexcept {
+        const auto index = _pendingSampleIndex.load(std::memory_order_acquire);
+        if (index == NoPendingSample) {
+            return;
+        }
+
+        try {
+            // Initialize first so a failed lazy initialization leaves the
+            // current sample active and usable. This runs at the start of the
+            // sample tick, before Director records the next frame.
+            auto& target = _samples[index];
+            auto& current = _samples[_currIndex];
+            target->initialize();
+            current->deactivate();
+            try {
+                target->activate();
+            } catch (...) {
+                current->activate();
+                throw;
+            }
+            _currIndex = index;
+            _world->director().pipeline()->graphScheduler().needWarmUp();
+        } catch (const std::exception& error) {
+            std::lock_guard lock(_sampleSwitchMutex);
+            _sampleSwitchError = error.what();
+        } catch (...) {
+            std::lock_guard lock(_sampleSwitchMutex);
+            _sampleSwitchError = "Unknown sample initialization error";
+        }
+        _pendingSampleIndex.store(NoPendingSample, std::memory_order_release);
+    }
+
     void beginInitialLoad() {
         setLoadingStatus(LoadingState::Loading, 0.0f, "Preparing scene resources");
         auto initialSample = _samples[_currIndex];
@@ -224,7 +271,10 @@ private:
         _loadingState.store(state, std::memory_order_release);
     }
 
+    static constexpr uint32_t NoPendingSample = std::numeric_limits<uint32_t>::max();
+
     uint32_t _currIndex{0};
+    std::atomic<uint32_t> _pendingSampleIndex{NoPendingSample};
     std::vector<std::shared_ptr<sample::SampleBase>> _samples;
     platform::WindowPtr _window;
     framework::World* _world{nullptr};
@@ -239,6 +289,8 @@ private:
     std::atomic<float> _loadingProgress{0.0f};
     mutable std::mutex _loadingStatusMutex;
     std::string _loadingMessage;
+    mutable std::mutex _sampleSwitchMutex;
+    std::string _sampleSwitchError;
     bool _windowShown{false};
 };
 

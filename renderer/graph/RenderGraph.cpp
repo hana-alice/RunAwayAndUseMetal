@@ -88,6 +88,7 @@ RenderQueue RenderPass::addQueue(std::string_view name) {
 RenderQueue& RenderQueue::addCamera(scene::Camera* camera) {
     auto& data = std::get<RenderQueueData>(_graph[_id].data);
     data.camera = camera;
+    data.flags |= RenderQueueFlags::GEOMETRY;
     return *this;
 }
 

@@ -75,6 +75,10 @@ public:
     MeshRenderer() = delete;
     MeshRenderer(MeshPtr mesh);
 
+    // Creates independent per-instance render state while retaining the
+    // immutable mesh and technique resources.
+    std::shared_ptr<MeshRenderer> createInstance() const;
+
     void addTechnique(TechniquePtr tech);
     void removeTechnique(uint32_t index);
     void setMesh(MeshPtr mesh);

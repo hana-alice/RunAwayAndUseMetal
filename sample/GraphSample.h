@@ -19,7 +19,7 @@ private:
 
         const auto& skyboxName = resource("skybox");
         auto& skyboxNode = sceneGraph().addModel(skyboxName);
-        skyboxNode.model = asset::BuiltinRes::skybox().model();
+        skyboxNode.model = asset::BuiltinRes::skybox().model()->createInstance();
         trackSceneNode(skyboxName);
 
         createPerspectiveCamera({
@@ -46,7 +46,7 @@ private:
 
         auto uploadPass = renderGraph.addCopyPass("cameraBufferUpdate");
         uploadCamera(uploadPass);
-        uploadLight(uploadPass, Vec4f{5.0f, 5.0f, 0.0f, 1.0f});
+        uploadLight(uploadPass);
 
         auto renderPass = renderGraph.addRenderPass("forward");
         renderPass

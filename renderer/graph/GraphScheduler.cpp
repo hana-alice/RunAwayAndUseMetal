@@ -1,4 +1,5 @@
 #include "GraphScheduler.h"
+#include <algorithm>
 #include <boost/graph/depth_first_search.hpp>
 #include <stdexcept>
 #include "GraphUtils.h"
@@ -94,8 +95,11 @@ struct WarmUpVisitor : public boost::dfs_visitor<> {
                             return tech->phaseName() == phaseName;
                         });
                         if (it == techs.end()) {
-                            auto embed = scene::EmbededTechniqueName.at(phaseName);
-                            meshrenderer->addTechnique(scene::makeEmbededTechnique(embed));
+                            const auto embedded = scene::EmbededTechniqueName.find(phaseName);
+                            if (embedded == scene::EmbededTechniqueName.end()) {
+                                continue;
+                            }
+                            meshrenderer->addTechnique(scene::makeEmbededTechnique(embedded->second));
                         }
                     }
                     for (auto& tech : meshrenderer->techniques()) {
@@ -384,16 +388,64 @@ struct RenderGraphVisitor : public boost::dfs_visitor<> {
                            _renderEncoder->setViewport(data.viewport);
                            _renderEncoder->setScissor(data.viewport.rect);
                            if (test(data.flags, RenderQueueFlags::GEOMETRY)) {
+                               struct DrawItem {
+                                   scene::MeshRendererPtr renderer;
+                                   scene::TechniquePtr technique;
+                                   bool transparent{false};
+                                   float distanceSquared{0.0f};
+                               };
+
+                               std::vector<DrawItem> drawItems;
+                               drawItems.reserve(_renderables.size());
+                               const bool opaqueOnly = test(data.flags, RenderQueueFlags::OPAQUE) &&
+                                                       !test(data.flags, RenderQueueFlags::TRANSPARENT);
+                               const bool transparentOnly = test(data.flags, RenderQueueFlags::TRANSPARENT) &&
+                                                            !test(data.flags, RenderQueueFlags::OPAQUE);
                                for (const auto& renderable : _renderables) {
-                                   const auto& meshRenderer = std::static_pointer_cast<scene::MeshRenderer>(renderable);
-                                   uint32_t phaseIndex = -1;
-                                   for (const auto& tech : meshRenderer->techniques()) {
-                                       if (tech->phaseName() == phase) {
-                                           phaseIndex = &tech - &meshRenderer->techniques()[0];
-                                       }
+                                   const auto meshRenderer = std::static_pointer_cast<scene::MeshRenderer>(renderable);
+                                   const auto& techniques = meshRenderer->techniques();
+                                   const auto phaseTechnique = std::ranges::find_if(
+                                       techniques,
+                                       [phase](const auto& technique) {
+                                           return technique->phaseName() == phase;
+                                       });
+                                   if (phaseTechnique == techniques.end()) {
+                                       continue;
                                    }
-                                   raum_check(phaseIndex != -1, "Phase %s not found", phase);
-                                   const auto& technique = meshRenderer->technique(phaseIndex);
+
+                                   const auto& material = (*phaseTechnique)->material();
+                                   const bool transparent = material->type() == scene::MaterialType::PBR &&
+                                                            std::static_pointer_cast<scene::PBRMaterial>(material)->alphaMode() ==
+                                                                scene::PBRMaterial::AlphaMode::AM_BLEND;
+                                   if ((opaqueOnly && transparent) || (transparentOnly && !transparent)) {
+                                       continue;
+                                   }
+
+                                   float distanceSquared{0.0f};
+                                   if (transparent && data.camera) {
+                                       const auto& bounds = meshRenderer->mesh()->aabb();
+                                       const Vec3f center = (bounds.minBound + bounds.maxBound) * 0.5f;
+                                       const Vec3f cameraToCenter = center - data.camera->eye().getPosition();
+                                       distanceSquared = glm::dot(cameraToCenter, cameraToCenter);
+                                   }
+                                   drawItems.emplace_back(DrawItem{
+                                       .renderer = meshRenderer,
+                                       .technique = *phaseTechnique,
+                                       .transparent = transparent,
+                                       .distanceSquared = distanceSquared,
+                                   });
+                               }
+
+                               std::ranges::stable_sort(drawItems, [](const DrawItem& lhs, const DrawItem& rhs) {
+                                   if (lhs.transparent != rhs.transparent) {
+                                       return !lhs.transparent;
+                                   }
+                                   return lhs.transparent && lhs.distanceSquared > rhs.distanceSquared;
+                               });
+
+                               for (const auto& item : drawItems) {
+                                   const auto& meshRenderer = item.renderer;
+                                   const auto& technique = item.technique;
                                    _renderEncoder->bindPipeline(technique->pipelineState().get());
                                    const auto& mat = technique->material();
                                    if (mat->type() == scene::MaterialType::PBR) {

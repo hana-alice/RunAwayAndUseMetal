@@ -18,7 +18,7 @@ void ContactShadowSample::onInitialize() {
 
     const auto& quadName = resource("quad");
     auto& quadNode = sceneGraph().addModel(quadName);
-    quadNode.model = asset::BuiltinRes::quad().model();
+    quadNode.model = asset::BuiltinRes::quad().model()->createInstance();
     trackSceneNode(quadName);
 
     auto& quadRenderer = quadNode.model->meshRenderers().front();
