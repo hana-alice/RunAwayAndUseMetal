@@ -118,6 +118,7 @@ public:
     RUIEmbededWindow(TickFunction&& tickFunc) : _tickFunc(tickFunc) {
         setSurfaceType(QSurface::RasterSurface);
         setFlag(Qt::FramelessWindowHint, true);
+        _timer.setTimerType(Qt::PreciseTimer);
         _timer.setInterval(int(1000.0 / MAX_FPS));
         connect(&_timer, &QTimer::timeout, this, &RUIEmbededWindow::tick);
     }
@@ -137,6 +138,8 @@ public:
 
     void show() {
         QWindow::show();
+        _elapsedTimer.start();
+        _lastns = _elapsedTimer.nsecsElapsed();
         _timer.start();
     }
 

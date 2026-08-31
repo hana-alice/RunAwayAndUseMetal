@@ -40,7 +40,7 @@ public:
 
         _window = std::make_shared<platform::Window>(argc, argv, s_width, s_height);
         _lastFpsTime = std::chrono::steady_clock::now();
-        _tickID = _window->addTick([&](std::chrono::milliseconds) {
+        _tickID = _window->addTick([&](std::chrono::milliseconds deltaTime) {
             auto now = std::chrono::steady_clock::now();
             _frameCount.fetch_add(1, std::memory_order_relaxed);
             auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - _lastFpsTime).count();
@@ -49,7 +49,7 @@ public:
                 _fps.store(static_cast<float>(count) * 1000.0f / static_cast<float>(elapsed), std::memory_order_relaxed);
                 _lastFpsTime = now;
             }
-            this->show();
+            this->show(deltaTime);
         });
 
         _world->attachWindow(_window);
@@ -102,10 +102,10 @@ public:
         }
     }
 
-    void show() {
+    void show(std::chrono::milliseconds deltaTime) {
         if (_loadingState.load(std::memory_order_acquire) == LoadingState::Ready &&
             _currIndex < _samples.size()) {
-            _samples[_currIndex]->render();
+            _samples[_currIndex]->render(deltaTime);
         }
     }
 

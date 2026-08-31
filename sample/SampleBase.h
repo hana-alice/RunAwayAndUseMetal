@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chrono>
 #include <cstdint>
 #include <filesystem>
 #include <functional>
@@ -11,6 +12,7 @@
 
 #include "RHIDefine.h"
 #include "core/math.h"
+#include "renderer/scene/common.h"
 
 namespace raum::framework {
 class Director;
@@ -44,7 +46,7 @@ public:
     void load(const LoadingProgressCallback& progress = {});
     void initialize();
     void activate();
-    void render();
+    void render(std::chrono::milliseconds deltaTime);
     void deactivate();
 
     bool initialized() const { return _initialized; }
@@ -57,6 +59,7 @@ public:
 protected:
     virtual void onLoad(const LoadingProgressCallback&) {}
     virtual void onInitialize() = 0;
+    virtual void onUpdate(std::chrono::milliseconds) {}
     virtual void onRender() = 0;
     virtual void onActivated() {}
     virtual void onDeactivated() {}
@@ -86,7 +89,7 @@ protected:
     void ensureSampler(std::string_view localName, const rhi::SamplerInfo& info);
     void resizeViewportResources();
 
-    void loadScene(
+    std::optional<scene::AABB> loadScene(
         const std::filesystem::path& filePath,
         std::string_view localName = "scene",
         const LoadingProgressCallback& progress = {});

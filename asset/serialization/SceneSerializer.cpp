@@ -1061,6 +1061,7 @@ void loadMeshFromCache(
 
         modelNode.model = std::make_shared<scene::Model>();
         auto& model = *modelNode.model;
+        std::optional<scene::AABB> modelBounds;
 
         for (const auto& cachedPrimitive : cachedMesh.primitives) {
             auto mesh = std::make_shared<scene::Mesh>();
@@ -1084,6 +1085,12 @@ void loadMeshFromCache(
             meshData.shaderAttrs = cachedPrimitive.shaderAttributes;
             meshData.vertexLayout = cachedPrimitive.vertexLayout;
             mesh->aabb() = cachedPrimitive.bounds;
+            if (modelBounds) {
+                modelBounds->minBound = glm::min(modelBounds->minBound, cachedPrimitive.bounds.minBound);
+                modelBounds->maxBound = glm::max(modelBounds->maxBound, cachedPrimitive.bounds.maxBound);
+            } else {
+                modelBounds = cachedPrimitive.bounds;
+            }
 
             rhi::BufferSourceInfo bufferSourceInfo{
                 .bufferUsage = rhi::BufferUsage::VERTEX,
@@ -1158,6 +1165,9 @@ void loadMeshFromCache(
             for (size_t i = 0; i < embededTechSize; ++i) {
                 meshRenderer->addTechnique(scene::makeEmbededTechnique(static_cast<scene::EmbededTechnique>(i)));
             }
+        }
+        if (modelBounds) {
+            model.aabb() = *modelBounds;
         }
         ++completedMeshes;
         reportProgress(

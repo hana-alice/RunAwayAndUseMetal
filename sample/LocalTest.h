@@ -17,18 +17,21 @@ public:
 private:
     void onLoad(const LoadingProgressCallback& progress) override {
         const auto& resourcePath = utils::resourceDirectory();
-        loadScene(resourcePath / "models" / "sponza" / "sponza.gltf", "scene", progress);
+        _sceneBounds = loadScene(resourcePath / "models" / "sponza" / "sponza.gltf", "scene", progress);
     }
 
     void onInitialize() override {
+        const auto cameraPosition = _sceneBounds
+            ? (_sceneBounds->minBound + _sceneBounds->maxBound) * 0.5f
+            : Vec3f{0.0f, 0.0f, 50.0f};
         createPerspectiveCamera({
             .verticalFov = utils::Degree{60.0f},
             .nearPlane = 1.0f,
             .farPlane = 1000.0f,
-            .position = {0.0f, 0.0f, 50.0f},
+            .position = cameraPosition,
             .yawDegrees = 180.0f,
         });
-        enableFlyCamera({.moveSpeed = 1.1f});
+        enableFlyCamera({.moveSpeed = 18.0f});
 
         {
             auto materialTemplate = std::make_shared<scene::MaterialTemplate>("asset/layout/fullscreen/rasterBlit");
@@ -102,6 +105,7 @@ private:
     }
 
     scene::TechniquePtr _rasterBlitTechnique;
+    std::optional<scene::AABB> _sceneBounds;
 };
 
 } // namespace raum::sample

@@ -18,7 +18,8 @@ struct PerspectiveCameraConfig {
 };
 
 struct FlyCameraConfig {
-    float moveSpeed{1.0f};
+    // World units per second.
+    float moveSpeed{6.0f};
     float lookSensitivity{0.1f};
     float minimumPitch{-89.9f};
     float maximumPitch{89.9f};
@@ -49,6 +50,7 @@ protected:
     const std::string& lightBuffer() const { return resource("light"); }
 
 private:
+    void onUpdate(std::chrono::milliseconds deltaTime) override;
     void updateCameraOrientation();
 
     scene::CameraPtr _camera;
@@ -57,7 +59,6 @@ private:
     float _pitchDegrees{0.0f};
     bool _flyCameraEnabled{false};
     bool _dragging{false};
-    framework::EventListener<framework::KeyboardEventTag> _keyListener;
     framework::EventListener<framework::MouseButtonEventTag> _mouseButtonListener;
     framework::EventListener<framework::MouseMotionEventTag> _mouseMotionListener;
 };

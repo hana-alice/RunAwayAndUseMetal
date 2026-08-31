@@ -100,7 +100,7 @@ private:
             .position = {0.0f, 0.0f, 4.0f},
             .yawDegrees = 180.0f,
         });
-        enableFlyCamera({.moveSpeed = 0.1f});
+        enableFlyCamera({.moveSpeed = 3.0f});
 
         ensureSwapchain("present");
         ensureViewportImage(

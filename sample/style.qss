@@ -13,44 +13,14 @@ QLabel {
     color: #d6d8dc;
 }
 
-QWidget#commandBar {
-    background: #1c1d21;
-    border-bottom: 1px solid #303238;
-}
-
-QLabel#brandMark {
-    background: #4f8cff;
-    border-radius: 5px;
-    color: #ffffff;
-    font-size: 14px;
-    font-weight: 700;
-}
-
-QLabel#productTitle {
-    color: #f4f4f5;
-    font-size: 14px;
-    font-weight: 600;
-}
-
-QLabel#workspaceName {
-    color: #8d9199;
-    font-size: 11px;
-}
-
-QFrame#commandDivider,
 QFrame#panelDivider,
 QFrame#statusDivider {
     background: #3a3c42;
     border: none;
 }
 
-QLabel#commandLabel {
-    color: #9da1a9;
-    font-size: 11px;
-}
-
 QComboBox#sampleSelector {
-    min-height: 29px;
+    min-height: 25px;
     padding: 0 28px 0 10px;
     background: #292b30;
     border: 1px solid #3b3e45;
@@ -85,20 +55,10 @@ QComboBox#sampleSelector QAbstractItemView {
     selection-color: #ffffff;
 }
 
-QWidget#backendStatus {
-    background: transparent;
-}
-
-QLabel#backendDot,
 QLabel#runningDot,
 QLabel#cameraStatusDot[active="true"] {
     background: #55c98b;
     border-radius: 3px;
-}
-
-QLabel#backendText {
-    color: #aeb2b9;
-    font-size: 11px;
 }
 
 QPushButton#resetCameraButton {

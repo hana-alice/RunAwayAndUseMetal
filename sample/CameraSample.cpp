@@ -60,28 +60,6 @@ void CameraSample::enableFlyCamera(const FlyCameraConfig& config) {
     }
     _flyCameraEnabled = true;
 
-    _keyListener.add([this] {
-        if (!active() || !_camera) {
-            return;
-        }
-        auto& eye = _camera->eye();
-        const auto front = glm::normalize(eye.forward());
-        const auto right = glm::normalize(glm::cross(front, eye.up()));
-        if (framework::keyPressed(framework::Keyboard::W)) {
-            eye.translate(front * _flyConfig.moveSpeed);
-        }
-        if (framework::keyPressed(framework::Keyboard::S)) {
-            eye.translate(-front * _flyConfig.moveSpeed);
-        }
-        if (framework::keyPressed(framework::Keyboard::A)) {
-            eye.translate(-right * _flyConfig.moveSpeed);
-        }
-        if (framework::keyPressed(framework::Keyboard::D)) {
-            eye.translate(right * _flyConfig.moveSpeed);
-        }
-        _camera->update();
-    });
-
     _mouseButtonListener.add([this](float, float, framework::MouseButton button, framework::ButtonStatus status) {
         if (!active()) {
             _dragging = false;
@@ -105,6 +83,43 @@ void CameraSample::enableFlyCamera(const FlyCameraConfig& config) {
             _flyConfig.maximumPitch);
         updateCameraOrientation();
     });
+}
+
+void CameraSample::onUpdate(std::chrono::milliseconds deltaTime) {
+    if (!_flyCameraEnabled || !_camera) {
+        return;
+    }
+
+    auto& eye = _camera->eye();
+    const auto front = glm::normalize(eye.forward());
+    // Raum uses a left-handed camera basis (+Z forward), so right is up x forward.
+    const auto right = glm::normalize(glm::cross(eye.up(), front));
+    Vec3f direction{0.0f};
+    if (framework::keyPressed(framework::Keyboard::W)) {
+        direction += front;
+    }
+    if (framework::keyPressed(framework::Keyboard::S)) {
+        direction -= front;
+    }
+    if (framework::keyPressed(framework::Keyboard::A)) {
+        direction -= right;
+    }
+    if (framework::keyPressed(framework::Keyboard::D)) {
+        direction += right;
+    }
+
+    const auto lengthSquared = glm::dot(direction, direction);
+    if (lengthSquared <= 0.0f) {
+        return;
+    }
+
+    constexpr float MaxDeltaSeconds = 0.05f;
+    const auto deltaSeconds = std::clamp(
+        static_cast<float>(deltaTime.count()) / 1000.0f,
+        0.0f,
+        MaxDeltaSeconds);
+    eye.translate(glm::normalize(direction) * _flyConfig.moveSpeed * deltaSeconds);
+    _camera->update();
 }
 
 void CameraSample::ensureCameraResources(bool includePosition) {

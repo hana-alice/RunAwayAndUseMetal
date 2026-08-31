@@ -162,14 +162,15 @@ struct UI::Impl {
         auto* rootLayout = new QVBoxLayout(root);
         rootLayout->setContentsMargins(0, 0, 0, 0);
         rootLayout->setSpacing(0);
-        rootLayout->addWidget(buildCommandBar(root));
         rootLayout->addWidget(buildWorkspace(root), 1);
         rootLayout->addWidget(buildStatusBar(root));
         _mainWindow->setCentralWidget(root);
 
         connectUi();
         updateSampleLabels();
-        _sampleSelector->setEnabled(false);
+        if (_sampleSelector) {
+            _sampleSelector->setEnabled(false);
+        }
         _cameraInspector->setEnabled(false);
         _resetCameraButton->setEnabled(false);
         updateTelemetry();
@@ -217,54 +218,6 @@ private:
         }
     }
 
-    QWidget* buildCommandBar(QWidget* parent) {
-        auto* commandBar = new QWidget(parent);
-        commandBar->setObjectName("commandBar");
-        commandBar->setFixedHeight(50);
-        auto* layout = new QHBoxLayout(commandBar);
-        layout->setContentsMargins(14, 0, 14, 0);
-        layout->setSpacing(10);
-
-        auto* brandMark = makeLabel(QStringLiteral("R"), "brandMark", commandBar);
-        brandMark->setAlignment(Qt::AlignCenter);
-        brandMark->setFixedSize(26, 26);
-        layout->addWidget(brandMark);
-        layout->addWidget(makeLabel(QStringLiteral("Raum"), "productTitle", commandBar));
-        layout->addWidget(makeLabel(QStringLiteral("Renderer Lab"), "workspaceName", commandBar));
-        layout->addSpacing(3);
-        layout->addWidget(makeVerticalDivider("commandDivider", commandBar));
-        layout->addSpacing(3);
-
-        layout->addWidget(makeLabel(QStringLiteral("Sample"), "commandLabel", commandBar));
-        _sampleSelector = new QComboBox(commandBar);
-        _sampleSelector->setObjectName("sampleSelector");
-        _sampleSelector->setMinimumWidth(184);
-        for (const auto& sample : _sample->samples()) {
-            _sampleSelector->addItem(QString::fromStdString(sample->name()));
-        }
-        _sampleSelector->setCurrentIndex(static_cast<int>(_sample->currentSampleIndex()));
-        layout->addWidget(_sampleSelector);
-        layout->addStretch(1);
-
-        auto* backend = new QWidget(commandBar);
-        backend->setObjectName("backendStatus");
-        auto* backendLayout = new QHBoxLayout(backend);
-        backendLayout->setContentsMargins(0, 0, 0, 0);
-        backendLayout->setSpacing(7);
-        auto* backendDot = makeLabel({}, "backendDot", backend);
-        backendDot->setFixedSize(6, 6);
-        backendLayout->addWidget(backendDot);
-        backendLayout->addWidget(makeLabel(QStringLiteral("Vulkan"), "backendText", backend));
-        layout->addWidget(backend);
-        layout->addWidget(makeVerticalDivider("commandDivider", commandBar));
-
-        _resetCameraButton = new QPushButton(QStringLiteral("Reset camera"), commandBar);
-        _resetCameraButton->setObjectName("resetCameraButton");
-        _resetCameraButton->setFixedHeight(30);
-        layout->addWidget(_resetCameraButton);
-        return commandBar;
-    }
-
     QWidget* buildWorkspace(QWidget* parent) {
         auto* splitter = new QSplitter(Qt::Horizontal, parent);
         splitter->setObjectName("workspaceSplitter");
@@ -298,6 +251,17 @@ private:
         headerLayout->addWidget(makeVerticalDivider("panelDivider", header));
         _viewportTitle = makeLabel({}, "viewportSample", header);
         headerLayout->addWidget(_viewportTitle);
+        if (_sample->samples().size() > 1) {
+            _viewportTitle->hide();
+            _sampleSelector = new QComboBox(header);
+            _sampleSelector->setObjectName("sampleSelector");
+            _sampleSelector->setMinimumWidth(160);
+            for (const auto& sample : _sample->samples()) {
+                _sampleSelector->addItem(QString::fromStdString(sample->name()));
+            }
+            _sampleSelector->setCurrentIndex(static_cast<int>(_sample->currentSampleIndex()));
+            headerLayout->addWidget(_sampleSelector);
+        }
         headerLayout->addStretch(1);
         headerLayout->addWidget(makeLabel(QStringLiteral("Perspective"), "viewMode", header));
         _viewportResolution = makeLabel(QStringLiteral("-- x --"), "resolutionLabel", header);
@@ -402,6 +366,10 @@ private:
         headerLayout->addWidget(_cameraStatusDot);
         _cameraStatusText = makeLabel(QStringLiteral("Live"), "cameraStatusText", header);
         headerLayout->addWidget(_cameraStatusText);
+        _resetCameraButton = new QPushButton(QStringLiteral("Reset"), header);
+        _resetCameraButton->setObjectName("resetCameraButton");
+        _resetCameraButton->setFixedHeight(26);
+        headerLayout->addWidget(_resetCameraButton);
         dockLayout->addWidget(header);
 
         auto* scrollArea = new QScrollArea(dock);
@@ -480,18 +448,20 @@ private:
     }
 
     void connectUi() {
-        QObject::connect(
-            _sampleSelector,
-            qOverload<int>(&QComboBox::currentIndexChanged),
-            _mainWindow.get(),
-            [this](int index) {
-                if (!_sample->ready() || index < 0 || !_sample->changeSample(static_cast<uint32_t>(index))) {
-                    return;
-                }
-                _resetCameraState.reset();
-                updateSampleLabels();
-                syncCameraState(true);
-            });
+        if (_sampleSelector) {
+            QObject::connect(
+                _sampleSelector,
+                qOverload<int>(&QComboBox::currentIndexChanged),
+                _mainWindow.get(),
+                [this](int index) {
+                    if (!_sample->ready() || index < 0 || !_sample->changeSample(static_cast<uint32_t>(index))) {
+                        return;
+                    }
+                    _resetCameraState.reset();
+                    updateSampleLabels();
+                    syncCameraState(true);
+                });
+        }
 
         QObject::connect(_resetCameraButton, &QPushButton::clicked, _mainWindow.get(), [this] {
             auto* current = _sample->currentSample();
@@ -555,7 +525,9 @@ private:
             _loadingProgress->setProperty("failed", true);
             refreshStyle(_loadingProgress);
             _loadingPercent->setText(QStringLiteral("Error"));
-            _sampleSelector->setEnabled(false);
+            if (_sampleSelector) {
+                _sampleSelector->setEnabled(false);
+            }
             _cameraInspector->setEnabled(false);
             _resetCameraButton->setEnabled(false);
             _statusPrimary->setText(QStringLiteral("Scene loading failed"));
@@ -575,7 +547,9 @@ private:
                     ? QStringLiteral("Preparing viewport")
                     : QStringLiteral("Loading Sponza scene"));
             _loadingMessage->setText(QString::fromStdString(status.message));
-            _sampleSelector->setEnabled(false);
+            if (_sampleSelector) {
+                _sampleSelector->setEnabled(false);
+            }
             _cameraInspector->setEnabled(false);
             _resetCameraButton->setEnabled(false);
             _statusPrimary->setText(QStringLiteral("Loading scene · %1%").arg(percent));
@@ -592,7 +566,9 @@ private:
             _readyUiInitialized = true;
             _loadingSpinner->setRunning(false);
             _viewportStack->setCurrentWidget(_renderSurface);
-            _sampleSelector->setEnabled(true);
+            if (_sampleSelector) {
+                _sampleSelector->setEnabled(true);
+            }
             _statusPrimary->setText(QStringLiteral("Renderer ready"));
             syncCameraState(true);
         } else {

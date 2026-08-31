@@ -34,7 +34,7 @@ void ContactShadowSample::onInitialize() {
         .position = {0.0f, 0.0f, 4.0f},
         .yawDegrees = 180.0f,
     });
-    enableFlyCamera({.moveSpeed = 0.1f});
+    enableFlyCamera({.moveSpeed = 3.0f});
 
     const scene::OrthoFrustum shadowFrustum{-5.0f, 5.0f, -5.0f, 5.0f, 20.0f, 0.1f};
     _shadowCamera = std::make_shared<scene::Camera>(shadowFrustum);

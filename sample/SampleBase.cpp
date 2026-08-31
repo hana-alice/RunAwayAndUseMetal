@@ -1,6 +1,7 @@
 #include "SampleBase.h"
 
 #include <algorithm>
+#include <cmath>
 #include <stdexcept>
 #include <utility>
 
@@ -62,8 +63,9 @@ void SampleBase::activate() {
     }
 }
 
-void SampleBase::render() {
+void SampleBase::render(std::chrono::milliseconds deltaTime) {
     if (_active) {
+        onUpdate(deltaTime);
         onRender();
     }
 }
@@ -164,7 +166,7 @@ void SampleBase::resizeViewportResources() {
     }
 }
 
-void SampleBase::loadScene(
+std::optional<scene::AABB> SampleBase::loadScene(
     const std::filesystem::path& filePath,
     std::string_view localName,
     const LoadingProgressCallback& progress) {
@@ -174,9 +176,34 @@ void SampleBase::loadScene(
         resource(localName),
         device(),
         progress);
+    std::optional<scene::AABB> sceneBounds;
     for (const auto& nodeName : loadedNodes) {
         trackSceneNode(nodeName);
+        const auto& nodeData = sceneGraph().get(nodeName).sceneNodeData;
+        const auto* modelNode = std::get_if<graph::ModelNode>(&nodeData);
+        if (!modelNode || !modelNode->model) {
+            continue;
+        }
+        const auto& bounds = modelNode->model->aabb();
+        const bool valid =
+            std::isfinite(bounds.minBound.x) &&
+            std::isfinite(bounds.minBound.y) &&
+            std::isfinite(bounds.minBound.z) &&
+            std::isfinite(bounds.maxBound.x) &&
+            std::isfinite(bounds.maxBound.y) &&
+            std::isfinite(bounds.maxBound.z) &&
+            glm::all(glm::lessThanEqual(bounds.minBound, bounds.maxBound));
+        if (!valid) {
+            continue;
+        }
+        if (sceneBounds) {
+            sceneBounds->minBound = glm::min(sceneBounds->minBound, bounds.minBound);
+            sceneBounds->maxBound = glm::max(sceneBounds->maxBound, bounds.maxBound);
+        } else {
+            sceneBounds = bounds;
+        }
     }
+    return sceneBounds;
 }
 
 void SampleBase::trackSceneNode(std::string_view nodeName) {
