@@ -13,11 +13,12 @@ struct PipelineCacheHeader {
     uint32_t keySize{0};
     std::array<uint8_t, VK_MAX_PIPELINE_BINARY_KEY_SIZE_KHR> key{};
 
-    template <class Archive>
-    void serialize(Archive& archive) {
-        archive(maxKeySize, keySize, key);
-    }
 };
+
+template <class Archive>
+void serialize(Archive& archive, PipelineCacheHeader& header) {
+    archive(header.maxKeySize, header.keySize, header.key);
+}
 
 } // namespace
 

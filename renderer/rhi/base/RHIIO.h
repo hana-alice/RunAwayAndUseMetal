@@ -1,4 +1,6 @@
 #pragma once
+#include "RHIDefine.h"
+
 namespace raum::rhi {
 template <class Archive>
 void serialize(Archive& ar, VertexAttribute& vertexAttr) {

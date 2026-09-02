@@ -112,8 +112,8 @@ void BuiltinRes::shutdown() {
     s_skybox = nullptr;
     // These geometry buffers are shared by the built-in render helpers, but
     // their static storage otherwise outlives the Vulkan device.
-    ::raum::scene::Quad::vertexBuffer.buffer.reset();
-    ::raum::scene::Cube::vertexBuffer.buffer.reset();
+    scene::Quad::vertexBuffer.buffer.reset();
+    scene::Cube::vertexBuffer.buffer.reset();
     s_iblBrdfLUTView.reset();
     s_iblBrdfLUT.reset();
 }

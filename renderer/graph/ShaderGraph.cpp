@@ -57,7 +57,7 @@ void generateDescriptorSetLayouts(ShaderResource& resource, rhi::DevicePtr devic
                 count = bindingDesc.sampler.count;
                 break;
             case BindingType::BINDLESS:
-                throw std::runtime_error("Bindless shader bindings are not supported");
+                raum_error("Bindless shader bindings are not supported");
         }
         std::vector<rhi::RHISampler*> immutableSamplers;
         if (bindingDesc.type == BindingType::SAMPLER && bindingDesc.sampler.immutable) {

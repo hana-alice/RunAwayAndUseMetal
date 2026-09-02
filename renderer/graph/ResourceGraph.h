@@ -21,8 +21,6 @@ using Aspect = rhi::AspectMask;
 
 struct SwapchainData {
     rhi::SwapchainPtr swapchain;
-    std::map<uint8_t, rhi::ImagePtr> images;
-    std::map<uint8_t, rhi::ImageViewPtr> imageViews;
 };
 
 struct Resource {
@@ -76,7 +74,6 @@ public:
     void mount(std::string_view name);
     void unmount(std::string_view name, uint64_t life);
     void updateImage(std::string_view name, uint32_t width, uint32_t height);
-    void invalidateSwapchain(rhi::RHISwapchain* swapchain);
 
     static VertexType null_vertex() { return boost::graph_traits<ResourceGraphImpl>::null_vertex(); }
     auto& impl() { return _graph; }
@@ -99,8 +96,9 @@ public:
 private:
     void addImageView(std::string_view name, const rhi::ImageInfo& info);
     rhi::RHIDevice* _device{nullptr};
-    ResourceGraphImpl _graph;
+    // Resource names back string_views stored by the graph and must outlive it.
     std::unordered_set<std::string, hash_string, std::equal_to<>> _names;
+    ResourceGraphImpl _graph;
 };
 
 }

@@ -534,7 +534,7 @@ struct RenderGraphVisitor : public boost::dfs_visitor<> {
                                std::visit(overloaded{
                                               [&](const rhi::BufferCopyRegion& region) {
                                                   if (!sourceIsBuffer || !targetIsBuffer) {
-                                                      throw std::runtime_error("A buffer copy requires buffer source and target resources");
+                                                      raum_error("A buffer copy requires buffer source and target resources");
                                                   }
                                                   auto mutableRegion = region;
                                                   _blitEncoder->copyBufferToBuffer(
@@ -545,7 +545,7 @@ struct RenderGraphVisitor : public boost::dfs_visitor<> {
                                               },
                                               [&](const rhi::ImageCopyRegion& region) {
                                                   if (!sourceIsImage || !targetIsImage) {
-                                                      throw std::runtime_error("An image copy requires image source and target resources");
+                                                      raum_error("An image copy requires image source and target resources");
                                                   }
                                                   auto mutableRegion = region;
                                                   _blitEncoder->copyImageToImage(
@@ -558,7 +558,7 @@ struct RenderGraphVisitor : public boost::dfs_visitor<> {
                                               },
                                               [&](const rhi::ImageBlit& region) {
                                                   if (!sourceIsImage || !targetIsImage) {
-                                                      throw std::runtime_error("An image blit requires image source and target resources");
+                                                      raum_error("An image blit requires image source and target resources");
                                                   }
                                                   auto mutableRegion = region;
                                                   _blitEncoder->blitImage(
@@ -587,7 +587,7 @@ struct RenderGraphVisitor : public boost::dfs_visitor<> {
                                                           &mutableRegion,
                                                           1);
                                                   } else {
-                                                      throw std::runtime_error("A buffer-image copy requires one buffer and one image resource");
+                                                      raum_error("A buffer-image copy requires one buffer and one image resource");
                                                   }
                                               }},
                                           copyPair.region);

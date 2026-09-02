@@ -20,7 +20,8 @@ public:
     virtual void resize(uint32_t w, uint32_t h) = 0;
     virtual void resize(uint32_t w, uint32_t h, uintptr_t surface) = 0;
 
-    virtual RHIImage* allocateImage(uint32_t index) = 0;
+    virtual ImagePtr image(uint32_t index) = 0;
+    virtual ImageViewPtr imageView(uint32_t index) = 0;
     virtual bool imageValid(uint32_t index) = 0;
     virtual bool holds(RHIImage* img) = 0;
     virtual RHISemaphore* getSignalPresentSemaphore() = 0;

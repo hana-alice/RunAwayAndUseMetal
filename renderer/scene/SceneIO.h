@@ -35,26 +35,28 @@ struct CameraArchiveState {
     Quaternion orientation{};
     bool cullingEnabled{true};
 
-    template <class Archive>
-    void serialize(Archive& archive) {
-        archive(projection,
-                perspectiveFrustum,
-                orthoFrustum,
-                position,
-                orientation,
-                cullingEnabled);
-    }
 };
 
 struct NodeArchiveState {
     bool enabled{true};
     Mat4 transform{1.0f};
 
-    template <class Archive>
-    void serialize(Archive& archive) {
-        archive(enabled, transform);
-    }
 };
+
+template <class Archive>
+void serialize(Archive& archive, CameraArchiveState& state) {
+    archive(state.projection,
+            state.perspectiveFrustum,
+            state.orthoFrustum,
+            state.position,
+            state.orientation,
+            state.cullingEnabled);
+}
+
+template <class Archive>
+void serialize(Archive& archive, NodeArchiveState& state) {
+    archive(state.enabled, state.transform);
+}
 
 inline CameraArchiveState cameraArchiveState(const Camera& camera) {
     const auto& eye = camera.eye();

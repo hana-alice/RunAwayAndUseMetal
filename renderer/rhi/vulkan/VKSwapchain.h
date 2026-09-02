@@ -51,7 +51,8 @@ class Swapchain : public RHISwapchain {
 public:
     bool acquire() override;
     void present() override;
-    RHIImage* allocateImage(uint32_t index) override;
+    ImagePtr image(uint32_t index) override;
+    ImageViewPtr imageView(uint32_t index) override;
     uint32_t imageCount() const override;
     uint32_t imageIndex() const override;
     uint32_t width() const override { return _info.width; }
@@ -86,6 +87,8 @@ private:
     uint32_t _imageIndex{0};
     uint32_t _imageCount{0};
     std::vector<VkImage> _vkImages;
+    std::vector<ImagePtr> _images;
+    std::vector<ImageViewPtr> _imageViews;
     std::vector<uint32_t> _valid;
 
     std::vector<Semaphore*> _acquireSemaphores;

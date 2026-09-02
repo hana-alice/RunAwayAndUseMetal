@@ -1,8 +1,8 @@
 #include "Archive.h"
 #include <fstream>
-#include <stdexcept>
 #include "cereal/access.hpp"
 #include "cereal/archives/binary.hpp"
+#include "log.h"
 
 
 namespace raum::utils {
@@ -13,7 +13,7 @@ InputArchive::InputArchive(const std::filesystem::path& filePath) : InputArchive
 InputArchive::InputArchive(const std::filesystem::path& filePath, std::ios::openmode stdFileMode) {
     is = std::ifstream(filePath.string(), stdFileMode);
     if (!is) {
-        throw std::runtime_error("Failed to open archive for reading: " + filePath.string());
+        raum_error("Failed to open archive for reading: {}", filePath.string());
     }
     iarchive = std::make_unique<cereal::BinaryInputArchive>(is);
 }
@@ -34,7 +34,7 @@ OutputArchive::OutputArchive(const std::filesystem::path& filePath, std::ios::op
     }
     os = std::ofstream(filePath.string(), stdFileMode);
     if (!os) {
-        throw std::runtime_error("Failed to open archive for writing: " + filePath.string());
+        raum_error("Failed to open archive for writing: {}", filePath.string());
     }
     oarchive = std::make_unique<cereal::BinaryOutputArchive>(os);
 }

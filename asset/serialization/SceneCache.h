@@ -5,34 +5,32 @@
 #include <string_view>
 #include <vector>
 #include "Mesh.h"
-#include "RHIIO.h"
-#include "SceneIO.h"
 
 namespace raum::asset::serialize {
 
 // Bump this whenever one of the cache records below changes.
-inline constexpr uint32_t SceneCacheVersion{4};
+inline constexpr uint32_t SceneCacheVersion{5};
 inline constexpr std::string_view SceneCacheMetadataFile{".raum-cache"};
 
 struct SceneCacheMetadata {
     uint32_t version{0};
     int64_t sourceTimestamp{0};
+};
 
-    template <class Archive>
-    void serialize(Archive& archive) {
-        archive(version, sourceTimestamp);
-    }
+enum class TextureColorSpace : uint8_t {
+    LINEAR,
+    SRGB,
 };
 
 struct TextureCache {
+    int32_t sourceImageIndex{-1};
     uint32_t width{0};
     uint32_t height{0};
+    uint32_t mipCount{1};
+    TextureColorSpace colorSpace{TextureColorSpace::LINEAR};
+    bool preservesAlphaCoverage{false};
+    float alphaCutoff{0.5f};
     std::vector<uint8_t> pixels;
-
-    template <class Archive>
-    void serialize(Archive& archive) {
-        archive(width, height, pixels);
-    }
 };
 
 struct MaterialTextureCache {
@@ -42,11 +40,6 @@ struct MaterialTextureCache {
 
     bool enabled() const {
         return textureIndex >= 0;
-    }
-
-    template <class Archive>
-    void serialize(Archive& archive) {
-        archive(textureIndex, imageIndex, uvIndex);
     }
 };
 
@@ -67,24 +60,6 @@ struct MaterialCache {
     MaterialTextureCache normalTexture;
     MaterialTextureCache occlusionTexture;
     MaterialTextureCache emissiveTexture;
-
-    template <class Archive>
-    void serialize(Archive& archive) {
-        archive(alphaMode,
-                doubleSided,
-                alphaCutoff,
-                baseColorFactor,
-                emissiveFactor,
-                metallicFactor,
-                roughnessFactor,
-                normalScale,
-                occlusionStrength,
-                baseColorTexture,
-                metallicRoughnessTexture,
-                normalTexture,
-                occlusionTexture,
-                emissiveTexture);
-    }
 };
 
 struct MeshPrimitiveCache {
@@ -98,30 +73,11 @@ struct MeshPrimitiveCache {
     int32_t materialIndex{-1};
     int32_t primitiveMode{0};
     scene::AABB bounds;
-
-    template <class Archive>
-    void serialize(Archive& archive) {
-        archive(vertexCount,
-                vertexData,
-                indexCount,
-                indexType,
-                indexData,
-                shaderAttributes,
-                vertexLayout,
-                materialIndex,
-                primitiveMode,
-                bounds);
-    }
 };
 
 struct MeshCache {
     Mat4 worldTransform{1.0f};
     std::vector<MeshPrimitiveCache> primitives;
-
-    template <class Archive>
-    void serialize(Archive& archive) {
-        archive(worldTransform, primitives);
-    }
 };
 
 } // namespace raum::asset::serialize

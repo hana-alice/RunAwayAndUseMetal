@@ -79,18 +79,7 @@ rhi::ImageSubresourceRange getSubresourceRange(const Resource& resourceDetail) {
     rhi::ImageSubresourceRange range{};
     std::visit(overloaded{
                    [&](const ImageData& imageData) {
-                       bool depthFormat = rhi::hasDepth(imageData.info.format);
-                       bool stencilFormat = rhi::hasStencil(imageData.info.format);
-
-                       if (!depthFormat && !stencilFormat) {
-                           range.aspect = rhi::AspectMask::COLOR;
-                       } else if (depthFormat && stencilFormat) {
-                           range.aspect = rhi::AspectMask::DEPTH | rhi::AspectMask::STENCIL;
-                       } else if (depthFormat) {
-                           range.aspect = rhi::AspectMask::DEPTH;
-                       } else if (stencilFormat) {
-                           range.aspect = rhi::AspectMask::STENCIL;
-                       }
+                       range.aspect = rhi::formatAspectMask(imageData.info.format);
                        range.sliceCount = imageData.info.sliceCount;
                        range.mipCount = imageData.info.mipCount;
                        range.firstMip = 0;
@@ -100,8 +89,10 @@ rhi::ImageSubresourceRange getSubresourceRange(const Resource& resourceDetail) {
                        range = imageViewData.info.range;
                        // [ VUID-VkImageMemoryBarrier-image-03320 ]
                        // format and barrier access should match if no related extension is enabled
-                       if (range.aspect == rhi::AspectMask::DEPTH || range.aspect == rhi::AspectMask::STENCIL) {
-                           range.aspect = rhi::AspectMask::DEPTH | rhi::AspectMask::STENCIL;
+                       const auto formatAspects = rhi::formatAspectMask(imageViewData.info.format);
+                       if (formatAspects == (rhi::AspectMask::DEPTH | rhi::AspectMask::STENCIL) &&
+                           (range.aspect == rhi::AspectMask::DEPTH || range.aspect == rhi::AspectMask::STENCIL)) {
+                           range.aspect = formatAspects;
                        }
                    },
                    [&](const SwapchainData& swapchainData) {

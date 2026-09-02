@@ -1191,7 +1191,7 @@ Format mapSwapchainFormat(VkFormat format) {
             res = Format::BGRA8_SRGB;
             break;
         default:
-            RAUM_ERROR("Unrecorded swapchain color found");
+            raum_report_error("Unrecorded swapchain color found");
     }
     return res;
 }

@@ -433,6 +433,17 @@ bool hasStencil(Format format) {
     return stencilFormats.contains(format);
 }
 
+AspectMask formatAspectMask(Format format) {
+    auto aspect = static_cast<AspectMask>(0);
+    if (hasDepth(format)) {
+        aspect |= AspectMask::DEPTH;
+    }
+    if (hasStencil(format)) {
+        aspect |= AspectMask::STENCIL;
+    }
+    return static_cast<uint32_t>(aspect) == 0 ? AspectMask::COLOR : aspect;
+}
+
 namespace {
 ImagePtr sampledImage;
 ImagePtr storageImage;

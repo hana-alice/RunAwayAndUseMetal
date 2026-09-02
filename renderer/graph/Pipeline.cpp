@@ -27,7 +27,6 @@ void Pipeline::resizeSwapchain(uint32_t width, uint32_t height, uintptr_t surfac
 
     _device->waitDeviceIdle();
     clearFrameBufferCache();
-    _resourceGraph->invalidateSwapchain(_swapchain.get());
     _swapchain->resize(width, height, surface);
     _scheduler->needWarmUp();
 }

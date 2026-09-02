@@ -20,18 +20,12 @@ rhi::ImageViewInfo getDefaultViewInfo(const rhi::ImageInfo& info) {
     rhi::ImageViewInfo viewInfo{};
     viewInfo.format = info.format;
     viewInfo.range = {
-        .aspect = rhi::AspectMask::COLOR,
+        .aspect = rhi::formatAspectMask(info.format),
         .firstSlice = 0,
         .sliceCount = info.sliceCount,
         .firstMip = 0,
         .mipCount = info.mipCount,
     };
-    if (rhi::hasDepth(info.format)) {
-        viewInfo.range.aspect = rhi::AspectMask::DEPTH;
-    }
-    if (rhi::hasStencil(info.format)) {
-        viewInfo.range.aspect |= rhi::AspectMask::STENCIL;
-    }
     switch (info.type) {
         case rhi::ImageType::IMAGE_1D: {
             viewInfo.type = info.sliceCount > 1 ? rhi::ImageViewType::IMAGE_VIEW_1D_ARRAY : rhi::ImageViewType::IMAGE_VIEW_1D;
@@ -163,7 +157,7 @@ void ResourceGraph::addSampler(std::string_view name, const rhi::SamplerInfo& in
 void ResourceGraph::import(std::string_view name, rhi::SwapchainPtr swapchain) {
     const auto& p = _names.emplace(name);
     if (p.second) {
-        const auto& v = add_vertex(name, _graph);
+        const auto& v = add_vertex(*p.first, _graph);
         _graph[v].data = SwapchainData{swapchain};
         _graph[v].residency = ResourceResidency::SWAPCHAIN;
     }
@@ -176,16 +170,6 @@ void ResourceGraph::updateImage(std::string_view name, uint32_t width, uint32_t 
         unmount(name, std::numeric_limits<uint64_t>::max());
         image.info.extent.x = width;
         image.info.extent.y = height;
-    }
-}
-
-void ResourceGraph::invalidateSwapchain(rhi::RHISwapchain* swapchain) {
-    for (auto v : boost::make_iterator_range(boost::vertices(_graph))) {
-        auto* data = std::get_if<SwapchainData>(&_graph[v].data);
-        if (data && data->swapchain.get() == swapchain) {
-            data->imageViews.clear();
-            data->images.clear();
-        }
     }
 }
 
@@ -238,24 +222,6 @@ void ResourceGraph::mount(std::string_view name) {
                            const auto& originData = std::get<ImageData>(_graph[v].data);
                            data.info.image = originData.image.get();
                            data.imageView = rhi::ImageViewPtr(_device->createImageView(data.info));
-                       }
-                   },
-                   [&](SwapchainData& data) {
-                       auto& swapchain = data.swapchain;
-                       if (data.images.size() != swapchain->imageCount() ||
-                           data.imageViews.size() != swapchain->imageCount()) {
-                           data.imageViews.clear();
-                           data.images.clear();
-                           for (uint32_t i = 0; i < swapchain->imageCount(); ++i) {
-                               auto index = static_cast<uint8_t>(i);
-                               auto imagePtr = rhi::ImagePtr(swapchain->allocateImage(index));
-                               data.images[index] = imagePtr;
-
-                               const auto& imageInfo = imagePtr->info();
-                               rhi::ImageViewInfo viewInfo = getDefaultViewInfo(imageInfo);
-                               viewInfo.image = imagePtr.get();
-                               data.imageViews[index] = rhi::ImageViewPtr(_device->createImageView(viewInfo));
-                           }
                        }
                    },
                    [](auto&) {
@@ -421,7 +387,7 @@ rhi::ImagePtr ResourceGraph::getImage(std::string_view name) {
         return getImage(std::get<ImageViewData>(res.data).origin);
     } else if (std::holds_alternative<SwapchainData>(res.data)) {
         auto& swapchainData = std::get<SwapchainData>(res.data);
-        return swapchainData.images.at(swapchainData.swapchain->imageIndex());
+        return swapchainData.swapchain->image(swapchainData.swapchain->imageIndex());
     }
     raum_unreachable();
     return nullptr;
@@ -436,7 +402,7 @@ rhi::ImageViewPtr ResourceGraph::getImageView(std::string_view name) {
         return std::get<ImageViewData>(viewRes.data).imageView;
     } else if (std::holds_alternative<SwapchainData>(res.data)) {
         auto& swapchainData = std::get<SwapchainData>(res.data);
-        return swapchainData.imageViews.at(swapchainData.swapchain->imageIndex());
+        return swapchainData.swapchain->imageView(swapchainData.swapchain->imageIndex());
     }
     raum_unreachable();
     return nullptr;

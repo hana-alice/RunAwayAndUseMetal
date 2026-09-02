@@ -2,26 +2,23 @@
 #include <algorithm>
 #include <functional>
 #include <source_location>
-#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <vector>
 #include <vulkan/vulkan.h>
 #include "RHIDefine.h"
+#include "core/utils/log.h"
 namespace raum::rhi {
 namespace detail {
 
-[[noreturn]] inline void throwVkResult(VkResult result,
-                                       std::string_view expression,
-                                       std::source_location location) {
-    std::string message{expression};
-    message += " returned VkResult ";
-    message += std::to_string(static_cast<int32_t>(result));
-    message += " at ";
-    message += location.file_name();
-    message += ':';
-    message += std::to_string(location.line());
-    throw std::runtime_error(message);
+[[noreturn]] inline void failVkResult(VkResult result,
+                                      std::string_view expression,
+                                      std::source_location location) {
+    raum_error("{} returned VkResult {} at {}:{}",
+               expression,
+               static_cast<int32_t>(result),
+               location.file_name(),
+               location.line());
 }
 
 template <typename... ExpectedResults>
@@ -36,7 +33,7 @@ inline void checkVkResult(VkResult result,
         accepted = ((result == expectedResults) || ...);
     }
     if (!accepted) [[unlikely]] {
-        throwVkResult(result, expression, location);
+        failVkResult(result, expression, location);
     }
 }
 
@@ -73,17 +70,10 @@ inline void ensureVkCondition(bool condition,
         return;
     }
 
-    std::string error;
     if (!message.empty()) {
-        error.assign(message);
-        error += ": ";
+        raum_error("{}: {} at {}:{}", message, expression, location.file_name(), location.line());
     }
-    error += expression;
-    error += " at ";
-    error += location.file_name();
-    error += ':';
-    error += std::to_string(location.line());
-    throw std::runtime_error(error);
+    raum_error("{} at {}:{}", expression, location.file_name(), location.line());
 }
 
 } // namespace detail

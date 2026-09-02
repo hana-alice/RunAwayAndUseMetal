@@ -142,9 +142,10 @@ float G_component(float alpha_sq, float NdotL, float NdotV, float NdotH, float H
 
 vec3 getNormal(vec3 sampledNormal, float scaleFactor) {
     vec3 geometricNormal = normalize(f_normal);
+    float faceSign = 1.0;
 #ifdef DOUBLE_SIDED
     if (!gl_FrontFacing) {
-        geometricNormal = -geometricNormal;
+        faceSign = -1.0;
     }
 #endif
 
@@ -154,14 +155,17 @@ vec3 getNormal(vec3 sampledNormal, float scaleFactor) {
 #ifdef VERTEX_TANGENT
     vec3 tangent = normalize(f_tan.xyz - geometricNormal * dot(geometricNormal, f_tan.xyz));
     vec3 bi = normalize(cross(geometricNormal, tangent)) * f_tan.w;
-    mat3x3 tbn = mat3x3(tangent, bi, geometricNormal);
+    mat3x3 tbn = mat3x3(faceSign * tangent, faceSign * bi, faceSign * geometricNormal);
     vec3 N = tbn * sn;
 #else
     mat3 tbn = getTBN(f_worldPos, f_uv, geometricNormal);
+    tbn[0] *= faceSign;
+    tbn[1] *= faceSign;
+    tbn[2] *= faceSign;
     vec3 N = tbn * sn;
 #endif
 #else
-    vec3 N = geometricNormal;
+    vec3 N = faceSign * geometricNormal;
 #endif
     return normalize(N);
 }

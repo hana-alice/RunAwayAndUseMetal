@@ -361,6 +361,7 @@ PipelineLayoutPtr getOrCreatePipelineLayout(const PipelineLayoutInfo& info, Devi
 
 bool hasDepth(Format format);
 bool hasStencil(Format format);
+AspectMask formatAspectMask(Format format);
 
 ImagePtr defaultSampledImage(DevicePtr);
 ImagePtr defaultStorageImage(DevicePtr);

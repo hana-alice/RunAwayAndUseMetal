@@ -3,9 +3,11 @@
 #include <filesystem>
 #include <sstream>
 #include <stdexcept>
-#include "asset/serialization/SceneCache.h"
+#include "asset/serialization/SceneCacheIO.h"
+#include "asset/serialization/TextureProcessor.h"
 #include "core/utils/Archive.h"
 #include "renderer/graph/GraphIO.h"
+#include "renderer/rhi/base/RHIUtils.h"
 
 namespace {
 
@@ -70,13 +72,23 @@ void testSceneCacheRecords() {
             "SceneCacheMetadata round trip failed");
 
     TextureCache texture{
+        .sourceImageIndex = 7,
         .width = 2,
         .height = 1,
+        .mipCount = 1,
+        .colorSpace = TextureColorSpace::SRGB,
+        .preservesAlphaCoverage = true,
+        .alphaCutoff = 0.4f,
         .pixels = {1, 2, 3, 4, 5, 6, 7, 8},
     };
     const auto loadedTexture = roundTrip(texture);
-    require(loadedTexture.width == texture.width &&
+    require(loadedTexture.sourceImageIndex == texture.sourceImageIndex &&
+                loadedTexture.width == texture.width &&
                 loadedTexture.height == texture.height &&
+                loadedTexture.mipCount == texture.mipCount &&
+                loadedTexture.colorSpace == texture.colorSpace &&
+                loadedTexture.preservesAlphaCoverage == texture.preservesAlphaCoverage &&
+                same(loadedTexture.alphaCutoff, texture.alphaCutoff) &&
                 loadedTexture.pixels == texture.pixels,
             "TextureCache round trip failed");
 
@@ -161,6 +173,59 @@ void testSceneCacheRecords() {
             "MeshPrimitiveCache round trip failed");
 }
 
+void testFormatAspectMasks() {
+    using rhi::AspectMask;
+    require(rhi::formatAspectMask(rhi::Format::RGBA8_UNORM) == AspectMask::COLOR,
+            "Color format aspect inference failed");
+    require(rhi::formatAspectMask(rhi::Format::D16_UNORM) == AspectMask::DEPTH,
+            "Depth-only format aspect inference failed");
+    require(rhi::formatAspectMask(rhi::Format::D32_SFLOAT) == AspectMask::DEPTH,
+            "D32 format aspect inference failed");
+    require(rhi::formatAspectMask(rhi::Format::S8_UINT) == AspectMask::STENCIL,
+            "Stencil-only format aspect inference failed");
+    require(rhi::formatAspectMask(rhi::Format::D24_UNORM_S8_UINT) ==
+                (AspectMask::DEPTH | AspectMask::STENCIL),
+            "Combined depth-stencil format aspect inference failed");
+    require(rhi::formatAspectMask(rhi::Format::D16_UNORM_S8_UINT) ==
+                (AspectMask::DEPTH | AspectMask::STENCIL),
+            "D16/S8 format aspect inference failed");
+    require(rhi::formatAspectMask(rhi::Format::D32_SFLOAT_S8_UINT) ==
+                (AspectMask::DEPTH | AspectMask::STENCIL),
+            "D32/S8 format aspect inference failed");
+}
+
+void testTextureMipProcessing() {
+    std::vector<uint8_t> pixels(4 * 4 * 4, 255);
+    for (uint32_t y = 0; y < 4; ++y) {
+        for (uint32_t x = 0; x < 4; ++x) {
+            pixels[(y * 4 + x) * 4 + 3] = x < 2 ? 255 : 0;
+        }
+    }
+
+    const auto alphaChain = buildTextureMipChain(
+        4, 4, pixels, TextureMipBuildInfo{.srgbColor = true, .alphaCutoff = 0.5f});
+    require(alphaChain.mipCount == 3 && alphaChain.pixels.size() == (16 + 4 + 1) * 4,
+            "Texture mip-chain dimensions failed");
+    const std::span<const uint8_t> mipOne{alphaChain.pixels.data() + 16 * 4, 4 * 4};
+    require(same(calculateAlphaCoverage(mipOne, 0.5f), 0.5f),
+            "Alpha coverage was not preserved in the first reduced mip");
+
+    std::vector<uint8_t> colorPixels{
+        0, 0, 0, 255,
+        255, 255, 255, 255,
+        0, 0, 0, 255,
+        255, 255, 255, 255,
+    };
+    const auto linearChain = buildTextureMipChain(
+        2, 2, colorPixels, TextureMipBuildInfo{.srgbColor = false});
+    const auto srgbChain = buildTextureMipChain(
+        2, 2, colorPixels, TextureMipBuildInfo{.srgbColor = true});
+    require(srgbChain.pixels[16] > linearChain.pixels[16],
+            "sRGB-aware color downsampling failed");
+    require(same(calculateAlphaCoverage(pixels, 1.1f), 0.0f),
+            "An effective alpha cutoff above one must have zero coverage");
+}
+
 void testCameraRoundTrip() {
     const scene::OrthoFrustum frustum{-4.0f, 5.0f, -6.0f, 7.0f, 0.25f, 800.0f};
     auto camera = std::make_shared<scene::Camera>(frustum);
@@ -192,6 +257,10 @@ void testSceneGraphRoundTrip() {
     graph::SceneGraph source;
     source.addEmpty("root");
     source.addEmpty("child", "root");
+    std::string slicedStorage{"prefix/sliced/suffix"};
+    source.addEmpty(std::string_view{slicedStorage}.substr(7, 6), "root");
+    slicedStorage.clear();
+    require(source.get("sliced").name == "sliced", "SceneGraph did not retain an interned node name");
     source.get("child").node.disable();
     Mat4 transform{1.0f};
     transform[3] = Vec4f{7.0f, 8.0f, 9.0f, 1.0f};
@@ -214,17 +283,35 @@ void testSceneGraphRoundTrip() {
     std::error_code ignored;
     std::filesystem::remove(archivePath, ignored);
 
-    require(boost::num_vertices(loaded.impl()) == 2 && boost::num_edges(loaded.impl()) == 1,
+    require(boost::num_vertices(loaded.impl()) == 3 && boost::num_edges(loaded.impl()) == 2,
             "SceneGraph topology round trip failed");
     const auto& loadedChild = loaded.get("child");
     require(!loadedChild.node.enabled() && same(loadedChild.node.transform(), transform),
             "SceneGraph node round trip failed");
 }
 
+void testArchiveFailurePolicy() {
+    const auto missingPath = std::filesystem::temp_directory_path() /
+                             "raum-archive-path-that-must-not-exist.bin";
+    std::error_code ignored;
+    std::filesystem::remove(missingPath, ignored);
+
+    bool caught{false};
+    try {
+        utils::InputArchive archive(missingPath);
+    } catch (const std::runtime_error&) {
+        caught = true;
+    }
+    require(caught, "The throwing Raum error policy did not report archive-open failure");
+}
+
 } // namespace
 
 int main() {
     testSceneCacheRecords();
+    testFormatAspectMasks();
+    testTextureMipProcessing();
     testCameraRoundTrip();
     testSceneGraphRoundTrip();
+    testArchiveFailurePolicy();
 }

@@ -7,16 +7,15 @@
 #include <numeric>
 #include <optional>
 #include <stdexcept>
-#include <unordered_map>
-#include <unordered_set>
 #include "BuiltinRes.h"
 #include "Mesh.h"
 #include "PBRMaterial.h"
 #include "RHIBlitEncoder.h"
 #include "RHICommandBuffer.h"
 #include "RHIUtils.h"
-#include "SceneCache.h"
+#include "SceneCacheIO.h"
 #include "Technique.h"
+#include "TextureProcessor.h"
 #include "core/define.h"
 #include "core/thread/execution.h"
 #include "core/utils/containers.h"
@@ -152,7 +151,7 @@ float readAccessorComponent(const uint8_t* data, int componentType, bool normali
             return static_cast<float>(value);
         }
         default:
-            throw std::runtime_error("Unsupported glTF vertex component type");
+            raum_error("Unsupported glTF vertex component type");
     }
 }
 
@@ -162,7 +161,7 @@ const float* decodeVertexAccessor(const tinygltf::Model& model,
                                   std::vector<float>& decoded) {
     const auto& accessor = model.accessors.at(accessorIndex);
     if (accessor.sparse.isSparse || accessor.bufferView < 0) {
-        throw std::runtime_error("Sparse glTF vertex accessors are not supported");
+        raum_error("Sparse glTF vertex accessors are not supported");
     }
     const auto& bufferView = model.bufferViews.at(accessor.bufferView);
     const auto& buffer = model.buffers.at(bufferView.buffer);
@@ -170,7 +169,7 @@ const float* decodeVertexAccessor(const tinygltf::Model& model,
     const auto componentSize = tinygltf::GetComponentSizeInBytes(accessor.componentType);
     const auto byteStride = accessor.ByteStride(bufferView);
     if (componentCount != static_cast<int32_t>(expectedComponents) || componentSize <= 0 || byteStride <= 0) {
-        throw std::runtime_error("Invalid glTF vertex accessor layout");
+        raum_error("Invalid glTF vertex accessor layout");
     }
 
     const auto dataOffset = bufferView.byteOffset + accessor.byteOffset;
@@ -179,7 +178,7 @@ const float* decodeVertexAccessor(const tinygltf::Model& model,
                                   ? dataOffset + (accessor.count - 1) * static_cast<size_t>(byteStride) + packedElementSize
                                   : dataOffset;
     if (requiredSize > buffer.data.size()) {
-        throw std::runtime_error("glTF vertex accessor exceeds its source buffer");
+        raum_error("glTF vertex accessor exceeds its source buffer");
     }
 
     decoded.resize(accessor.count * expectedComponents);
@@ -197,209 +196,117 @@ const float* decodeVertexAccessor(const tinygltf::Model& model,
 
 namespace {
 
-struct AlphaMaskMipInfo {
-    float cutoff{0.5f};
-    bool srgbColor{true};
+struct TextureBuildRequest {
+    int32_t sourceImageIndex{-1};
+    TextureColorSpace colorSpace{TextureColorSpace::LINEAR};
+    std::optional<float> alphaCutoff;
 };
 
-struct TextureMipUpload {
-    std::vector<uint8_t> pixels;
-    std::vector<rhi::BufferImageCopyRegion> regions;
-};
+using TextureBuildPlan = std::vector<TextureBuildRequest>;
 
-float srgbToLinear(float value) {
-    return value <= 0.04045f
-               ? value / 12.92f
-               : std::pow((value + 0.055f) / 1.055f, 2.4f);
+bool sameRequest(const TextureBuildRequest& lhs, const TextureBuildRequest& rhs) {
+    return lhs.sourceImageIndex == rhs.sourceImageIndex &&
+           lhs.colorSpace == rhs.colorSpace &&
+           lhs.alphaCutoff == rhs.alphaCutoff;
 }
 
-float linearToSrgb(float value) {
-    value = std::clamp(value, 0.0f, 1.0f);
-    return value <= 0.0031308f
-               ? value * 12.92f
-               : 1.055f * std::pow(value, 1.0f / 2.4f) - 0.055f;
+int32_t addTextureRequest(TextureBuildPlan& plan, TextureBuildRequest request) {
+    const auto existing = std::ranges::find_if(plan, [&](const auto& item) {
+        return sameRequest(item, request);
+    });
+    if (existing != plan.end()) {
+        return static_cast<int32_t>(std::distance(plan.begin(), existing));
+    }
+    plan.emplace_back(std::move(request));
+    return static_cast<int32_t>(plan.size() - 1);
 }
 
-float alphaCoverage(const std::vector<uint8_t>& pixels, float cutoff, float scale = 1.0f) {
-    if (pixels.empty()) {
-        return 0.0f;
+template <typename TextureInfo>
+int32_t textureVariant(TextureBuildPlan& plan,
+                       const TextureInfo& textureInfo,
+                       const tinygltf::Model& model,
+                       TextureColorSpace colorSpace,
+                       std::optional<float> alphaCutoff = std::nullopt) {
+    if (textureInfo.index < 0) {
+        return -1;
     }
-    const auto alphaCutoff = cutoff * 255.0f;
-    size_t covered{0};
-    for (size_t i = 3; i < pixels.size(); i += 4) {
-        covered += std::min(static_cast<float>(pixels[i]) * scale, 255.0f) >= alphaCutoff;
+    if (textureInfo.index >= static_cast<int32_t>(model.textures.size())) {
+        raum_error("glTF material refers to an invalid texture");
     }
-    return static_cast<float>(covered) / static_cast<float>(pixels.size() / 4);
+    const auto sourceImageIndex = model.textures[textureInfo.index].source;
+    if (sourceImageIndex < 0 || sourceImageIndex >= static_cast<int32_t>(model.images.size())) {
+        raum_error("glTF texture refers to an invalid image");
+    }
+    return addTextureRequest(plan, TextureBuildRequest{
+                                       .sourceImageIndex = sourceImageIndex,
+                                       .colorSpace = colorSpace,
+                                       .alphaCutoff = alphaCutoff,
+                                   });
 }
 
-void preserveAlphaCoverage(std::vector<uint8_t>& pixels, float cutoff, float targetCoverage) {
-    if (pixels.empty() || targetCoverage <= 0.0f) {
-        return;
+std::optional<float> effectiveAlphaCutoff(const tinygltf::Material& material) {
+    if (material.alphaMode != "MASK" || material.pbrMetallicRoughness.baseColorTexture.index < 0) {
+        return std::nullopt;
     }
-
-    float low = 0.0f;
-    float high = 8.0f;
-    for (uint32_t iteration = 0; iteration < 16; ++iteration) {
-        const float scale = (low + high) * 0.5f;
-        if (alphaCoverage(pixels, cutoff, scale) < targetCoverage) {
-            low = scale;
-        } else {
-            high = scale;
-        }
-    }
-
-    const float lowError = std::abs(alphaCoverage(pixels, cutoff, low) - targetCoverage);
-    const float highError = std::abs(alphaCoverage(pixels, cutoff, high) - targetCoverage);
-    const float scale = lowError < highError ? low : high;
-    for (size_t i = 3; i < pixels.size(); i += 4) {
-        pixels[i] = static_cast<uint8_t>(std::clamp(
-            std::round(static_cast<float>(pixels[i]) * scale), 0.0f, 255.0f));
-    }
+    const auto& factor = material.pbrMetallicRoughness.baseColorFactor;
+    const float factorAlpha = factor.size() == 4 ? static_cast<float>(factor[3]) : 1.0f;
+    return factorAlpha > 0.0f
+               ? static_cast<float>(material.alphaCutoff) / factorAlpha
+               : std::numeric_limits<float>::infinity();
 }
 
-TextureMipUpload generateAlphaMaskMipChain(
-    uint32_t width,
-    uint32_t height,
-    const uint8_t* data,
-    uint32_t mipCount,
-    const AlphaMaskMipInfo& info) {
-    TextureMipUpload upload;
-    std::vector<uint8_t> previous(data, data + static_cast<size_t>(width) * height * 4);
-    const float targetCoverage = alphaCoverage(previous, info.cutoff);
-    uint32_t mipWidth = width;
-    uint32_t mipHeight = height;
-
-    for (uint32_t mip = 0; mip < mipCount; ++mip) {
-        const auto offset = static_cast<uint32_t>(upload.pixels.size());
-        upload.pixels.insert(upload.pixels.end(), previous.begin(), previous.end());
-        upload.regions.emplace_back(rhi::BufferImageCopyRegion{
-            .bufferSize = static_cast<uint32_t>(previous.size()),
-            .bufferOffset = offset,
-            .bufferRowLength = 0,
-            .bufferImageHeight = 0,
-            .imageAspect = rhi::AspectMask::COLOR,
-            .baseMip = mip,
-            .imageExtent = {mipWidth, mipHeight, 1},
-        });
-
-        if (mip + 1 == mipCount) {
-            break;
-        }
-
-        const uint32_t nextWidth = std::max(1U, mipWidth / 2);
-        const uint32_t nextHeight = std::max(1U, mipHeight / 2);
-        std::vector<uint8_t> next(static_cast<size_t>(nextWidth) * nextHeight * 4);
-        for (uint32_t y = 0; y < nextHeight; ++y) {
-            for (uint32_t x = 0; x < nextWidth; ++x) {
-                const uint32_t beginX = x * mipWidth / nextWidth;
-                const uint32_t endX = std::max(beginX + 1, (x + 1) * mipWidth / nextWidth);
-                const uint32_t beginY = y * mipHeight / nextHeight;
-                const uint32_t endY = std::max(beginY + 1, (y + 1) * mipHeight / nextHeight);
-                float channels[4]{};
-                uint32_t samples{0};
-                for (uint32_t sourceY = beginY; sourceY < endY; ++sourceY) {
-                    for (uint32_t sourceX = beginX; sourceX < endX; ++sourceX) {
-                        const size_t source = (static_cast<size_t>(sourceY) * mipWidth + sourceX) * 4;
-                        for (uint32_t channel = 0; channel < 3; ++channel) {
-                            const float value = static_cast<float>(previous[source + channel]) / 255.0f;
-                            channels[channel] += info.srgbColor ? srgbToLinear(value) : value;
-                        }
-                        channels[3] += static_cast<float>(previous[source + 3]) / 255.0f;
-                        ++samples;
-                    }
-                }
-                const size_t destination = (static_cast<size_t>(y) * nextWidth + x) * 4;
-                for (uint32_t channel = 0; channel < 3; ++channel) {
-                    float value = channels[channel] / static_cast<float>(samples);
-                    if (info.srgbColor) {
-                        value = linearToSrgb(value);
-                    }
-                    next[destination + channel] = static_cast<uint8_t>(
-                        std::clamp(std::round(value * 255.0f), 0.0f, 255.0f));
-                }
-                next[destination + 3] = static_cast<uint8_t>(std::clamp(
-                    std::round(channels[3] / static_cast<float>(samples) * 255.0f),
-                    0.0f,
-                    255.0f));
-            }
-        }
-
-        preserveAlphaCoverage(next, info.cutoff, targetCoverage);
-        previous = std::move(next);
-        mipWidth = nextWidth;
-        mipHeight = nextHeight;
+TextureBuildPlan makeTextureBuildPlan(const tinygltf::Model& model) {
+    TextureBuildPlan plan;
+    for (const auto& material : model.materials) {
+        const auto& pbr = material.pbrMetallicRoughness;
+        textureVariant(plan, pbr.baseColorTexture, model, TextureColorSpace::SRGB, effectiveAlphaCutoff(material));
+        textureVariant(plan, material.emissiveTexture, model, TextureColorSpace::SRGB);
+        textureVariant(plan, pbr.metallicRoughnessTexture, model, TextureColorSpace::LINEAR);
+        textureVariant(plan, material.normalTexture, model, TextureColorSpace::LINEAR);
+        textureVariant(plan, material.occlusionTexture, model, TextureColorSpace::LINEAR);
     }
-    return upload;
-}
-
-std::unordered_map<int32_t, AlphaMaskMipInfo> collectAlphaMaskMipInfo(
-    const std::filesystem::path& cachePath) {
-    std::unordered_map<int32_t, AlphaMaskMipInfo> alphaMasks;
-    std::unordered_set<int32_t> dataImages;
-    const auto materialPath = cachePath / "material";
-    if (!std::filesystem::exists(materialPath)) {
-        return alphaMasks;
-    }
-
-    for (const auto& entry : std::filesystem::directory_iterator(materialPath)) {
-        if (!entry.is_regular_file() || entry.path().extension() != ".mat") {
-            continue;
-        }
-        MaterialCache material;
-        InputArchive archive(entry.path());
-        archive >> material;
-
-        for (const auto* texture : {
-                 &material.metallicRoughnessTexture,
-                 &material.normalTexture,
-                 &material.occlusionTexture}) {
-            if (texture->enabled()) {
-                dataImages.emplace(texture->imageIndex);
-            }
-        }
-        if (material.alphaMode == "MASK" && material.baseColorTexture.enabled()) {
-            const float factorAlpha = material.baseColorFactor.a;
-            const float textureCutoff = factorAlpha > 0.0f
-                                            ? static_cast<float>(material.alphaCutoff) / factorAlpha
-                                            : 1.0f;
-            alphaMasks.try_emplace(
-                material.baseColorTexture.imageIndex,
-                AlphaMaskMipInfo{.cutoff = std::clamp(textureCutoff, 0.0f, 1.0f)});
-        }
-    }
-
-    for (auto& [imageIndex, info] : alphaMasks) {
-        info.srgbColor = !dataImages.contains(imageIndex);
-    }
-    return alphaMasks;
+    return plan;
 }
 
 } // namespace
 
 void loadTexture(
     std::string_view name,
-    uint32_t width,
-    uint32_t height,
-    const uint8_t* data,
+    const TextureCache& texture,
     rhi::DevicePtr device,
     rhi::CommandBufferPtr cmdBuffer,
-    std::vector<std::pair<std::string, scene::Texture>>& textures,
-    std::optional<AlphaMaskMipInfo> alphaMaskMipInfo = std::nullopt) {
+    std::vector<std::pair<std::string, scene::Texture>>& textures) {
     rhi::ImageInfo info{};
-    info.extent = {width, height, 1};
-    info.usage = rhi::ImageUsage::TRANSFER_DST | rhi::ImageUsage::SAMPLED | rhi::ImageUsage::TRANSFER_SRC;
+    info.extent = {texture.width, texture.height, 1};
+    info.usage = rhi::ImageUsage::TRANSFER_DST | rhi::ImageUsage::SAMPLED;
 
     info.format = rhi::Format::RGBA8_UNORM;
-    info.mipCount = std::floor(std::log2(std::max(width, height))) + 1;
+    info.mipCount = texture.mipCount;
     auto img = rhi::ImagePtr(device->createImage(info));
 
-    std::optional<TextureMipUpload> alphaMaskUpload;
-    if (alphaMaskMipInfo) {
-        alphaMaskUpload = generateAlphaMaskMipChain(
-            width, height, data, info.mipCount, *alphaMaskMipInfo);
-        if (alphaMaskUpload->pixels.size() > std::numeric_limits<uint32_t>::max()) {
-            throw std::runtime_error("Alpha-mask texture mip chain is too large to upload");
+    std::vector<rhi::BufferImageCopyRegion> regions;
+    regions.reserve(info.mipCount);
+    uint64_t byteOffset{0};
+    for (uint32_t mip = 0; mip < info.mipCount; ++mip) {
+        const auto mipWidth = std::max(1U, texture.width >> mip);
+        const auto mipHeight = std::max(1U, texture.height >> mip);
+        const uint64_t mipSize = static_cast<uint64_t>(mipWidth) * mipHeight * rhi::getFormatSize(info.format);
+        if (byteOffset + mipSize > std::numeric_limits<uint32_t>::max()) {
+            raum_error("Texture mip chain is too large to upload");
         }
+        regions.emplace_back(rhi::BufferImageCopyRegion{
+            .bufferSize = static_cast<uint32_t>(mipSize),
+            .bufferOffset = static_cast<uint32_t>(byteOffset),
+            .bufferRowLength = 0,
+            .bufferImageHeight = 0,
+            .imageAspect = rhi::AspectMask::COLOR,
+            .baseMip = mip,
+            .imageExtent = {mipWidth, mipHeight, 1},
+        });
+        byteOffset += mipSize;
+    }
+    if (byteOffset != texture.pixels.size()) {
+        raum_error("Cached texture mip data has an unexpected size");
     }
 
     rhi::ImageBarrierInfo barrierInfo{
@@ -410,57 +317,29 @@ void loadTexture(
         .range = {
             .aspect = rhi::AspectMask::COLOR,
             .sliceCount = 1,
-            .mipCount = alphaMaskUpload ? info.mipCount : 1,
+            .mipCount = info.mipCount,
         },
     };
     cmdBuffer->appendImageBarrier(barrierInfo);
     cmdBuffer->applyBarrier({});
 
-    const auto bufferSize = alphaMaskUpload
-                                ? static_cast<uint32_t>(alphaMaskUpload->pixels.size())
-                                : width * height * rhi::getFormatSize(info.format);
+    const auto bufferSize = static_cast<uint32_t>(texture.pixels.size());
     rhi::BufferSourceInfo bufferInfo{
         .bufferUsage = rhi::BufferUsage::TRANSFER_SRC,
         .size = bufferSize,
-        .data = alphaMaskUpload ? alphaMaskUpload->pixels.data() : data,
+        .data = texture.pixels.data(),
     };
     auto stagingBuffer = rhi::BufferPtr(device->createBuffer(bufferInfo));
-    rhi::BufferImageCopyRegion region{
-        .bufferSize = bufferSize,
-        .bufferOffset = 0,
-        .bufferRowLength = 0,
-        .bufferImageHeight = 0,
-        .imageAspect = rhi::AspectMask::COLOR,
-        .imageExtent = {
-            width,
-            height,
-            1,
-        },
-    };
     auto blitEncoder = rhi::BlitEncoderPtr(cmdBuffer->makeBlitEncoder());
-    if (alphaMaskUpload) {
-        blitEncoder->copyBufferToImage(stagingBuffer.get(),
-                                       img.get(),
-                                       rhi::ImageLayout::TRANSFER_DST_OPTIMAL,
-                                       alphaMaskUpload->regions.data(),
-                                       static_cast<uint32_t>(alphaMaskUpload->regions.size()));
-    } else {
-        blitEncoder->copyBufferToImage(stagingBuffer.get(),
-                                       img.get(),
-                                       rhi::ImageLayout::TRANSFER_DST_OPTIMAL,
-                                       &region,
-                                       1);
-        rhi::generateMipmaps(img, rhi::ImageLayout::TRANSFER_DST_OPTIMAL, cmdBuffer, device);
-    }
+    blitEncoder->copyBufferToImage(stagingBuffer.get(),
+                                   img.get(),
+                                   rhi::ImageLayout::TRANSFER_DST_OPTIMAL,
+                                   regions.data(),
+                                   static_cast<uint32_t>(regions.size()));
 
-    // genmipmap turn image layout to TRANSFER_SRC_OPTIMAL, if mipcount > 1
-    barrierInfo.oldLayout = alphaMaskUpload || info.mipCount == 1
-                                ? rhi::ImageLayout::TRANSFER_DST_OPTIMAL
-                                : rhi::ImageLayout::TRANSFER_SRC_OPTIMAL;
+    barrierInfo.oldLayout = rhi::ImageLayout::TRANSFER_DST_OPTIMAL;
     barrierInfo.newLayout = rhi::ImageLayout::SHADER_READ_ONLY_OPTIMAL;
-    barrierInfo.srcAccessFlag = alphaMaskUpload
-                                    ? rhi::AccessFlags::TRANSFER_WRITE
-                                    : rhi::AccessFlags::TRANSFER_READ | rhi::AccessFlags::TRANSFER_WRITE;
+    barrierInfo.srcAccessFlag = rhi::AccessFlags::TRANSFER_WRITE;
     barrierInfo.dstAccessFlag = rhi::AccessFlags::SHADER_READ;
     barrierInfo.srcStage = rhi::PipelineStage::TRANSFER;
     barrierInfo.dstStage = rhi::PipelineStage::VERTEX_SHADER | rhi::PipelineStage::FRAGMENT_SHADER;
@@ -492,27 +371,40 @@ void loadTexture(
 }
 
 void texturePreprocess(const std::filesystem::path& cachePath,
-                       const tinygltf::Model& rawModel) {
+                       const tinygltf::Model& rawModel,
+                       const TextureBuildPlan& plan) {
     auto texCachePath = cachePath / "textures";
-    const auto& mats = rawModel.materials;
-    uint32_t count{0};
-    for (const auto& res : rawModel.images) {
-        if (!std::filesystem::exists(texCachePath)) {
-            std::filesystem::create_directories(texCachePath);
-        }
+    std::filesystem::remove_all(texCachePath);
+    std::filesystem::create_directories(texCachePath);
 
-        std::string resName = std::to_string(count++);
+    for (size_t variantIndex = 0; variantIndex < plan.size(); ++variantIndex) {
+        const auto& request = plan[variantIndex];
+        const auto& res = rawModel.images[request.sourceImageIndex];
+        std::string resName = std::to_string(variantIndex);
 
         auto imgPath = texCachePath / resName;
         imgPath.replace_extension(".bin");
         if (res.bits != 8 || res.component != 4) {
-            throw std::runtime_error("Only 8-bit RGBA glTF images are supported");
+            raum_error("Only 8-bit RGBA glTF images are supported");
         }
 
+        auto mipChain = buildTextureMipChain(
+            static_cast<uint32_t>(res.width),
+            static_cast<uint32_t>(res.height),
+            res.image,
+            TextureMipBuildInfo{
+                .srgbColor = request.colorSpace == TextureColorSpace::SRGB,
+                .alphaCutoff = request.alphaCutoff,
+            });
         TextureCache cachedTexture{
+            .sourceImageIndex = request.sourceImageIndex,
             .width = static_cast<uint32_t>(res.width),
             .height = static_cast<uint32_t>(res.height),
-            .pixels = res.image,
+            .mipCount = mipChain.mipCount,
+            .colorSpace = request.colorSpace,
+            .preservesAlphaCoverage = request.alphaCutoff.has_value(),
+            .alphaCutoff = request.alphaCutoff.value_or(0.5f),
+            .pixels = std::move(mipChain.pixels),
         };
         OutputArchive archive(imgPath);
         archive << cachedTexture;
@@ -522,7 +414,10 @@ void texturePreprocess(const std::filesystem::path& cachePath,
 template <typename TextureInfo>
 MaterialTextureCache makeMaterialTextureCache(
     const TextureInfo& textureInfo,
-    const std::vector<tinygltf::Texture>& textures) {
+    const tinygltf::Model& model,
+    const TextureBuildPlan& plan,
+    TextureColorSpace colorSpace,
+    std::optional<float> alphaCutoff = std::nullopt) {
     MaterialTextureCache cachedTexture{
         .textureIndex = textureInfo.index,
         .uvIndex = textureInfo.index >= 0 ? textureInfo.texCoord : -1,
@@ -530,21 +425,33 @@ MaterialTextureCache makeMaterialTextureCache(
     if (!cachedTexture.enabled()) {
         return cachedTexture;
     }
-    if (textureInfo.index >= static_cast<int32_t>(textures.size())) {
-        throw std::runtime_error("glTF material refers to an invalid texture");
+    if (textureInfo.index >= static_cast<int32_t>(model.textures.size())) {
+        raum_error("glTF material refers to an invalid texture");
     }
-    cachedTexture.imageIndex = textures[textureInfo.index].source;
+    const auto sourceImageIndex = model.textures[textureInfo.index].source;
+    const TextureBuildRequest request{
+        .sourceImageIndex = sourceImageIndex,
+        .colorSpace = colorSpace,
+        .alphaCutoff = alphaCutoff,
+    };
+    const auto variant = std::ranges::find_if(plan, [&](const auto& item) {
+        return sameRequest(item, request);
+    });
+    if (variant == plan.end()) {
+        raum_error("glTF texture variant is missing from the build plan");
+    }
+    cachedTexture.imageIndex = static_cast<int32_t>(std::distance(plan.begin(), variant));
     return cachedTexture;
 }
 
 void materialPreprocess(
     const std::filesystem::path& cachePath,
     const tinygltf::Model& rawModel,
+    const TextureBuildPlan& texturePlan,
     int32_t index) {
-    const auto& rawTextures = rawModel.textures;
     const tinygltf::Material defaultMaterial{};
     if (index >= static_cast<int32_t>(rawModel.materials.size())) {
-        throw std::runtime_error("glTF primitive refers to an invalid material");
+        raum_error("glTF primitive refers to an invalid material");
     }
     const auto& res = index >= 0 ? rawModel.materials[index] : defaultMaterial;
 
@@ -552,7 +459,7 @@ void materialPreprocess(
     const auto& bcf = pmr.baseColorFactor;
     const auto& ef = res.emissiveFactor;
     if (bcf.size() != 4 || ef.size() != 3) {
-        throw std::runtime_error("glTF material factors have unexpected component counts");
+        raum_error("glTF material factors have unexpected component counts");
     }
 
     MaterialCache cachedMaterial;
@@ -565,11 +472,16 @@ void materialPreprocess(
     cachedMaterial.roughnessFactor = static_cast<float>(pmr.roughnessFactor);
     cachedMaterial.normalScale = static_cast<float>(res.normalTexture.scale);
     cachedMaterial.occlusionStrength = static_cast<float>(res.occlusionTexture.strength);
-    cachedMaterial.baseColorTexture = makeMaterialTextureCache(pmr.baseColorTexture, rawTextures);
-    cachedMaterial.metallicRoughnessTexture = makeMaterialTextureCache(pmr.metallicRoughnessTexture, rawTextures);
-    cachedMaterial.normalTexture = makeMaterialTextureCache(res.normalTexture, rawTextures);
-    cachedMaterial.occlusionTexture = makeMaterialTextureCache(res.occlusionTexture, rawTextures);
-    cachedMaterial.emissiveTexture = makeMaterialTextureCache(res.emissiveTexture, rawTextures);
+    cachedMaterial.baseColorTexture = makeMaterialTextureCache(
+        pmr.baseColorTexture, rawModel, texturePlan, TextureColorSpace::SRGB, effectiveAlphaCutoff(res));
+    cachedMaterial.metallicRoughnessTexture = makeMaterialTextureCache(
+        pmr.metallicRoughnessTexture, rawModel, texturePlan, TextureColorSpace::LINEAR);
+    cachedMaterial.normalTexture = makeMaterialTextureCache(
+        res.normalTexture, rawModel, texturePlan, TextureColorSpace::LINEAR);
+    cachedMaterial.occlusionTexture = makeMaterialTextureCache(
+        res.occlusionTexture, rawModel, texturePlan, TextureColorSpace::LINEAR);
+    cachedMaterial.emissiveTexture = makeMaterialTextureCache(
+        res.emissiveTexture, rawModel, texturePlan, TextureColorSpace::SRGB);
 
     auto matCachePath = cachePath / "material" / std::to_string(index);
     matCachePath.replace_extension(".mat");
@@ -587,6 +499,7 @@ void applyNodeTransform(const Mat4& transform, graph::SceneNode& node) {
 void meshPreprocess(
     const std::filesystem::path& cachePath,
     const tinygltf::Model& rawModel,
+    const TextureBuildPlan& texturePlan,
     uint32_t nodeIndex,
     graph::SceneGraph& sg,
     std::string_view parentName,
@@ -682,13 +595,13 @@ void meshPreprocess(
         }
 
         if (!position || !meshData.vertexCount) {
-            throw std::runtime_error("glTF primitive has no usable POSITION attribute");
+            raum_error("glTF primitive has no usable POSITION attribute");
         }
         const auto validateAttributeCount = [vertexCount = meshData.vertexCount](
                                                 const std::vector<float>& values,
                                                 uint32_t components) {
             if (!values.empty() && values.size() != static_cast<size_t>(vertexCount) * components) {
-                throw std::runtime_error("glTF primitive vertex attributes have mismatched counts");
+                raum_error("glTF primitive vertex attributes have mismatched counts");
             }
         };
         validateAttributeCount(normalScratch, 3);
@@ -809,7 +722,7 @@ void meshPreprocess(
             const auto& indicesAccessor = accessors.at(prim.indices);
             if (indicesAccessor.sparse.isSparse || indicesAccessor.bufferView < 0 ||
                 indicesAccessor.type != TINYGLTF_TYPE_SCALAR) {
-                throw std::runtime_error("Invalid or sparse glTF index accessor");
+                raum_error("Invalid or sparse glTF index accessor");
             }
             meshData.indexCount = indicesAccessor.count;
             const auto& indexBufferView = rawBufferViews.at(indicesAccessor.bufferView);
@@ -818,7 +731,7 @@ void meshPreprocess(
             const auto sourceOffset = indicesAccessor.byteOffset + indexBufferView.byteOffset;
             if (sourceIndexSize <= 0 ||
                 sourceOffset + meshData.indexCount * static_cast<size_t>(sourceIndexSize) > rawIndexBuffer.data.size()) {
-                throw std::runtime_error("glTF index accessor exceeds its source buffer");
+                raum_error("glTF index accessor exceeds its source buffer");
             }
             const auto* indexBufferData = rawIndexBuffer.data.data() + sourceOffset;
             switch (indicesAccessor.componentType) {
@@ -845,7 +758,7 @@ void meshPreprocess(
                     break;
                 }
                 default:
-                    throw std::runtime_error("Unsupported glTF index component type");
+                    raum_error("Unsupported glTF index component type");
             }
         } else {
             meshData.indexCount = 0;
@@ -859,7 +772,7 @@ void meshPreprocess(
         }
 
         auto localMatIndex = prim.material;
-        materialPreprocess(cachePath, rawModel, localMatIndex);
+        materialPreprocess(cachePath, rawModel, texturePlan, localMatIndex);
 
         cachedMesh.primitives.emplace_back(MeshPrimitiveCache{
             .vertexCount = meshData.vertexCount,
@@ -944,12 +857,13 @@ void scenePreprocess(const std::filesystem::path& cachePath,
                      graph::SceneGraph& sg,
                      const tinygltf::Model& rawModel,
                      uint32_t index) {
-    raum_check(index < rawModel.scenes.size(), "incorrect index of scene");
+    raum_expect(index < rawModel.scenes.size(), "incorrect index of scene");
     const auto& scene = rawModel.scenes[index];
     constexpr std::string_view rootName{"Scene"};
     auto& root = sg.addEmpty(rootName);
 
-    texturePreprocess(cachePath, rawModel);
+    const auto texturePlan = makeTextureBuildPlan(rawModel);
+    texturePreprocess(cachePath, rawModel, texturePlan);
     std::function<void(uint32_t, int32_t, const Mat4&)> loadNodes;
     loadNodes = [&](uint32_t nodeIndex, int32_t parent, const Mat4& parentTransform) {
         const auto& node = rawModel.nodes[nodeIndex];
@@ -962,7 +876,7 @@ void scenePreprocess(const std::filesystem::path& cachePath,
         }
         const Mat4 worldTransform = parentTransform * nodeLocalTransform(node);
         if (node.mesh != -1) {
-            meshPreprocess(cachePath, rawModel, nodeIndex, sg, parentName, worldTransform);
+            meshPreprocess(cachePath, rawModel, texturePlan, nodeIndex, sg, parentName, worldTransform);
         } else if (node.light != -1) {
             loadLights(rawModel, node.light, sg, nodeName, parentName, worldTransform);
         } else if (node.camera != -1) {
@@ -989,9 +903,8 @@ void assetPreprocess(graph::SceneGraph& sg, const std::filesystem::path& filePat
     tinygltf::Model rawModel;
     tinygltf::TinyGLTF loader;
     bool res = loader.LoadASCIIFromFile(&rawModel, &err, &warn, filePath.string());
-    raum_check(res, "failed to load scene from {}, tinyGLTF: {}", filePath.string(), err);
     if (!res) {
-        throw std::runtime_error("Failed to load glTF scene '" + filePath.string() + "': " + err);
+        raum_error("Failed to load glTF scene '{}': {}", filePath.string(), err);
     }
 
     if constexpr (raum_debug) {
@@ -1000,7 +913,7 @@ void assetPreprocess(graph::SceneGraph& sg, const std::filesystem::path& filePat
         }
     }
     if (rawModel.scenes.empty()) {
-        throw std::runtime_error("glTF contains no scenes");
+        raum_error("glTF contains no scenes");
     }
     const auto sceneIndex = rawModel.defaultScene >= 0 ? rawModel.defaultScene : 0;
     scenePreprocess(cachePath, sg, rawModel, sceneIndex);
@@ -1014,7 +927,6 @@ void loadTexturesFromCache(
     rhi::CommandBufferPtr cmdBuffer,
     const ProgressCallback& progress) {
     const auto texCachePath = cachePath / "textures";
-    const auto alphaMaskMipInfo = collectAlphaMaskMipInfo(cachePath);
     // raum_check(std::filesystem::exists(texCachePath), "textures cache not found: %s", texCachePath.string());
     if (std::filesystem::exists(texCachePath)) {
         std::vector<std::filesystem::path> files;
@@ -1047,33 +959,37 @@ void loadTexturesFromCache(
             auto& entry = files[i];
             std::string texName = entry.filename().string();
             std::string texIndex = texName.substr(0, texName.find_last_of('.'));
-            const int32_t imageIndex = std::stoi(texIndex);
             TextureCache cachedTexture;
             InputArchive archive(entry);
             archive >> cachedTexture;
 
-            const auto expectedPixelBytes = static_cast<uint64_t>(cachedTexture.width) *
-                                            cachedTexture.height *
-                                            rhi::getFormatSize(rhi::Format::RGBA8_UNORM);
+            const auto maxMipCount = cachedTexture.width && cachedTexture.height
+                                         ? static_cast<uint32_t>(std::floor(std::log2(
+                                               std::max(cachedTexture.width, cachedTexture.height)))) + 1
+                                         : 0;
+            uint64_t expectedPixelBytes{0};
+            if (cachedTexture.mipCount <= maxMipCount) {
+                for (uint32_t mip = 0; mip < cachedTexture.mipCount; ++mip) {
+                    expectedPixelBytes += static_cast<uint64_t>(std::max(1U, cachedTexture.width >> mip)) *
+                                          std::max(1U, cachedTexture.height >> mip) *
+                                          rhi::getFormatSize(rhi::Format::RGBA8_UNORM);
+                }
+            }
             if (cachedTexture.width == 0 ||
                 cachedTexture.height == 0 ||
+                cachedTexture.mipCount == 0 ||
+                cachedTexture.mipCount > maxMipCount ||
                 expectedPixelBytes > std::numeric_limits<uint32_t>::max() ||
                 cachedTexture.pixels.size() != expectedPixelBytes) {
-                throw std::runtime_error("Cached glTF texture data has an unexpected size");
+                raum_error("Cached glTF texture data has an unexpected size");
             }
 
             std::lock_guard<std::mutex> lock(taskMutex);
-            const auto alphaMaskIt = alphaMaskMipInfo.find(imageIndex);
             loadTexture(texIndex,
-                        cachedTexture.width,
-                        cachedTexture.height,
-                        cachedTexture.pixels.data(),
+                        cachedTexture,
                         device,
                         cmdBuffer,
-                        textures,
-                        alphaMaskIt == alphaMaskMipInfo.end()
-                            ? std::nullopt
-                            : std::optional{alphaMaskIt->second});
+                        textures);
             ++completedTextures;
             reportProgress(
                 progress,
@@ -1186,7 +1102,7 @@ LoadedMaterialTechniques loadMaterialFromCache(
             return;
         }
         if (cachedTexture.imageIndex < 0 || cachedTexture.imageIndex >= static_cast<int32_t>(textures.size())) {
-            throw std::runtime_error("Cached glTF material refers to an invalid image");
+            raum_error("Cached glTF material refers to an invalid image");
         }
         auto& texture = textures[cachedTexture.imageIndex].second;
         texture.uvIndex = cachedTexture.uvIndex;
@@ -1251,7 +1167,7 @@ LoadedMaterialTechniques loadMaterialFromCache(
     if (cachedMaterial.alphaMode == "MASK" && cachedMaterial.baseColorTexture.enabled()) {
         const auto imageIndex = cachedMaterial.baseColorTexture.imageIndex;
         if (imageIndex < 0 || imageIndex >= static_cast<int32_t>(textures.size())) {
-            throw std::runtime_error("Cached alpha-mask material refers to an invalid image");
+            raum_error("Cached alpha-mask material refers to an invalid image");
         }
 
         auto shadowTemplate = std::make_shared<scene::MaterialTemplate>("asset/layout/shadowMapAlpha");
@@ -1304,7 +1220,7 @@ void loadMeshFromCache(
     const ProgressCallback& progress) {
     const auto& meshCachePath = cachePath / "mesh";
     if (!std::filesystem::exists(meshCachePath)) {
-        throw std::runtime_error("glTF mesh cache was not found: " + meshCachePath.string());
+        raum_error("glTF mesh cache was not found: {}", meshCachePath.string());
     }
 
     std::vector<std::filesystem::path> meshFiles;
@@ -1346,14 +1262,14 @@ void loadMeshFromCache(
 
             if (cachedPrimitive.vertexLayout.vertexBufferAttrs.size() != 1 ||
                 cachedPrimitive.vertexLayout.vertexBufferAttrs.front().stride % sizeof(float) != 0) {
-                throw std::runtime_error("Cached glTF vertex layout is invalid");
+                raum_error("Cached glTF vertex layout is invalid");
             }
             const auto vertexStride = cachedPrimitive.vertexLayout.vertexBufferAttrs.front().stride;
             const auto expectedVertexBytes = static_cast<uint64_t>(cachedPrimitive.vertexCount) * vertexStride;
             if (cachedPrimitive.vertexCount == 0 ||
                 expectedVertexBytes > std::numeric_limits<uint32_t>::max() ||
                 expectedVertexBytes != cachedPrimitive.vertexData.size() * sizeof(float)) {
-                throw std::runtime_error("Cached glTF vertex data has an unexpected size");
+                raum_error("Cached glTF vertex data has an unexpected size");
             }
 
             meshData.vertexCount = cachedPrimitive.vertexCount;
@@ -1391,13 +1307,13 @@ void loadMeshFromCache(
                     break;
                 }
                 default: {
-                    throw std::runtime_error("Cached glTF mesh has an unsupported index type");
+                    raum_error("Cached glTF mesh has an unsupported index type");
                 }
             }
             if (meshData.indexCount) {
                 const auto expectedIndexDataSize = indexBufferSource.size;
                 if (cachedPrimitive.indexData.size() != expectedIndexDataSize) {
-                    throw std::runtime_error("Cached glTF index data has an unexpected size");
+                    raum_error("Cached glTF index data has an unexpected size");
                 }
                 meshData.indexBuffer.buffer = rhi::BufferPtr(device->createBuffer(indexBufferSource));
             }
@@ -1435,8 +1351,7 @@ void loadMeshFromCache(
             } else if (cachedPrimitive.primitiveMode == TINYGLTF_MODE_LINE_STRIP) {
                 primitiveType = rhi::PrimitiveType::LINE_STRIP;
             } else {
-                throw std::runtime_error(
-                    "Unsupported glTF primitive mode: " + std::to_string(cachedPrimitive.primitiveMode));
+                raum_error("Unsupported glTF primitive mode: {}", cachedPrimitive.primitiveMode);
             }
             techniques.forward->setPrimitiveType(primitiveType);
             if (techniques.alphaShadow) {
@@ -1593,9 +1508,8 @@ void load(graph::SceneGraph& sg, const std::filesystem::path& filePath, std::str
     tinygltf::Model rawModel;
     tinygltf::TinyGLTF loader;
     bool res = loader.LoadASCIIFromFile(&rawModel, &err, &warn, filePath.string());
-    raum_check(res, "failed to load scene from {}, tinyGLTF: {}", filePath.string(), err);
     if (!res) {
-        throw std::runtime_error("Failed to load glTF scene '" + filePath.string() + "': " + err);
+        raum_error("Failed to load glTF scene '{}': {}", filePath.string(), err);
     }
 
     if constexpr (raum_debug) {
@@ -1617,7 +1531,7 @@ void load(graph::SceneGraph& sg, const std::filesystem::path& filePath, std::str
         }
     }
     if (!found) {
-        throw std::runtime_error("glTF scene was not found: " + std::string{sceneName});
+        raum_error("glTF scene was not found: {}", sceneName);
     }
     writeCacheMetadata(cachePath, filePath);
     loadFromCache(sg, cachePath, device);

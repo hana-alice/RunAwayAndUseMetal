@@ -1,6 +1,7 @@
 #include "VKShader.h"
 #include "VKDevice.h"
 #include "VKUtils.h"
+#include "core/utils/log.h"
 #include "shaderc/shaderc.h"
 #include "shaderc/shaderc.hpp"
 
@@ -21,7 +22,7 @@ Shader::Shader(const ShaderSourceInfo& shaderInfo, RHIDevice* device)
     auto mapStage = [](ShaderStage stage) {
         switch (stage) {
             case ShaderStage::NONE:
-                throw std::runtime_error("A shader stage must be specified");
+                raum_error("A shader stage must be specified");
             case ShaderStage::VERTEX:
                 return shaderc_glsl_vertex_shader;
             case ShaderStage::FRAGMENT:
@@ -40,7 +41,7 @@ Shader::Shader(const ShaderSourceInfo& shaderInfo, RHIDevice* device)
 
     auto result = shaderCompiler.CompileGlslToSpv(stage.source.c_str(), stage.source.size(), mapStage(stage.stage), shaderInfo.sourcePath.c_str(), "main", options);
     if (result.GetCompilationStatus() != shaderc_compilation_status_success) {
-        throw std::runtime_error("Failed to compile shader '" + shaderInfo.sourcePath + "': " + result.GetErrorMessage());
+        raum_error("Failed to compile shader '{}': {}", shaderInfo.sourcePath, result.GetErrorMessage());
     }
 
     VkShaderModuleCreateInfo createInfo{};

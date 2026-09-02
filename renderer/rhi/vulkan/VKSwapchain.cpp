@@ -1,7 +1,8 @@
 #include "VKSwapchain.h"
 #include <algorithm>
 #include <limits>
-#include <stdexcept>
+#include <memory>
+#include <utility>
 #ifdef RAUM_WINDOWS
 // clang-format off
     #include <windows.h>
@@ -17,36 +18,63 @@
 
 namespace raum::rhi {
 
-void Swapchain::initialize(uintptr_t hwnd, SyncType type, uint32_t width, uint32_t height) {
-#ifdef RAUM_WINDOWS
-    auto physicalDevice = _device->physicalDevice();
-    auto* grfxQ = _device->getQueue({QueueType::GRAPHICS});
-    _presentQueue = static_cast<Queue*>(grfxQ);
-    auto qIndex = _presentQueue->index();
+namespace {
 
-    if (_surface == VK_NULL_HANDLE) {
-        VkWin32SurfaceCreateInfoKHR surfaceInfo{};
-        surfaceInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
-        surfaceInfo.hwnd = (HWND)hwnd;
-        surfaceInfo.hinstance = GetModuleHandle(nullptr);
+struct PendingSwapchain {
+    explicit PendingSwapchain(Device* owningDevice) : device(owningDevice) {}
 
-        auto instance = static_cast<VkInstance>(_device->instance());
-        VK_EXPECT(vkCreateWin32SurfaceKHR(instance, &surfaceInfo, nullptr, &_surface));
-        VkBool32 support{false};
-
-        VK_EXPECT(vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, qIndex, _surface, &support));
-        VK_ENSURE(support, "The graphics queue cannot present to the Vulkan surface");
+    ~PendingSwapchain() {
+        readyPresentSemaphores.clear();
+        imageViews.clear();
+        images.clear();
+        if (swapchain != VK_NULL_HANDLE) {
+            vkDestroySwapchainKHR(device->device(), swapchain, nullptr);
+        }
+        if (surface != VK_NULL_HANDLE) {
+            vkDestroySurfaceKHR(static_cast<VkInstance>(device->instance()), surface, nullptr);
+        }
     }
 
+    Device* device;
+    VkSurfaceKHR surface{VK_NULL_HANDLE};
+    VkSwapchainKHR swapchain{VK_NULL_HANDLE};
+    std::vector<VkImage> vkImages;
+    std::vector<ImagePtr> images;
+    std::vector<ImageViewPtr> imageViews;
+    std::vector<std::unique_ptr<Semaphore>> readyPresentSemaphores;
+};
+
+} // namespace
+
+void Swapchain::initialize(uintptr_t hwnd, SyncType type, uint32_t width, uint32_t height) {
+#ifdef RAUM_WINDOWS
+    PendingSwapchain pending{_device};
+    auto physicalDevice = _device->physicalDevice();
+    auto* grfxQ = _device->getQueue({QueueType::GRAPHICS});
+    auto* presentQueue = static_cast<Queue*>(grfxQ);
+    auto qIndex = presentQueue->index();
+
+    VkWin32SurfaceCreateInfoKHR surfaceInfo{};
+    surfaceInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
+    surfaceInfo.hwnd = (HWND)hwnd;
+    surfaceInfo.hinstance = GetModuleHandle(nullptr);
+
+    auto instance = static_cast<VkInstance>(_device->instance());
+    VK_EXPECT(vkCreateWin32SurfaceKHR(instance, &surfaceInfo, nullptr, &pending.surface));
+    VkBool32 support{false};
+
+    VK_EXPECT(vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, qIndex, pending.surface, &support));
+    VK_ENSURE(support, "The graphics queue cannot present to the Vulkan surface");
+
     VkSurfaceCapabilitiesKHR caps{};
-    VK_EXPECT(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, _surface, &caps));
+    VK_EXPECT(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, pending.surface, &caps));
 
     const auto formats = VK_ENUMERATE(
-        VkSurfaceFormatKHR, vkGetPhysicalDeviceSurfaceFormatsKHR, physicalDevice, _surface);
+        VkSurfaceFormatKHR, vkGetPhysicalDeviceSurfaceFormatsKHR, physicalDevice, pending.surface);
     VK_ENSURE(!formats.empty(), "The Vulkan surface has no supported formats");
 
     const auto presentModes = VK_ENUMERATE(
-        VkPresentModeKHR, vkGetPhysicalDeviceSurfacePresentModesKHR, physicalDevice, _surface);
+        VkPresentModeKHR, vkGetPhysicalDeviceSurfacePresentModesKHR, physicalDevice, pending.surface);
     VK_ENSURE(!presentModes.empty(), "The Vulkan surface has no supported present modes");
 
     VkSurfaceFormatKHR preferred = formats[0];
@@ -61,7 +89,7 @@ void Swapchain::initialize(uintptr_t hwnd, SyncType type, uint32_t width, uint32
         }
     }
 
-    _preferredFormat = mapSwapchainFormat(preferred.format);
+    const auto preferredFormat = mapSwapchainFormat(preferred.format);
 
     VkPresentModeKHR mode{VK_PRESENT_MODE_FIFO_KHR};
     VkPresentModeKHR hint{VK_PRESENT_MODE_FIFO_KHR};
@@ -92,13 +120,9 @@ void Swapchain::initialize(uintptr_t hwnd, SyncType type, uint32_t width, uint32
         extent.width = std::clamp(width, caps.minImageExtent.width, caps.maxImageExtent.width);
         extent.height = std::clamp(height, caps.minImageExtent.height, caps.maxImageExtent.height);
     }
-    _info.width = extent.width;
-    _info.height = extent.height;
-    _info.hwnd = hwnd;
-
-    _imageCount = caps.minImageCount + 1;
+    uint32_t imageCount = caps.minImageCount + 1;
     if (caps.maxImageCount > 0) {
-        _imageCount = (std::min)(_imageCount, caps.maxImageCount);
+        imageCount = (std::min)(imageCount, caps.maxImageCount);
     }
 
     VkCompositeAlphaFlagBitsKHR compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
@@ -117,8 +141,8 @@ void Swapchain::initialize(uintptr_t hwnd, SyncType type, uint32_t width, uint32
 
     VkSwapchainCreateInfoKHR createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-    createInfo.surface = _surface;
-    createInfo.minImageCount = _imageCount;
+    createInfo.surface = pending.surface;
+    createInfo.minImageCount = imageCount;
     createInfo.imageFormat = preferred.format;
     createInfo.imageColorSpace = preferred.colorSpace;
     createInfo.imageExtent = extent;
@@ -133,46 +157,85 @@ void Swapchain::initialize(uintptr_t hwnd, SyncType type, uint32_t width, uint32
     createInfo.clipped = VK_TRUE;
     createInfo.oldSwapchain = VK_NULL_HANDLE;
 
-    VK_EXPECT(vkCreateSwapchainKHR(_device->device(), &createInfo, nullptr, &_swapchain));
+    VK_EXPECT(vkCreateSwapchainKHR(_device->device(), &createInfo, nullptr, &pending.swapchain));
 
-    _vkImages = VK_ENUMERATE(VkImage, vkGetSwapchainImagesKHR, _device->device(), _swapchain);
-    VK_ENSURE(!_vkImages.empty(), "The Vulkan swapchain has no images");
-    _imageCount = static_cast<uint32_t>(_vkImages.size());
-
-    _valid.clear();
-    _valid.resize(_imageCount, 0);
+    pending.vkImages = VK_ENUMERATE(VkImage, vkGetSwapchainImagesKHR, _device->device(), pending.swapchain);
+    VK_ENSURE(!pending.vkImages.empty(), "The Vulkan swapchain has no images");
+    imageCount = static_cast<uint32_t>(pending.vkImages.size());
 
 #else
     #pragma error Run Away
 #endif
 
-    _acquireSemaphores.resize(_imageCount, nullptr);
-    _readyPresentSemaphores.resize(_imageCount, nullptr);
-    for (size_t i = 0; i < _imageCount; i++) {
-        _readyPresentSemaphores[i] = static_cast<Semaphore*>(_device->createSemaphore());
+    std::vector<Semaphore*> readyPresentSemaphores;
+    readyPresentSemaphores.reserve(imageCount);
+    pending.readyPresentSemaphores.reserve(imageCount);
+    for (size_t i = 0; i < imageCount; ++i) {
+        pending.readyPresentSemaphores.emplace_back(
+            static_cast<Semaphore*>(_device->createSemaphore()));
+        readyPresentSemaphores.emplace_back(pending.readyPresentSemaphores.back().get());
     }
 
+    std::vector<Semaphore*> acquireSemaphores(imageCount, nullptr);
+    std::vector<uint32_t> valid(imageCount, 1);
+
+    pending.images.reserve(imageCount);
+    pending.imageViews.reserve(imageCount);
+    for (const auto vkImage : pending.vkImages) {
+        ImageInfo imageInfo{};
+        imageInfo.type = ImageType::IMAGE_2D;
+        imageInfo.format = preferredFormat;
+        imageInfo.usage = ImageUsage::COLOR_ATTACHMENT | ImageUsage::TRANSFER_DST;
+        imageInfo.initialLayout = ImageLayout::UNDEFINED;
+        imageInfo.sliceCount = 1;
+        imageInfo.mipCount = 1;
+        imageInfo.sampleCount = 1;
+        imageInfo.extent = {extent.width, extent.height, 1};
+        auto image = ImagePtr(new Image(imageInfo, _device, vkImage));
+
+        ImageViewInfo viewInfo{};
+        viewInfo.type = ImageViewType::IMAGE_VIEW_2D;
+        viewInfo.image = image.get();
+        viewInfo.format = preferredFormat;
+        viewInfo.range = {
+            .aspect = AspectMask::COLOR,
+            .sliceCount = 1,
+            .mipCount = 1,
+        };
+        pending.imageViews.emplace_back(_device->createImageView(viewInfo));
+        pending.images.emplace_back(std::move(image));
+    }
+
+    _surface = std::exchange(pending.surface, VK_NULL_HANDLE);
+    _swapchain = std::exchange(pending.swapchain, VK_NULL_HANDLE);
+    _vkImages = std::move(pending.vkImages);
+    _images = std::move(pending.images);
+    _imageViews = std::move(pending.imageViews);
+    _acquireSemaphores = std::move(acquireSemaphores);
+    _readyPresentSemaphores = std::move(readyPresentSemaphores);
+    for (auto& semaphore : pending.readyPresentSemaphores) {
+        semaphore.release();
+    }
+    _valid = std::move(valid);
+    _imageCount = imageCount;
+    _imageIndex = 0;
+    _preferredFormat = preferredFormat;
+    _presentQueue = presentQueue;
+    _info.width = extent.width;
+    _info.height = extent.height;
+    _info.type = type;
+    _info.hwnd = hwnd;
 }
 
 Swapchain::Swapchain(const SwapchainInfo& info, Device* device)
 : RHISwapchain(info, device), _device(static_cast<Device*>(device)), _info(info) {
-    try {
-        initialize(info.hwnd, info.type, info.width, info.height);
-    } catch (...) {
-        destroy();
-        throw;
-    }
+    initialize(info.hwnd, info.type, info.width, info.height);
 }
 
 Swapchain::Swapchain(const raum::rhi::SwapchainSurfaceInfo& info, raum::rhi::Device* device)
 : RHISwapchain(info, device), _device(static_cast<Device*>(device)) {
     _info = {info.width, info.height, info.type, info.windId};
-    try {
-        initialize(info.windId, info.type, info.width, info.height);
-    } catch (...) {
-        destroy();
-        throw;
-    }
+    initialize(info.windId, info.type, info.width, info.height);
 }
 
 RHISemaphore* Swapchain::getAvailableSemaphore() {
@@ -234,6 +297,9 @@ void Swapchain::destroy() {
     }
     _readyPresentSemaphores.clear();
 
+    _imageViews.clear();
+    _images.clear();
+
     auto instance = static_cast<VkInstance>(_device->instance());
     if (_swapchain != VK_NULL_HANDLE) {
         vkDestroySwapchainKHR(_device->device(), _swapchain, nullptr);
@@ -257,27 +323,23 @@ bool Swapchain::imageValid(uint32_t index) {
 }
 
 bool Swapchain::holds(RHIImage* img) {
-    auto* image = dynamic_cast<Image*>(img);
-    return image && image->_swapchain;
+    return std::ranges::any_of(_images, [img](const auto& image) {
+        return image.get() == img;
+    });
 }
 
-RHIImage* Swapchain::allocateImage(uint32_t index) {
-    if (index >= _vkImages.size()) {
-        throw std::out_of_range("Vulkan swapchain image index is out of range");
+ImagePtr Swapchain::image(uint32_t index) {
+    if (index >= _images.size()) {
+        raum_error("Vulkan swapchain image index {} is out of range", index);
     }
-    _valid[index] = 1;
-    auto img = _vkImages[index];
+    return _images[index];
+}
 
-    ImageInfo imageInfo{};
-    imageInfo.type = ImageType::IMAGE_2D;
-    imageInfo.format = _preferredFormat;
-    imageInfo.usage = ImageUsage::COLOR_ATTACHMENT | ImageUsage::TRANSFER_DST;
-    imageInfo.initialLayout = ImageLayout::UNDEFINED;
-    imageInfo.sliceCount = 1;
-    imageInfo.mipCount = 1;
-    imageInfo.sampleCount = 1;
-    imageInfo.extent = {_info.width, _info.height, 1};
-    return new Image(imageInfo, _device, img);
+ImageViewPtr Swapchain::imageView(uint32_t index) {
+    if (index >= _imageViews.size()) {
+        raum_error("Vulkan swapchain image-view index {} is out of range", index);
+    }
+    return _imageViews[index];
 }
 
 uint32_t Swapchain::imageCount() const {
