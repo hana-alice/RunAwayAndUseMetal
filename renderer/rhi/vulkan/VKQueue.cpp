@@ -36,11 +36,8 @@ Queue::Queue(const QueueInfo& info, Device* device)
     }
 
     // vs warning
-    if (index.has_value()) {
-        _index = index.value();
-    } else {
-        RAUM_CRITICAL_IF(!index.has_value(), "Queue type not support.");
-    }
+    VK_ENSURE(index.has_value(), "Requested Vulkan queue type is not supported");
+    _index = index.value();
 }
 
 void Queue::initQueue() {
@@ -48,13 +45,14 @@ void Queue::initQueue() {
     for (auto& fence : _frameFence) {
         VkFenceCreateInfo info{};
         info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-        vkCreateFence(_device->device(), &info, nullptr, &fence);
+        VK_EXPECT(vkCreateFence(_device->device(), &info, nullptr, &fence));
     }
 }
 
 Queue::~Queue() {
     if (_vkQueue != VK_NULL_HANDLE) {
-        vkQueueWaitIdle(_vkQueue);
+        VK_EXPECT(vkQueueWaitIdle(_vkQueue));
+        completePendingHandlers();
         for (auto fence : _frameFence) {
             vkDestroyFence(_device->device(), fence, nullptr);
         }
@@ -65,7 +63,19 @@ void Queue::enqueue(RHICommandBuffer* cmdBuffer) {
     _commandBuffers.emplace_back(static_cast<CommandBuffer*>(cmdBuffer));
 }
 
+void Queue::remove(CommandBuffer* commandBuffer) {
+    std::erase(_commandBuffers, commandBuffer);
+    commandBuffer->_enqueued = false;
+    commandBuffer->_queue = nullptr;
+}
+
 void Queue::submit(bool enableFrameFence) {
+    for (size_t index = 0; index < _commandBuffers.size(); ++index) {
+        const auto* commandBuffer = _commandBuffers[index];
+        VK_ENSURE(commandBuffer->_status == CommandBuffer::CommandBufferStatus::COMMITTED,
+                  "Queue contains a command buffer that has not been committed");
+    }
+
     VkSubmitInfo info{};
     info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
@@ -114,14 +124,18 @@ void Queue::submit(bool enableFrameFence) {
         lastFence = _frameFence[(_currFrameIndex + FRAMES_IN_FLIGHT - 1 ) % FRAMES_IN_FLIGHT];
         fenceCount = 1;
     }
-    vkQueueSubmit(_vkQueue, 1, &info, lastFence);
+    VK_EXPECT(vkQueueSubmit(_vkQueue, 1, &info, lastFence));
     if (fenceCount) {
-        vkWaitForFences(_device->device(), fenceCount, &lastFence, VK_TRUE, UINT64_MAX);
-        vkResetFences(_device->device(), fenceCount, &lastFence);
+        VK_EXPECT(vkWaitForFences(_device->device(), fenceCount, &lastFence, VK_TRUE, UINT64_MAX));
+        VK_EXPECT(vkResetFences(_device->device(), fenceCount, &lastFence));
+        _device->resetStagingBuffer(_index);
     }
 
+    for (auto* commandBuffer : _commandBuffers) {
+        commandBuffer->_enqueued = false;
+        commandBuffer->_queue = nullptr;
+    }
     _commandBuffers.clear();
-    _device->resetStagingBuffer(_index);
 }
 
 void Queue::increaseFrameIndex() {
@@ -130,6 +144,16 @@ void Queue::increaseFrameIndex() {
         completeFunc();
     }
     _completeHandlers[_currFrameIndex].clear();
+}
+
+void Queue::completePendingHandlers() {
+    for (auto& handlers : _completeHandlers) {
+        auto completed = std::move(handlers);
+        handlers.clear();
+        for (auto& completeFunc : completed) {
+            completeFunc();
+        }
+    }
 }
 
 void Queue::bindSparse(const SparseBindingInfo& info, SparseType type) {
@@ -188,7 +212,7 @@ void Queue::bindSparse(const SparseBindingInfo& info, SparseType type) {
         bindInfo.signalSemaphoreCount = 0;
     }
 
-    vkQueueBindSparse(_vkQueue, 1, &bindInfo, VK_NULL_HANDLE);
+    VK_EXPECT(vkQueueBindSparse(_vkQueue, 1, &bindInfo, VK_NULL_HANDLE));
 
     _commandBuffers.clear();
 }

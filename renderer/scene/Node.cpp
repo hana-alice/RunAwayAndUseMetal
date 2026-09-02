@@ -12,6 +12,7 @@ void Node::disable() {
 
 void Node::setTransform(const raum::Mat4 &transform) {
     _transform = transform;
+    _dirty = false;
 }
 
 void Node::setTranslation(const Vec3f &trans) {
@@ -34,7 +35,8 @@ void Node::update() {
         Mat4 rot = Mat4(_orientation);
         auto scale = glm::scale(Mat4(1.0f), _scale);
         auto trans = glm::translate(Mat4(1.0f), _translation);
-        _transform = scale * trans * rot;
+        _transform = trans * rot * scale;
+        _dirty = false;
     }
 }
 

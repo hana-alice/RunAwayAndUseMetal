@@ -1,11 +1,11 @@
 #pragma once
 
-#include <vulkan/vulkan.h>
 #include <map>
 #include <memory>
 #include <queue>
 #include <unordered_map>
 #include "RHIDevice.h"
+#include "VKDefine.h"
 #include "vk_mem_alloc.h"
 namespace raum::rhi {
 class Queue;
@@ -63,18 +63,18 @@ private:
     void initDevice();
     void initCache();
 
-    VkInstance _instance;
-    VkDebugUtilsMessengerEXT _debugMessenger;
-    VkPhysicalDevice _physicalDevice;
-    VkDevice _device;
-    VmaAllocator _allocator;
+    VkInstance _instance{VK_NULL_HANDLE};
+    VkDebugUtilsMessengerEXT _debugMessenger{VK_NULL_HANDLE};
+    VkPhysicalDevice _physicalDevice{VK_NULL_HANDLE};
+    VkDevice _device{VK_NULL_HANDLE};
+    VmaAllocator _allocator{VK_NULL_HANDLE};
 
     std::map<QueueType, Queue *> _queues;
     std::map<uint8_t, RHIStagingBuffer*> _stagingBuffers;
     std::vector<VkDescriptorPool> _descriptorPools;
     std::unordered_map<SamplerInfo, Sampler *, RHIHash<SamplerInfo>> _samplers;
 
-    ProgramCache* _programCache;
+    ProgramCache* _programCache{nullptr};
 
     friend Device *loadVK();
     friend void unloadVK(Device *);

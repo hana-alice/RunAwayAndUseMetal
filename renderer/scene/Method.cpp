@@ -113,11 +113,20 @@ Method::Pool& Method::pool() {
     return pool;
 }
 
+void Method::Pool::clear() {
+    _methods.clear();
+    _psoMap.clear();
+    _shaderMap.clear();
+}
+
+void Method::Pool::shrink() {
+    _methods.shrink_to_fit();
+}
+
 MethodPtr Method::Pool::makeMethod(std::string_view programName, flat_set<std::string> defines) {
     size_t seed = 9527;
     boost::hash_combine(seed, programName);
     boost::hash_combine(seed, defines);
-    auto* t = new Method(programName, defines);
     if (!_methods.contains(seed)) {
         _methods.emplace(seed, MethodPtr(new Method(programName, defines)));
     }

@@ -1,16 +1,18 @@
 #pragma once
+#include <cassert>
 #include <boost/container/container_fwd.hpp>
 #include <boost/container/flat_set.hpp>
 #include <boost/container/flat_map.hpp>
-#ifndef RAUM_RELEASE
+#if !defined(RAUM_RELEASE) && !defined(NDEBUG)
     #define RAUM_DEBUG 1
 static constexpr bool raum_debug{true};
-    #include <source_location>
-    #include "utils/log.h"
 #else
 
 static constexpr bool raum_debug{false};
 #endif
+
+#include <source_location>
+#include "utils/log.h"
 
 #if defined(_WIN32)
     #define RAUM_WINDOWS 1
@@ -65,24 +67,26 @@ requires(!raum_debug) void raum_check(bool, fmt::format_string<Args...> s, Args&
 template <typename... Args>
 requires(raum_debug) void raum_check(bool exp, fmt::format_string<Args...> s, Args&&... args) noexcept {
     if (!exp) {
-        raum_error(s, std::forward<Args>(args)...);
+        raum_report_error(s, std::forward<Args>(args)...);
         assert(false);
     }
 }
 
 template <typename... Args>
 void raum_expect(bool exp, fmt::format_string<Args...> s, Args&&... args) {
-    raum_check(exp, s, args...);
+    if (!exp) [[unlikely]] {
+        raum_error(s, std::forward<Args>(args)...);
+    }
 }
 
-inline void raum_unreachable() {
+[[noreturn]] inline void raum_unreachable(std::source_location location = std::source_location::current()) {
     constexpr auto fmtStr = R"(
 --------------------------- UNREACHABLE ---------------------------
 file:{}
 line:{}
 function:{}
 )";
-    raum_check(false, fmtStr, std::source_location().file_name(), std::source_location().line(), std::source_location().function_name());
+    raum_error(fmtStr, location.file_name(), location.line(), location.function_name());
 }
 
 template<typename ...Args>

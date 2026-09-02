@@ -1,4 +1,5 @@
 #include "VKDescriptorSet.h"
+#include <algorithm>
 #include <numeric>
 #include "VKBuffer.h"
 #include "VKDescriptorPool.h"
@@ -20,20 +21,28 @@ DescriptorSet::DescriptorSet(const DescriptorSetInfo& info, DescriptorPool* pool
     allocInfo.descriptorSetCount = 1;
     allocInfo.pSetLayouts = &kLayout;
 
-    vkAllocateDescriptorSets(_device->device(), &allocInfo, &_descriptorSet);
+    VK_EXPECT(vkAllocateDescriptorSets(_device->device(), &allocInfo, &_descriptorSet));
 
-    for(auto& bd : _info.bindingInfos.samplerBindings) {
+    for (auto& bd : _info.bindingInfos.samplerBindings) {
         updateSampler(bd);
     }
-    for(auto& bd : _info.bindingInfos.imageBindings) {
+    for (auto& bd : _info.bindingInfos.imageBindings) {
         updateImage(bd);
     }
-    for(auto& bd : _info.bindingInfos.bufferBindings) {
+    for (auto& bd : _info.bindingInfos.bufferBindings) {
         updateBuffer(bd);
     }
-    for(auto& bd : _info.bindingInfos.texelBufferBindings) {
+    for (auto& bd : _info.bindingInfos.texelBufferBindings) {
         updateTexelBuffer(bd);
     }
+}
+
+bool DescriptorSet::isImmutableSamplerBinding(uint32_t binding) const {
+    const auto& bindings = _info.layout->info().descriptorBindings;
+    const auto iter = std::ranges::find_if(bindings, [binding](const DescriptorBinding& descriptorBinding) {
+        return descriptorBinding.binding == binding;
+    });
+    return iter != bindings.end() && !iter->immutableSamplers.empty();
 }
 
 void DescriptorSet::update(const BindingInfo& bindingInfo) {
@@ -56,6 +65,9 @@ void DescriptorSet::update(const BindingInfo& bindingInfo) {
     std::vector<VkBufferView> texelBuffers(texelSize);
     uint32_t accIndex{0};
     for (const auto& bufferBinding : bindingInfo.bufferBindings) {
+        if (bufferBinding.buffers.empty()) {
+            continue;
+        }
         auto& write = writes.emplace_back();
         write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         write.dstSet = _descriptorSet;
@@ -74,6 +86,9 @@ void DescriptorSet::update(const BindingInfo& bindingInfo) {
 
     accIndex = 0;
     for (const auto& imageBinding : bindingInfo.imageBindings) {
+        if (imageBinding.imageViews.empty()) {
+            continue;
+        }
         auto& write = writes.emplace_back();
         write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         write.dstSet = _descriptorSet;
@@ -91,6 +106,9 @@ void DescriptorSet::update(const BindingInfo& bindingInfo) {
 
     accIndex = 0;
     for (const auto& samplerBinding : bindingInfo.samplerBindings) {
+        if (samplerBinding.samplers.empty() || isImmutableSamplerBinding(samplerBinding.binding)) {
+            continue;
+        }
         auto& write = writes.emplace_back();
         write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         write.dstSet = _descriptorSet;
@@ -107,12 +125,16 @@ void DescriptorSet::update(const BindingInfo& bindingInfo) {
 
     accIndex = 0;
     for (const auto& texelBufferBinding : bindingInfo.texelBufferBindings) {
+        if (texelBufferBinding.bufferViews.empty()) {
+            continue;
+        }
         auto& write = writes.emplace_back();
         write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         write.dstSet = _descriptorSet;
         write.dstBinding = texelBufferBinding.binding;
         write.dstArrayElement = texelBufferBinding.arrayElement;
         write.descriptorCount = static_cast<uint32_t>(texelBufferBinding.bufferViews.size());
+        write.descriptorType = descriptorType(texelBufferBinding.type);
         write.pTexelBufferView = &texelBuffers[accIndex];
         for (const auto& bfv : texelBufferBinding.bufferViews) {
             texelBuffers[accIndex++] = static_cast<BufferView*>(bfv)->bufferView();
@@ -123,6 +145,9 @@ void DescriptorSet::update(const BindingInfo& bindingInfo) {
 }
 
 void DescriptorSet::updateBuffer(const BufferBinding& info) {
+    if (info.buffers.empty()) {
+        return;
+    }
     std::vector<VkDescriptorBufferInfo> buffers;
 
     VkWriteDescriptorSet write{};
@@ -143,6 +168,9 @@ void DescriptorSet::updateBuffer(const BufferBinding& info) {
 }
 
 void DescriptorSet::updateImage(const ImageBinding& info) {
+    if (info.imageViews.empty()) {
+        return;
+    }
     std::vector<VkDescriptorImageInfo> images;
 
     VkWriteDescriptorSet write{};
@@ -163,6 +191,9 @@ void DescriptorSet::updateImage(const ImageBinding& info) {
 }
 
 void DescriptorSet::updateSampler(const SamplerBinding& info) {
+    if (info.samplers.empty() || isImmutableSamplerBinding(info.binding)) {
+        return;
+    }
     std::vector<VkDescriptorImageInfo> samplers;
 
     VkWriteDescriptorSet write{};
@@ -181,6 +212,9 @@ void DescriptorSet::updateSampler(const SamplerBinding& info) {
 }
 
 void DescriptorSet::updateTexelBuffer(const TexelBufferBinding& info) {
+    if (info.bufferViews.empty()) {
+        return;
+    }
     std::vector<VkBufferView> texelBuffers;
 
     VkWriteDescriptorSet write{};
@@ -189,6 +223,7 @@ void DescriptorSet::updateTexelBuffer(const TexelBufferBinding& info) {
     write.dstBinding = info.binding;
     write.dstArrayElement = info.arrayElement;
     write.descriptorCount = static_cast<uint32_t>(info.bufferViews.size());
+    write.descriptorType = descriptorType(info.type);
     for (const auto& bfv : info.bufferViews) {
         texelBuffers.emplace_back(static_cast<BufferView*>(bfv)->bufferView());
     }

@@ -174,7 +174,6 @@ target_link_libraries(raum_renderer PUBLIC
         Boost::graph
 )
 
-find_package(Qt5 REQUIRED COMPONENTS Widgets)
 file(GLOB_RECURSE raum_ui_h ${CMAKE_CURRENT_LIST_DIR}/ui/*.h)
 file(GLOB_RECURSE raum_ui_cpp ${CMAKE_CURRENT_LIST_DIR}/ui/*.cpp)
 source_group("raum_ui_h" FILES ${raum_ui_h})
@@ -247,7 +246,7 @@ target_link_libraries(raum_asset PUBLIC
         raum_renderer
 )
 
-file(GLOB_RECURSE Sample
+file(GLOB_RECURSE Sample CONFIGURE_DEPENDS
         ${CMAKE_CURRENT_SOURCE_DIR}/Sample/*.*
         ${CMAKE_CURRENT_SOURCE_DIR}/Sample/shadow/*.*
 )
@@ -258,6 +257,7 @@ else ()
     add_executable(raum_sample
             ${Sample}
     )
+    set_target_properties(raum_sample PROPERTIES AUTORCC ON)
 
     # if(WIN32)
     #     set_target_properties(raum_sample
@@ -277,6 +277,9 @@ else ()
             raum_core
             Qt5::Widgets
     )
+    if (WIN32)
+        target_link_libraries(raum_sample PRIVATE dwmapi)
+    endif ()
 
 #     set_target_properties(raum_sample PROPERTIES LINK_FLAGS "/PROFILE")
 
@@ -299,4 +302,15 @@ else ()
 #    COMPILE_FLAGS "/P /Fi${PREPROCESS_OUTPUT}"
 #)
 
+endif ()
+
+include(CTest)
+if (BUILD_TESTING)
+    add_executable(raum_serialization_tests
+            tests/SerializationRoundTrip.cpp
+    )
+    target_link_libraries(raum_serialization_tests PRIVATE
+            raum_asset
+    )
+    add_test(NAME serialization_roundtrip COMMAND raum_serialization_tests)
 endif ()

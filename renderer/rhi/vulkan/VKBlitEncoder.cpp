@@ -163,7 +163,7 @@ void BlitEncoder::copyImageToBuffer(RHIImage* image, ImageLayout layout, RHIBuff
         copy.bufferImageHeight = regions[i].bufferImageHeight;
         copy.bufferRowLength = regions[i].bufferRowLength;
         copy.bufferOffset = regions[i].bufferOffset;
-        const auto& imageOffset = copy.imageOffset;
+        const auto& imageOffset = regions[i].imageOffset;
         copy.imageOffset = {
             static_cast<int32_t>(imageOffset.x),
             static_cast<int32_t>(imageOffset.y),
@@ -204,9 +204,7 @@ void BlitEncoder::clearColorImage(RHIImage* image, ImageLayout layout, ClearValu
     VkImageLayout imgLayout = imageLayout(layout);
 
     std::vector<VkClearColorValue> clearValues(rangeCount);
-    for (size_t i = 0; i < rangeCount; ++i) {
-        fillClearColors(clearValues, data, image->info().format);
-    }
+    fillClearColors(clearValues, data, image->info().format);
 
     std::vector<VkImageSubresourceRange> subranges(rangeCount);
     for (size_t i = 0; i < rangeCount; ++i) {

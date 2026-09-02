@@ -61,7 +61,7 @@ private:
     Quaternion _orientation{};
     Mat4 _attitude{1.0f};
     Mat4 _projectionMat{1.0f};
-    bool _dirty{false};
+    bool _dirty{true};
 };
 
 } // namespace raum::scene

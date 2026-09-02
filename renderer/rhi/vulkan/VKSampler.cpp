@@ -22,7 +22,7 @@ Sampler::Sampler(const SamplerInfo& samplerInfo, RHIDevice* device)
     info.borderColor = borderColor(samplerInfo.borderColor);
     info.unnormalizedCoordinates = samplerInfo.unnormalizedCoordinates;
 
-    vkCreateSampler(_device->device(), &info, nullptr, &_sampler);
+    VK_EXPECT(vkCreateSampler(_device->device(), &info, nullptr, &_sampler));
 }
 
 Sampler::~Sampler() {

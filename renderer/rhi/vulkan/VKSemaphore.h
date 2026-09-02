@@ -6,7 +6,7 @@ class Device;
 class Semaphore : public RHISemaphore {
 public:
     explicit Semaphore(Device* device);
-    ~Semaphore();
+    ~Semaphore() noexcept override;
 
     void setStage(PipelineStage stage) override;
     PipelineStage getStage() override;

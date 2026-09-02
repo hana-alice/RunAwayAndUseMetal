@@ -8,8 +8,7 @@ Semaphore::Semaphore(Device *device): RHISemaphore(device), _device(device) {
     ci.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
     ci.pNext = nullptr;
     ci.flags = 0;
-    auto res = vkCreateSemaphore(_device->device(), &ci, nullptr, &_sem);
-    raum_check(res == VK_SUCCESS, "failed to create semaphore!");
+    VK_EXPECT(vkCreateSemaphore(_device->device(), &ci, nullptr, &_sem));
 }
 
 void Semaphore::setStage(PipelineStage stage) {

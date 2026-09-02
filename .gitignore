@@ -8,3 +8,10 @@
 .idea/
 .vscode/
 CppProperties.json
+compile_commands.json
+CMakeUserPresets.json
+
+# Machine-local assets, captures, experiments, and other files that must not
+# be committed. Keep local/README.md as the shared convention.
+/local/*
+!/local/README.md

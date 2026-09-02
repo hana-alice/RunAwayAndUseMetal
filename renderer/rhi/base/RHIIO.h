@@ -1,4 +1,6 @@
 #pragma once
+#include "RHIDefine.h"
+
 namespace raum::rhi {
 template <class Archive>
 void serialize(Archive& ar, VertexAttribute& vertexAttr) {
@@ -11,9 +13,8 @@ void serialize(Archive& ar, VertexBufferAttribute& attr) {
 }
 
 template <class Archive>
-void serialize(Archive& ar, VertexLayout& rhiVertexLayout) {
-    ar(rhiVertexLayout.vertexAttrs);
-    ar(rhiVertexLayout.vertexBufferAttrs);
+void serialize(Archive& archive, VertexLayout& vertexLayout) {
+    archive(vertexLayout.vertexAttrs, vertexLayout.vertexBufferAttrs);
 }
 
 } // namespace raum::rhi

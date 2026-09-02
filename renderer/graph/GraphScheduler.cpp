@@ -1,5 +1,7 @@
 #include "GraphScheduler.h"
+#include <algorithm>
 #include <boost/graph/depth_first_search.hpp>
+#include <stdexcept>
 #include "GraphUtils.h"
 #include "Mesh.h"
 #include "RHIBlitEncoder.h"
@@ -93,8 +95,11 @@ struct WarmUpVisitor : public boost::dfs_visitor<> {
                             return tech->phaseName() == phaseName;
                         });
                         if (it == techs.end()) {
-                            auto embed = scene::EmbededTechniqueName.at(phaseName);
-                            meshrenderer->addTechnique(scene::makeEmbededTechnique(embed));
+                            const auto embedded = scene::EmbededTechniqueName.find(phaseName);
+                            if (embedded == scene::EmbededTechniqueName.end()) {
+                                continue;
+                            }
+                            meshrenderer->addTechnique(scene::makeEmbededTechnique(embedded->second));
                         }
                     }
                     for (auto& tech : meshrenderer->techniques()) {
@@ -111,6 +116,7 @@ struct WarmUpVisitor : public boost::dfs_visitor<> {
     void finish_vertex(const RenderGraph::VertexType v, const RenderGraphImpl& g) {
         if (std::holds_alternative<RenderPassData>(g[v].data)) {
             _perPassBindings.clear();
+            _perPassLayoutInfo.descriptorBindings.clear();
         } else if (std::holds_alternative<RenderQueueData>(g[v].data)) {
             auto& queueData = std::get<RenderQueueData>(_g.impl()[v].data);
             // auto& bindings = _perPassLayoutInfo.descriptorBindings;
@@ -382,16 +388,64 @@ struct RenderGraphVisitor : public boost::dfs_visitor<> {
                            _renderEncoder->setViewport(data.viewport);
                            _renderEncoder->setScissor(data.viewport.rect);
                            if (test(data.flags, RenderQueueFlags::GEOMETRY)) {
+                               struct DrawItem {
+                                   scene::MeshRendererPtr renderer;
+                                   scene::TechniquePtr technique;
+                                   bool transparent{false};
+                                   float distanceSquared{0.0f};
+                               };
+
+                               std::vector<DrawItem> drawItems;
+                               drawItems.reserve(_renderables.size());
+                               const bool opaqueOnly = test(data.flags, RenderQueueFlags::OPAQUE) &&
+                                                       !test(data.flags, RenderQueueFlags::TRANSPARENT);
+                               const bool transparentOnly = test(data.flags, RenderQueueFlags::TRANSPARENT) &&
+                                                            !test(data.flags, RenderQueueFlags::OPAQUE);
                                for (const auto& renderable : _renderables) {
-                                   const auto& meshRenderer = std::static_pointer_cast<scene::MeshRenderer>(renderable);
-                                   uint32_t phaseIndex = -1;
-                                   for (const auto& tech : meshRenderer->techniques()) {
-                                       if (tech->phaseName() == phase) {
-                                           phaseIndex = &tech - &meshRenderer->techniques()[0];
-                                       }
+                                   const auto meshRenderer = std::static_pointer_cast<scene::MeshRenderer>(renderable);
+                                   const auto& techniques = meshRenderer->techniques();
+                                   const auto phaseTechnique = std::ranges::find_if(
+                                       techniques,
+                                       [phase](const auto& technique) {
+                                           return technique->phaseName() == phase;
+                                       });
+                                   if (phaseTechnique == techniques.end()) {
+                                       continue;
                                    }
-                                   raum_check(phaseIndex != -1, "Phase %s not found", phase);
-                                   const auto& technique = meshRenderer->technique(phaseIndex);
+
+                                   const auto& material = (*phaseTechnique)->material();
+                                   const bool transparent = material->type() == scene::MaterialType::PBR &&
+                                                            std::static_pointer_cast<scene::PBRMaterial>(material)->alphaMode() ==
+                                                                scene::PBRMaterial::AlphaMode::AM_BLEND;
+                                   if ((opaqueOnly && transparent) || (transparentOnly && !transparent)) {
+                                       continue;
+                                   }
+
+                                   float distanceSquared{0.0f};
+                                   if (transparent && data.camera) {
+                                       const auto& bounds = meshRenderer->mesh()->aabb();
+                                       const Vec3f center = (bounds.minBound + bounds.maxBound) * 0.5f;
+                                       const Vec3f cameraToCenter = center - data.camera->eye().getPosition();
+                                       distanceSquared = glm::dot(cameraToCenter, cameraToCenter);
+                                   }
+                                   drawItems.emplace_back(DrawItem{
+                                       .renderer = meshRenderer,
+                                       .technique = *phaseTechnique,
+                                       .transparent = transparent,
+                                       .distanceSquared = distanceSquared,
+                                   });
+                               }
+
+                               std::ranges::stable_sort(drawItems, [](const DrawItem& lhs, const DrawItem& rhs) {
+                                   if (lhs.transparent != rhs.transparent) {
+                                       return !lhs.transparent;
+                                   }
+                                   return lhs.transparent && lhs.distanceSquared > rhs.distanceSquared;
+                               });
+
+                               for (const auto& item : drawItems) {
+                                   const auto& meshRenderer = item.renderer;
+                                   const auto& technique = item.technique;
                                    _renderEncoder->bindPipeline(technique->pipelineState().get());
                                    const auto& mat = technique->material();
                                    if (mat->type() == scene::MaterialType::PBR) {
@@ -443,6 +497,101 @@ struct RenderGraphVisitor : public boost::dfs_visitor<> {
                            }
                        },
                        [&](const CopyPassData& copy) {
+                           auto* bufferBarriers = _accessGraph.getBufferBarrier(v);
+                           if (bufferBarriers) {
+                               for (auto& bufferBarrier : *bufferBarriers) {
+                                   bufferBarrier.info.buffer = _resg.getBuffer(bufferBarrier.name).get();
+                                   _commandBuffer->appendBufferBarrier(bufferBarrier.info);
+                               }
+                           }
+
+                           auto* imageBarriers = _accessGraph.getImageBarrier(v);
+                           if (imageBarriers) {
+                               for (auto& imageBarrier : *imageBarriers) {
+                                   imageBarrier.info.image = _resg.getImage(imageBarrier.name).get();
+                                   _commandBuffer->appendImageBarrier(imageBarrier.info);
+                               }
+                           }
+                           _commandBuffer->applyBarrier(rhi::DependencyFlags::BY_REGION);
+
+                           if (!copy.copies.empty() && !_blitEncoder) {
+                               _blitEncoder = rhi::BlitEncoderPtr(_commandBuffer->makeBlitEncoder());
+                           }
+                           for (const auto& copyPair : copy.copies) {
+                               const auto& source = _resg.get(copyPair.source);
+                               const auto& target = _resg.get(copyPair.target);
+                               const bool sourceIsBuffer = std::holds_alternative<BufferData>(source.data) ||
+                                                           std::holds_alternative<BufferViewData>(source.data);
+                               const bool targetIsBuffer = std::holds_alternative<BufferData>(target.data) ||
+                                                           std::holds_alternative<BufferViewData>(target.data);
+                               const bool sourceIsImage = std::holds_alternative<ImageData>(source.data) ||
+                                                          std::holds_alternative<ImageViewData>(source.data) ||
+                                                          std::holds_alternative<SwapchainData>(source.data);
+                               const bool targetIsImage = std::holds_alternative<ImageData>(target.data) ||
+                                                          std::holds_alternative<ImageViewData>(target.data) ||
+                                                          std::holds_alternative<SwapchainData>(target.data);
+
+                               std::visit(overloaded{
+                                              [&](const rhi::BufferCopyRegion& region) {
+                                                  if (!sourceIsBuffer || !targetIsBuffer) {
+                                                      raum_error("A buffer copy requires buffer source and target resources");
+                                                  }
+                                                  auto mutableRegion = region;
+                                                  _blitEncoder->copyBufferToBuffer(
+                                                      _resg.getBuffer(copyPair.source).get(),
+                                                      _resg.getBuffer(copyPair.target).get(),
+                                                      &mutableRegion,
+                                                      1);
+                                              },
+                                              [&](const rhi::ImageCopyRegion& region) {
+                                                  if (!sourceIsImage || !targetIsImage) {
+                                                      raum_error("An image copy requires image source and target resources");
+                                                  }
+                                                  auto mutableRegion = region;
+                                                  _blitEncoder->copyImageToImage(
+                                                      _resg.getImage(copyPair.source).get(),
+                                                      _accessGraph.getImageLayout(copyPair.source, v),
+                                                      _resg.getImage(copyPair.target).get(),
+                                                      _accessGraph.getImageLayout(copyPair.target, v),
+                                                      &mutableRegion,
+                                                      1);
+                                              },
+                                              [&](const rhi::ImageBlit& region) {
+                                                  if (!sourceIsImage || !targetIsImage) {
+                                                      raum_error("An image blit requires image source and target resources");
+                                                  }
+                                                  auto mutableRegion = region;
+                                                  _blitEncoder->blitImage(
+                                                      _resg.getImage(copyPair.source).get(),
+                                                      _accessGraph.getImageLayout(copyPair.source, v),
+                                                      _resg.getImage(copyPair.target).get(),
+                                                      _accessGraph.getImageLayout(copyPair.target, v),
+                                                      &mutableRegion,
+                                                      1,
+                                                      rhi::Filter::NEAREST);
+                                              },
+                                              [&](const rhi::BufferImageCopyRegion& region) {
+                                                  auto mutableRegion = region;
+                                                  if (sourceIsBuffer && targetIsImage) {
+                                                      _blitEncoder->copyBufferToImage(
+                                                          _resg.getBuffer(copyPair.source).get(),
+                                                          _resg.getImage(copyPair.target).get(),
+                                                          _accessGraph.getImageLayout(copyPair.target, v),
+                                                          &mutableRegion,
+                                                          1);
+                                                  } else if (sourceIsImage && targetIsBuffer) {
+                                                      _blitEncoder->copyImageToBuffer(
+                                                          _resg.getImage(copyPair.source).get(),
+                                                          _accessGraph.getImageLayout(copyPair.source, v),
+                                                          _resg.getBuffer(copyPair.target).get(),
+                                                          &mutableRegion,
+                                                          1);
+                                                  } else {
+                                                      raum_error("A buffer-image copy requires one buffer and one image resource");
+                                                  }
+                                              }},
+                                          copyPair.region);
+                           }
                            for (const auto& upload : copy.uploads) {
                                auto buffer = _resg.getBuffer(upload.name);
                                if (!_blitEncoder) {
@@ -557,6 +706,10 @@ GraphScheduler::GraphScheduler(
   _shaderGraph(shaderGraph) {
 }
 
+GraphScheduler::~GraphScheduler() {
+    destroyBVH(_bvhRoot);
+}
+
 template <typename T>
 concept GraphVisitor = std::is_base_of_v<boost::dfs_visitor<>, T>;
 
@@ -575,6 +728,7 @@ void visitRenderGraph(T& visitor, RenderGraph& renderGraph) {
 
 void GraphScheduler::needWarmUp() {
     _warmed = false;
+    _perPhaseBindGroups.clear();
 }
 
 void GraphScheduler::execute(rhi::CommandBufferPtr cmd) {
@@ -598,10 +752,12 @@ void GraphScheduler::execute(rhi::CommandBufferPtr cmd) {
 
         visitRenderGraph(warmUpVisitor, *_renderGraph);
 
+        destroyBVH(_bvhRoot);
         _bvhRoot = buildBVH(_cullableRenderables, 1);
     }
 
     BVHCulling(_sceneGraph->cameras(), _bvhRoot, renderables);
+    renderables.insert(renderables.end(), _noCullRenderables.begin(), _noCullRenderables.end());
 
     PreProcessVisitor preProcessVisitor{
         {},

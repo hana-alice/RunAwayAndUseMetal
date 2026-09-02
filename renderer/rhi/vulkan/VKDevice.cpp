@@ -23,44 +23,22 @@
 #include "VkBufferView.h"
 #include "core/utils/log.h"
 #include "core/utils/utils.h"
+#include <memory>
+#include <set>
+#include <stdexcept>
 
 // #include "asset/serialization/Archive.h"
 namespace raum::rhi {
 
+#if defined(NDEBUG)
+static constexpr bool enableValidationLayer{false};
+#else
 static constexpr bool enableValidationLayer{true};
+#endif
 
 static constexpr uint32_t ChunkSize{1024 * 1024 * 4};
 
 namespace {
-bool checkRequiredLayers(const std::vector<const char*>& reqs, const std::vector<VkLayerProperties>& availables) {
-    bool found = false;
-    for (const char* require : reqs) {
-        for (const auto& layer : availables) {
-            if (strcmp(require, layer.layerName) == 0) {
-                found = true;
-                break;
-            }
-        }
-    }
-    return found;
-}
-
-bool checkRequiredExtensions(const std::vector<const char*> reqs, const std::vector<VkExtensionProperties>& availables) {
-    for (const char* require : reqs) {
-        bool found = false;
-        for (const auto& layer : availables) {
-            if (strcmp(require, layer.extensionName) == 0) {
-                found = true;
-                break;
-            }
-        }
-        if (!found) {
-            raum_error("Could not find required extension: {}", require);
-        }
-    }
-    return false;
-}
-
 static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
                                                     VkDebugUtilsMessageTypeFlagsEXT messageType,
                                                     const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
@@ -69,7 +47,7 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityF
     } else if (messageSeverity == VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT) {
     } else if (messageSeverity == VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT) {
     } else if (messageSeverity == VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) {
-        raum_error("{}", pCallbackData->pMessage);
+        raum_report_error("{}", pCallbackData->pMessage);
     }
 
     return VK_FALSE;
@@ -144,8 +122,14 @@ void Device::initCache() {
 Device::~Device() {
     vkDeviceWaitIdle(_device);
 
+    delete _programCache;
+
     for (auto& [_, sampler] : _samplers) {
         delete sampler;
+    }
+
+    for (auto& [_, stagingBuffer] : _stagingBuffers) {
+        delete stagingBuffer;
     }
 
     for (auto [_, q] : _queues) {
@@ -172,160 +156,178 @@ void Device::initInstance() {
     appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
     appInfo.apiVersion = VK_API_VERSION_1_4;
 
-    // extension
-    VkResult result = VK_SUCCESS;
-    {
-        uint32_t extensionNum{0};
-        result = vkEnumerateInstanceExtensionProperties(nullptr, &extensionNum, nullptr);
-        RAUM_CRITICAL_IF(!extensionNum || result != VK_SUCCESS, "Failed to get vulkan instance extension properties");
-        std::vector<VkExtensionProperties> availableExts(extensionNum);
-        vkEnumerateInstanceExtensionProperties(nullptr, &extensionNum, &availableExts[0]);
-        RAUM_CRITICAL_IF(result != VK_SUCCESS, "Failed to get vulkan instance extension properties");
-        raum::log(availableExts);
+    const auto availableExts = VK_ENUMERATE(
+        VkExtensionProperties, vkEnumerateInstanceExtensionProperties, nullptr);
+    VK_ENSURE(!availableExts.empty(), "No Vulkan instance extensions are available");
+    raum::log(availableExts);
 
-        uint32_t layerNum{0};
-        result = vkEnumerateInstanceLayerProperties(&layerNum, nullptr);
-        RAUM_CRITICAL_IF(result != VK_SUCCESS, "vkEnumerateInstanceExtensionProperties");
-        std::vector<VkLayerProperties> availableLayers(layerNum);
-        result = vkEnumerateInstanceLayerProperties(&layerNum, availableLayers.data());
-        raum::log(availableLayers);
+    const auto availableLayers = VK_ENUMERATE(VkLayerProperties, vkEnumerateInstanceLayerProperties);
+    raum::log(availableLayers);
 
-        std::vector<const char*> requiredLayers;
-        if constexpr (enableValidationLayer) {
-            requiredLayers.emplace_back("VK_LAYER_KHRONOS_validation");
-        }
-        bool res = checkRequiredLayers(requiredLayers, availableLayers);
-        RAUM_CRITICAL_IF(!res, "required layers not found!");
-
-        VkInstanceCreateInfo instInfo{};
-        instInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-        instInfo.pApplicationInfo = &appInfo;
-
-        std::vector<const char*> requiredExts;
-        if constexpr (enableValidationLayer) {
-            requiredExts.emplace_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-        }
+    std::vector<const char*> requiredLayers;
+    std::vector<const char*> requiredExts;
+    if constexpr (enableValidationLayer) {
+        requiredLayers.emplace_back("VK_LAYER_KHRONOS_validation");
+        requiredExts.emplace_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+    }
 #ifdef RAUM_WINDOWS
-        requiredExts.emplace_back(VK_KHR_SURFACE_EXTENSION_NAME);
-        requiredExts.emplace_back("VK_KHR_win32_surface");
+    requiredExts.emplace_back(VK_KHR_SURFACE_EXTENSION_NAME);
+    requiredExts.emplace_back("VK_KHR_win32_surface");
 #endif
 
-        instInfo.enabledExtensionCount = static_cast<uint32_t>(requiredExts.size());
-        instInfo.ppEnabledExtensionNames = requiredExts.data();
-        instInfo.enabledLayerCount = static_cast<uint32_t>(requiredLayers.size());
-        instInfo.ppEnabledLayerNames = requiredLayers.data();
+    requireVkProperties(requiredLayers, availableLayers, "layers");
+    requireVkProperties(requiredExts, availableExts, "instance extensions");
 
-        result = vkCreateInstance(&instInfo, nullptr, &_instance);
-        RAUM_CRITICAL_IF(result != VK_SUCCESS, "vkCreateInstance");
+    VkInstanceCreateInfo instInfo{};
+    instInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+    instInfo.pApplicationInfo = &appInfo;
+    instInfo.enabledExtensionCount = static_cast<uint32_t>(requiredExts.size());
+    instInfo.ppEnabledExtensionNames = requiredExts.data();
+    instInfo.enabledLayerCount = static_cast<uint32_t>(requiredLayers.size());
+    instInfo.ppEnabledLayerNames = requiredLayers.data();
 
-        if constexpr (enableValidationLayer) {
-            VkDebugUtilsMessengerCreateInfoEXT dbgMsgInfo{};
-            dbgMsgInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
-            dbgMsgInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
-            dbgMsgInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
-            dbgMsgInfo.pfnUserCallback = debugCallback;
-            dbgMsgInfo.pUserData = nullptr;
+    VK_EXPECT(vkCreateInstance(&instInfo, nullptr, &_instance));
 
-            result = createDebugMessengerExt(_instance, &dbgMsgInfo, nullptr, &_debugMessenger);
-            RAUM_ERROR_IF(result == VK_ERROR_EXTENSION_NOT_PRESENT, "validation ext not found.");
+    if constexpr (enableValidationLayer) {
+        VkDebugUtilsMessengerCreateInfoEXT dbgMsgInfo{};
+        dbgMsgInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+        dbgMsgInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+        dbgMsgInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+        dbgMsgInfo.pfnUserCallback = debugCallback;
+        dbgMsgInfo.pUserData = nullptr;
 
-            instInfo.pNext = (VkDebugUtilsMessengerCreateInfoEXT*)&dbgMsgInfo;
-        }
+        VK_EXPECT(createDebugMessengerExt(_instance, &dbgMsgInfo, nullptr, &_debugMessenger));
     }
 }
 
 void Device::initDevice() {
-    uint32_t deviceCount{0};
-    vkEnumeratePhysicalDevices(_instance, &deviceCount, nullptr);
-    RAUM_CRITICAL_IF(!deviceCount, "can't find any physic device.");
-
-    std::vector<VkPhysicalDevice> devices(deviceCount);
-    vkEnumeratePhysicalDevices(_instance, &deviceCount, devices.data());
+    const auto devices = VK_ENUMERATE(VkPhysicalDevice, vkEnumeratePhysicalDevices, _instance);
+    VK_ENSURE(!devices.empty(), "No Vulkan physical device is available");
 
     _physicalDevice = rankDevices(devices);
 
-    // for further use
-    auto* queue = new Queue(QueueInfo{QueueType::COMPUTE}, this);
-    _queues.emplace(QueueType::COMPUTE, queue);
-    queue = new Queue(QueueInfo{QueueType::TRANSFER}, this);
-    _queues.emplace(QueueType::TRANSFER, queue);
-    queue = new Queue(QueueInfo{QueueType::SPARSE}, this);
-    _queues.emplace(QueueType::SPARSE, queue);
-    queue = new Queue(QueueInfo{QueueType::GRAPHICS}, this);
-    _queues.emplace(QueueType::GRAPHICS, queue);
-
-    VkDeviceQueueCreateInfo queueInfo{};
-    queueInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+    auto addQueue = [this](QueueType type, bool required) {
+        try {
+            auto queue = std::unique_ptr<Queue>(new Queue(QueueInfo{type}, this));
+            _queues.emplace(type, queue.release());
+        } catch (const std::runtime_error&) {
+            if (required) {
+                throw;
+            }
+            raum_warn("Optional Vulkan queue type is not supported: {}", static_cast<uint32_t>(type));
+        }
+    };
+    addQueue(QueueType::GRAPHICS, true);
+    addQueue(QueueType::COMPUTE, false);
+    addQueue(QueueType::TRANSFER, false);
+    addQueue(QueueType::SPARSE, false);
 
     float priority = 1.0f;
-    queueInfo.queueFamilyIndex = queue->_index;
-    queueInfo.queueCount = 1;
-    queueInfo.pQueuePriorities = &priority;
+    std::set<uint32_t> queueFamilies;
+    for (const auto& [_, queue] : _queues) {
+        queueFamilies.emplace(queue->_index);
+    }
+    std::vector<VkDeviceQueueCreateInfo> queueInfos;
+    queueInfos.reserve(queueFamilies.size());
+    for (const auto family : queueFamilies) {
+        auto& queueInfo = queueInfos.emplace_back();
+        queueInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+        queueInfo.queueFamilyIndex = family;
+        queueInfo.queueCount = 1;
+        queueInfo.pQueuePriorities = &priority;
+    }
 
     VkPhysicalDeviceFeatures2 deviceFeatures2{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2};
     auto& deviceFeatures = deviceFeatures2.features;
-    deviceFeatures.sparseBinding = 1;
-    deviceFeatures.sparseResidencyImage2D = 1;
-    deviceFeatures.shaderResourceResidency = 1;
 
     VkDeviceCreateInfo deviceInfo{};
     deviceInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
 
-    uint32_t extNum{0};
-    vkEnumerateDeviceExtensionProperties(_physicalDevice, nullptr, &extNum, nullptr);
-    std::vector<VkExtensionProperties> availableExts(extNum);
-    vkEnumerateDeviceExtensionProperties(_physicalDevice, nullptr, &extNum, availableExts.data());
+    const auto availableExts = VK_ENUMERATE(
+        VkExtensionProperties, vkEnumerateDeviceExtensionProperties, _physicalDevice, nullptr);
     log(availableExts);
 
-    std::vector<const char*> exts{};
-    exts.emplace_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
-    exts.emplace_back(VK_KHR_MAINTENANCE1_EXTENSION_NAME);
+    auto isExtAvailable = [&](const char* name) {
+        return hasVkProperty(availableExts, name);
+    };
 
-    {
-        exts.emplace_back(VK_KHR_MAINTENANCE_5_EXTENSION_NAME);
+    const bool pipelineBinaryExtensionAvailable = isExtAvailable(VK_KHR_PIPELINE_BINARY_EXTENSION_NAME);
 
-        {
-            exts.emplace_back(VK_KHR_PIPELINE_BINARY_EXTENSION_NAME);
-            VkPhysicalDevicePipelineBinaryFeaturesKHR pipelineBinaryFeatures{};
-            pipelineBinaryFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PIPELINE_BINARY_FEATURES_KHR;
-            pipelineBinaryFeatures.pipelineBinaries = VK_TRUE;
-            deviceFeatures2.pNext = &pipelineBinaryFeatures;
+    // Query first and only enable features actually supported by the selected device.
+    VkPhysicalDeviceFeatures2 supportedFeatures{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2};
+    VkPhysicalDeviceTimelineSemaphoreFeatures supportedTimelineFeatures{
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TIMELINE_SEMAPHORE_FEATURES_KHR};
+    VkPhysicalDevicePipelineBinaryFeaturesKHR supportedPipelineBinaryFeatures{
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PIPELINE_BINARY_FEATURES_KHR};
+    supportedFeatures.pNext = &supportedTimelineFeatures;
+    if (pipelineBinaryExtensionAvailable) {
+        supportedTimelineFeatures.pNext = &supportedPipelineBinaryFeatures;
+    }
+    vkGetPhysicalDeviceFeatures2(_physicalDevice, &supportedFeatures);
 
-            VkDevicePipelineBinaryInternalCacheControlKHR pipelineBinaryInternalCacheControl{};
-            pipelineBinaryInternalCacheControl.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PIPELINE_CREATION_CACHE_CONTROL_FEATURES;
-            pipelineBinaryInternalCacheControl.disableInternalCache = VK_FALSE;
-            pipelineBinaryInternalCacheControl.pNext = nullptr;
-            pipelineBinaryFeatures.pNext = &pipelineBinaryInternalCacheControl;
+    VK_ENSURE(supportedTimelineFeatures.timelineSemaphore,
+              "The selected Vulkan device does not support timeline semaphores");
 
-            
-            exts.emplace_back(VK_KHR_TIMELINE_SEMAPHORE_EXTENSION_NAME);
-            VkPhysicalDeviceTimelineSemaphoreFeatures timelineSemaphoreFeatures{};
-            timelineSemaphoreFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TIMELINE_SEMAPHORE_FEATURES_KHR;
-            timelineSemaphoreFeatures.timelineSemaphore = VK_TRUE;
-            timelineSemaphoreFeatures.pNext = nullptr;
-            pipelineBinaryInternalCacheControl.pNext = &timelineSemaphoreFeatures;
-        }
-
-        checkRequiredExtensions(exts, availableExts);
+    const bool hasSparseQueue = _queues.contains(QueueType::SPARSE);
+    const bool sparseResidencySupported = hasSparseQueue &&
+                                          supportedFeatures.features.sparseBinding &&
+                                          supportedFeatures.features.sparseResidencyImage2D &&
+                                          supportedFeatures.features.shaderResourceResidency &&
+                                          supportedFeatures.features.fragmentStoresAndAtomics;
+    deviceFeatures.sparseBinding = sparseResidencySupported;
+    deviceFeatures.sparseResidencyImage2D = sparseResidencySupported;
+    deviceFeatures.shaderResourceResidency = sparseResidencySupported;
+    deviceFeatures.fragmentStoresAndAtomics = supportedFeatures.features.fragmentStoresAndAtomics;
+    if (hasSparseQueue && !sparseResidencySupported) {
+        delete _queues.at(QueueType::SPARSE);
+        _queues.erase(QueueType::SPARSE);
+        raum_warn("Sparse image residency is not supported by the selected Vulkan device");
     }
 
+    // All feature structs must outlive vkCreateDevice.
+    VkPhysicalDeviceTimelineSemaphoreFeatures timelineSemaphoreFeatures{};
+    timelineSemaphoreFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TIMELINE_SEMAPHORE_FEATURES_KHR;
+    timelineSemaphoreFeatures.timelineSemaphore = VK_TRUE;
+    timelineSemaphoreFeatures.pNext = nullptr;
+
+    VkPhysicalDevicePipelineBinaryFeaturesKHR pipelineBinaryFeatures{};
+
+    std::vector<const char*> exts{
+        VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+        VK_KHR_MAINTENANCE1_EXTENSION_NAME,
+        VK_KHR_MAINTENANCE_5_EXTENSION_NAME,
+        VK_KHR_TIMELINE_SEMAPHORE_EXTENSION_NAME,
+    };
+
+    if (pipelineBinaryExtensionAvailable && supportedPipelineBinaryFeatures.pipelineBinaries) {
+        exts.emplace_back(VK_KHR_PIPELINE_BINARY_EXTENSION_NAME);
+
+        pipelineBinaryFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PIPELINE_BINARY_FEATURES_KHR;
+        pipelineBinaryFeatures.pipelineBinaries = VK_TRUE;
+        pipelineBinaryFeatures.pNext = &timelineSemaphoreFeatures;
+        deviceFeatures2.pNext = &pipelineBinaryFeatures;
+    } else {
+        deviceFeatures2.pNext = &timelineSemaphoreFeatures;
+    }
+
+    requireVkProperties(exts, availableExts, "device extensions");
+
     deviceInfo.pNext = &deviceFeatures2;
-    deviceInfo.pQueueCreateInfos = &queueInfo;
-    deviceInfo.queueCreateInfoCount = 1;
+    deviceInfo.pQueueCreateInfos = queueInfos.data();
+    deviceInfo.queueCreateInfoCount = static_cast<uint32_t>(queueInfos.size());
     deviceInfo.pEnabledFeatures = nullptr;
-    deviceInfo.enabledExtensionCount = exts.size();
+    deviceInfo.enabledExtensionCount = static_cast<uint32_t>(exts.size());
     deviceInfo.ppEnabledExtensionNames = exts.data();
     deviceInfo.enabledLayerCount = 0;
 
-    VkResult res = vkCreateDevice(_physicalDevice, &deviceInfo, nullptr, &_device);
-    RAUM_CRITICAL_IF(res != VK_SUCCESS, "failed to create logic device.");
+    VK_EXPECT(vkCreateDevice(_physicalDevice, &deviceInfo, nullptr, &_device));
 
     VmaAllocatorCreateInfo allocInfo{};
     allocInfo.device = _device;
     allocInfo.physicalDevice = _physicalDevice;
     allocInfo.instance = _instance;
-    allocInfo.vulkanApiVersion = VK_API_VERSION_1_3;
-    vmaCreateAllocator(&allocInfo, &_allocator);
+    allocInfo.vulkanApiVersion = VK_API_VERSION_1_4;
+    VK_EXPECT(vmaCreateAllocator(&allocInfo, &_allocator));
 
     for (auto [_, q] : _queues) {
         vkGetDeviceQueue(_device, q->_index, 0, &q->_vkQueue);
@@ -336,12 +338,14 @@ void Device::initDevice() {
     pfn_vkGetPipelineKeyKHR = reinterpret_cast<PFN_vkGetPipelineKeyKHR>(gpk);
 
     if (!pfn_vkGetPipelineKeyKHR) {
-        raum_error("Couldn't get pfn_vkGetPipelineKeyKHR");
+        raum_warn("Couldn't get pfn_vkGetPipelineKeyKHR");
     }
 }
 
 RHIQueue* Device::getQueue(const QueueInfo& info) {
-    return _queues.at(info.type);
+    const auto iter = _queues.find(info.type);
+    VK_ENSURE(iter != _queues.end(), "Requested Vulkan queue type is not supported");
+    return iter->second;
 }
 
 RHISwapchain* Device::createSwapchain(const SwapchainInfo& info) {
@@ -389,7 +393,7 @@ RHIShader* Device::createShader(const ShaderSourceInfo& info) {
 }
 
 RHIShader* Device::createShader(const ShaderBinaryInfo& info) {
-    return nullptr;
+    return new Shader(info, this);
 }
 
 RHIGraphicsPipeline* Device::createGraphicsPipeline(const GraphicsPipelineInfo& info) {
@@ -420,6 +424,7 @@ RHIPipelineLayout* Device::createPipelineLayout(const PipelineLayoutInfo& info) 
 }
 
 RHISparseImage* Device::createSparseImage(const raum::rhi::SparseImageInfo& info) {
+    VK_ENSURE(_queues.contains(QueueType::SPARSE), "Sparse images are not supported by the selected Vulkan device");
     return new SparseImage(info, this);
 }
 
@@ -428,17 +433,18 @@ RHISemaphore* Device::createSemaphore() {
 }
 
 SparseBindingRequirement Device::sparseBindingRequirement(RHIImage* image) {
-    auto* img = static_cast<Image*>(image);
-    raum_check(test(image->info().imageFlag, rhi::ImageFlag::SPARSE_BINDING), "not a sparse image!");
+    VK_ENSURE(test(image->info().imageFlag, rhi::ImageFlag::SPARSE_BINDING), "The image does not support sparse binding");
+    const auto vkImage = dynamic_cast<SparseImage*>(image)
+        ? static_cast<SparseImage*>(image)->image()
+        : static_cast<Image*>(image)->image();
     std::vector<VkSparseImageMemoryRequirements> reqs;
-    VkMemoryRequirements memoryRequirements;
-    uint32_t count;
-    vkGetImageSparseMemoryRequirements(_device, img->image(), &count, nullptr);
+    uint32_t count{0};
+    vkGetImageSparseMemoryRequirements(_device, vkImage, &count, nullptr);
+    VK_ENSURE(count, "The image has no sparse memory requirements");
     reqs.resize(count);
-    vkGetImageSparseMemoryRequirements(_device, img->image(), &count, reqs.data());
-    vkGetImageMemoryRequirements(_device, img->image(), &memoryRequirements);
+    vkGetImageSparseMemoryRequirements(_device, vkImage, &count, reqs.data());
 
-    SparseBindingRequirement req;
+    SparseBindingRequirement req{};
     switch (reqs[0].formatProperties.aspectMask) {
         case VK_IMAGE_ASPECT_COLOR_BIT:
             req.aspect = AspectMask::COLOR;
@@ -478,7 +484,7 @@ SparseBindingRequirement Device::sparseBindingRequirement(RHIImage* image) {
     }
     req.mipTailFirstLod = reqs[0].imageMipTailFirstLod;
     req.mipTailSize = reqs[0].imageMipTailSize;
-    req.mipTailOffset = reqs[0].imageMipTailSize;
+    req.mipTailOffset = reqs[0].imageMipTailOffset;
     req.mipTailStride = reqs[0].imageMipTailStride;
     return req;
 }
@@ -498,12 +504,13 @@ void Device::resetStagingBuffer(uint8_t queueIndex) {
 
 
 void Device::waitDeviceIdle() {
-    vkDeviceWaitIdle(_device);
+    VK_EXPECT(vkDeviceWaitIdle(_device));
 }
 
 void Device::waitQueueIdle(raum::rhi::RHIQueue* q) {
     auto* queue = static_cast<Queue*>(q);
-    vkQueueWaitIdle(queue->_vkQueue);
+    VK_EXPECT(vkQueueWaitIdle(queue->_vkQueue));
+    queue->completePendingHandlers();
 }
 
 Device* loadVK() {

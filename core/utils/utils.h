@@ -1,25 +1,14 @@
 #pragma once
 #include <filesystem>
-#include <optional>
-#include <numbers>
 #include <functional>
+#include <numbers>
+
 #include <boost/container_hash/hash.hpp>
 
 namespace raum::utils {
 
-static std::optional<std::filesystem::path> s_resourcePath;
-
-static std::filesystem::path resourceDirectory() {
-    if (s_resourcePath.has_value()) {
-        return s_resourcePath.value();
-    } else {
-#if defined(RAUM_DEFAULT_ASSET_DIR)
-        return std::filesystem::path(RAUM_DEFAULT_ASSET_DIR) / "files";
-#endif //  defined(RAUM_DEFAULT_ASSET_DIR)
-        // Debug/Release
-        return std::filesystem::current_path() / "files";
-    }
-}
+void setResourceDirectory(std::filesystem::path path);
+std::filesystem::path resourceDirectory();
 
 template <typename... Args>
 class TickFunction {
@@ -31,10 +20,9 @@ public:
     TickFunction& operator=(TickFunction&&) = default;
 
     template <class F>
-    requires(
-        !std::same_as<std::decay_t<F>, TickFunction> &&
-        std::constructible_from<std::function<void(Args...)>, F>
-    )
+        requires(
+            !std::same_as<std::decay_t<F>, TickFunction> &&
+            std::constructible_from<std::function<void(Args...)>, F>)
     TickFunction(F&& f) : _tickFunc(std::forward<F>(f)) {}
 
     void operator()(Args... args) {

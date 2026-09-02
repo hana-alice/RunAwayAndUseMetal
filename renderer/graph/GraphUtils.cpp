@@ -1,4 +1,6 @@
 #include "GraphUtils.h"
+#include <functional>
+#include <unordered_set>
 #include "RHIDevice.h"
 
 namespace raum::graph {
@@ -17,6 +19,11 @@ public:
     }
 
     rhi::FrameBufferPtr get(const rhi::FrameBufferInfo& info) {
+        if (_swapchainFrameBuffers.size() != _swapchain->imageCount()) {
+            _frameBufferMap.clear();
+            _swapchainFrameBuffers.clear();
+            _swapchainFrameBuffers.resize(_swapchain->imageCount());
+        }
         auto hash = rhi::RHIHash<rhi::FrameBufferInfo>{}(info);
         if (!_frameBufferMap.contains(hash)) {
             // invalidate swapchain-related framebuffers in case of pointer ABA problem
@@ -39,11 +46,17 @@ public:
         return _frameBufferMap.at(hash);
     }
 
+    bool matches(rhi::RHIDevice* device, rhi::RHISwapchain* swapchain) const {
+        return _device == device && _swapchain == swapchain;
+    }
+
     rhi::RHIDevice* _device;
     rhi::RHISwapchain* _swapchain;
     std::vector<std::vector<std::size_t>> _swapchainFrameBuffers;
     std::unordered_map<std::size_t, rhi::FrameBufferPtr> _frameBufferMap;
 };
+
+std::unique_ptr<FrameBufferManager> _frameBufferManager;
 
 } // namespace
 
@@ -67,7 +80,9 @@ rhi::FrameBufferPtr getOrCreateFrameBuffer(
     ResourceGraph& resg,
     rhi::DevicePtr device,
     rhi::SwapchainPtr swapchain) {
-    static FrameBufferManager fbManager(device.get(), swapchain.get());
+    if (!_frameBufferManager || !_frameBufferManager->matches(device.get(), swapchain.get())) {
+        _frameBufferManager = std::make_unique<FrameBufferManager>(device.get(), swapchain.get());
+    }
 
     auto* framebufferInfo = ag.getFrameBufferInfo(v);
     raum_check(framebufferInfo, "failed to analyze framebuffer info at {}", v);
@@ -81,7 +96,7 @@ rhi::FrameBufferPtr getOrCreateFrameBuffer(
             rhiFbInfo.images[i] = imgView.get();
         }
 
-        return fbManager.get(rhiFbInfo);
+        return _frameBufferManager->get(rhiFbInfo);
     }
     raum_unreachable();
     return nullptr;
@@ -117,10 +132,10 @@ bool culled(const scene::Mesh& mesh, const SceneGraph& sg) {
     const auto& graph = sg.impl();
     // todo: Traits camera only.
     for (auto v : boost::make_iterator_range(boost::vertices(graph))) {
-        if (std::holds_alternative<CameraNode>(graph[v].sceneNodeData)) {
+        if (graph[v].node.enabled() && std::holds_alternative<CameraNode>(graph[v].sceneNodeData)) {
             const auto& camNode = std::get<CameraNode>(graph[v].sceneNodeData);
-            auto cam = camNode.camera;
-            if (cam->cullingEnabled()) {
+            const auto& cam = camNode.camera;
+            if (cam && cam->cullingEnabled()) {
                 culled |= !scene::frustumCulling(cam->frustumPlanes(), mesh.aabb());
             }
         }
@@ -139,7 +154,7 @@ void collectRenderables(
     for (auto v : boost::make_iterator_range(boost::vertices(graph))) {
         if (std::holds_alternative<ModelNode>(graph[v].sceneNodeData)) {
             const auto& modelNode = std::get<ModelNode>(graph[v].sceneNodeData);
-            if (graph[v].node.enabled()) {
+            if (graph[v].node.enabled() && modelNode.model) {
                 for (auto& meshRenderer : modelNode.model->meshRenderers()) {
                     if (!test(modelNode.hint, ModelHint::NO_CULLING)) {
                         cullables.emplace_back(meshRenderer);
@@ -150,10 +165,12 @@ void collectRenderables(
             }
         }
     }
-    std::ranges::sort(cullableRenderables, [](const auto& lhs, const auto& rhs) {
-        return std::static_pointer_cast<scene::MeshRenderer>(lhs)->mesh()->aabb().minBound.x <
-               std::static_pointer_cast<scene::MeshRenderer>(rhs)->mesh()->aabb().minBound.x;
+    std::ranges::sort(cullables, [](const auto& lhs, const auto& rhs) {
+        return lhs->mesh()->aabb().minBound.x < rhs->mesh()->aabb().minBound.x;
     });
+
+    renderables.clear();
+    renderables.reserve(cullables.size() + noCullings.size());
     std::ranges::copy(cullables, std::back_inserter(renderables));
     std::ranges::copy(noCullings, std::back_inserter(renderables));
     cullableRenderables = std::span(renderables).subspan(0, cullables.size());
@@ -180,6 +197,10 @@ scene::AABB getAABB(const std::span<scene::RenderablePtr>& renderables) {
 scene::BVHNode* buildBVH(std::span<scene::RenderablePtr>& renderables, uint32_t maxObjectsPerNode) {
     // expect renderables to be sorted
 
+    if (renderables.empty()) {
+        return nullptr;
+    }
+
     if (renderables.size() <= maxObjectsPerNode) {
         scene::BVHNode* leafNode = new scene::BVHNode();
         leafNode->aabb = getAABB(renderables);
@@ -199,6 +220,15 @@ scene::BVHNode* buildBVH(std::span<scene::RenderablePtr>& renderables, uint32_t 
         node->right = buildBVH(rights, maxObjectsPerNode);
     }
     return node;
+}
+
+void destroyBVH(scene::BVHNode* node) {
+    if (!node) {
+        return;
+    }
+    destroyBVH(node->left);
+    destroyBVH(node->right);
+    delete node;
 }
 
 void BVHCulling(const scene::FrustumPlanes& frustumPlanes,
@@ -222,12 +252,33 @@ void BVHCulling(const scene::FrustumPlanes& frustumPlanes,
     }
 }
 
-void BVHCulling(const std::vector<CameraNode*>& cameras,
+void BVHCulling(const std::vector<const CameraNode*>& cameras,
                 const scene::BVHNode* node,
                 std::vector<scene::RenderablePtr>& renderables) {
+    std::unordered_set<const scene::Renderable*> visible;
     for (const auto& camera : cameras) {
-        const auto& frustum = camera->camera->frustumPlanes();
-        BVHCulling(frustum, node, renderables);
+        if (!camera || !camera->camera) {
+            continue;
+        }
+        std::vector<scene::RenderablePtr> cameraRenderables;
+        if (camera->camera->cullingEnabled()) {
+            BVHCulling(camera->camera->frustumPlanes(), node, cameraRenderables);
+        } else {
+            std::function<void(const scene::BVHNode*)> collectAll = [&](const scene::BVHNode* current) {
+                if (!current) {
+                    return;
+                }
+                cameraRenderables.insert(cameraRenderables.end(), current->children.begin(), current->children.end());
+                collectAll(current->left);
+                collectAll(current->right);
+            };
+            collectAll(node);
+        }
+        for (const auto& renderable : cameraRenderables) {
+            if (visible.emplace(renderable.get()).second) {
+                renderables.emplace_back(renderable);
+            }
+        }
     }
 }
 
@@ -245,6 +296,18 @@ void bindResourceToMaterial(std::string_view resourceName, std::string_view slot
     auto img = resg.getImage(resourceName);
     scene::Texture texture{img, imgView, 0};
     mat->set(slotName, texture);
+}
+
+void clearGraphCaches() {
+    _frameBufferManager.reset();
+    _psoMap.clear();
+    _pplLayoutMap.clear();
+    _descLayoutMap.clear();
+    _renderPassMap.clear();
+}
+
+void clearFrameBufferCache() {
+    _frameBufferManager.reset();
 }
 
 } // namespace raum::graph

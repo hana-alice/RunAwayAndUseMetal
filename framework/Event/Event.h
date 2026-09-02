@@ -1,6 +1,9 @@
 #pragma once
 #include <stdint.h>
 #include <functional>
+#include <list>
+#include <tuple>
+#include <type_traits>
 #include <vector>
 namespace raum::framework {
 
@@ -77,7 +80,7 @@ template <template <InputEventType, class...> class U, InputEventType type, clas
 inline constexpr bool is_instance_of_event_tag<U<type, Vs...>, U> = std::true_type{};
 
 template <typename Tag>
-concept TagInst = requires { is_instance_of_event_tag<Tag, EventTag>; };
+concept TagInst = is_instance_of_event_tag<Tag, EventTag>;
 
 
 template <typename Tag>
@@ -87,6 +90,12 @@ public:
     using ListenFunc = typename Tag::CallbackType;
 
     EventListener();
+    ~EventListener();
+
+    EventListener(const EventListener&) = delete;
+    EventListener& operator=(const EventListener&) = delete;
+    EventListener(EventListener&&) = delete;
+    EventListener& operator=(EventListener&&) = delete;
 
     void add(const ListenFunc& func);
 
@@ -136,6 +145,12 @@ template <typename Tag>
     requires TagInst<Tag>
 EventListener<Tag>::EventListener() {
     EventDispatcher<Tag>::get()->push(this);
+}
+
+template <typename Tag>
+    requires TagInst<Tag>
+EventListener<Tag>::~EventListener() {
+    remove();
 }
 
 template <typename Tag>

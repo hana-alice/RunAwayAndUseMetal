@@ -79,18 +79,7 @@ rhi::ImageSubresourceRange getSubresourceRange(const Resource& resourceDetail) {
     rhi::ImageSubresourceRange range{};
     std::visit(overloaded{
                    [&](const ImageData& imageData) {
-                       bool depthFormat = rhi::hasDepth(imageData.info.format);
-                       bool stencilFormat = rhi::hasStencil(imageData.info.format);
-
-                       if (!depthFormat && !stencilFormat) {
-                           range.aspect = rhi::AspectMask::COLOR;
-                       } else if (depthFormat && stencilFormat) {
-                           range.aspect = rhi::AspectMask::DEPTH | rhi::AspectMask::STENCIL;
-                       } else if (depthFormat) {
-                           range.aspect = rhi::AspectMask::DEPTH;
-                       } else if (stencilFormat) {
-                           range.aspect = rhi::AspectMask::STENCIL;
-                       }
+                       range.aspect = rhi::formatAspectMask(imageData.info.format);
                        range.sliceCount = imageData.info.sliceCount;
                        range.mipCount = imageData.info.mipCount;
                        range.firstMip = 0;
@@ -100,8 +89,10 @@ rhi::ImageSubresourceRange getSubresourceRange(const Resource& resourceDetail) {
                        range = imageViewData.info.range;
                        // [ VUID-VkImageMemoryBarrier-image-03320 ]
                        // format and barrier access should match if no related extension is enabled
-                       if (range.aspect == rhi::AspectMask::DEPTH || range.aspect == rhi::AspectMask::STENCIL) {
-                           range.aspect = rhi::AspectMask::DEPTH | rhi::AspectMask::STENCIL;
+                       const auto formatAspects = rhi::formatAspectMask(imageViewData.info.format);
+                       if (formatAspects == (rhi::AspectMask::DEPTH | rhi::AspectMask::STENCIL) &&
+                           (range.aspect == rhi::AspectMask::DEPTH || range.aspect == rhi::AspectMask::STENCIL)) {
+                           range.aspect = formatAspects;
                        }
                    },
                    [&](const SwapchainData& swapchainData) {
@@ -342,6 +333,28 @@ public:
                 auto resourceName = eraseView(_resg, res.name);
                 _accessMap[resourceName].emplace_back(v, access, layout, stage);
             }
+        } else if (std::holds_alternative<CopyPassData>(rg[v].data)) {
+            const auto& data = std::get<CopyPassData>(rg[v].data);
+            auto addTransferAccess = [&](std::string_view name, rhi::AccessFlags access) {
+                const auto& resource = _resg.get(name);
+                rhi::ImageLayout layout{rhi::ImageLayout::UNDEFINED};
+                if (std::holds_alternative<ImageData>(resource.data) ||
+                    std::holds_alternative<ImageViewData>(resource.data) ||
+                    std::holds_alternative<SwapchainData>(resource.data)) {
+                    layout = getImageLayout(_resg, name, access);
+                }
+                _accessMap[eraseView(_resg, name)].emplace_back(v, access, layout, rhi::PipelineStage::TRANSFER);
+            };
+            for (const auto& copy : data.copies) {
+                addTransferAccess(copy.source, rhi::AccessFlags::TRANSFER_READ);
+                addTransferAccess(copy.target, rhi::AccessFlags::TRANSFER_WRITE);
+            }
+            for (const auto& upload : data.uploads) {
+                addTransferAccess(upload.name, rhi::AccessFlags::TRANSFER_WRITE);
+            }
+            for (const auto& fill : data.fills) {
+                addTransferAccess(fill.name, rhi::AccessFlags::TRANSFER_WRITE);
+            }
         } else if (std::holds_alternative<ComputePassData>(rg[v].data)) {
             const auto& data = std::get<ComputePassData>(rg[v].data);
             for (const auto& res : data.resources) {
@@ -393,10 +406,10 @@ public:
                             auto index = static_cast<uint8_t>(&attachment - &renderpass.attachments[0]);
                             if (isDepthStencil(attachment)) {
                                 subpassInfo.depthStencil.emplace_back(index,
-                                                                      _rpInfoMap[v].attachments[v].finalLayout);
+                                                                      _rpInfoMap[v].attachments[index].finalLayout);
                             } else {
                                 subpassInfo.colors.emplace_back(index,
-                                                                _rpInfoMap[v].attachments[v].finalLayout);
+                                                                _rpInfoMap[v].attachments[index].finalLayout);
                             }
                         }
                     }
@@ -432,6 +445,8 @@ void populateBarrier(const AccessGraph::ResourceAccessMap& accessMap,
 
             if (std::holds_alternative<BufferData>(resDetail.data) || std::holds_alternative<BufferViewData>(resDetail.data)) {
                 if (isReadAccess(lastAccess) && isReadAccess(access)) {
+                    lastAccess |= access;
+                    lastStage |= stage;
                     continue;
                 }
 
@@ -449,7 +464,9 @@ void populateBarrier(const AccessGraph::ResourceAccessMap& accessMap,
                     resDetail.access = access;
                 }
             } else if (std::holds_alternative<ImageData>(resDetail.data) || std::holds_alternative<ImageViewData>(resDetail.data) || std::holds_alternative<SwapchainData>(resDetail.data)) {
-                if (lastLayout == layout) {
+                if (lastLayout == layout && isReadAccess(lastAccess) && isReadAccess(access)) {
+                    lastAccess |= access;
+                    lastStage |= stage;
                     continue;
                 }
 

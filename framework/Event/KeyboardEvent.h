@@ -124,6 +124,5 @@ bool keyPressed(Keyboard key);
 
 // EventType, Key, type
 using KeyboardEventTag = EventTag<InputEventType::KEYBOARD>;
-EventDispatcher<KeyboardEventTag>;
 
 } // namespace raum::framework

@@ -1,12 +1,21 @@
 #include "SceneSerializer.h"
+#include <algorithm>
+#include <array>
+#include <cmath>
+#include <cstring>
+#include <functional>
 #include <numeric>
+#include <optional>
+#include <stdexcept>
 #include "BuiltinRes.h"
 #include "Mesh.h"
 #include "PBRMaterial.h"
 #include "RHIBlitEncoder.h"
 #include "RHICommandBuffer.h"
 #include "RHIUtils.h"
+#include "SceneCacheIO.h"
 #include "Technique.h"
+#include "TextureProcessor.h"
 #include "core/define.h"
 #include "core/thread/execution.h"
 #include "core/utils/containers.h"
@@ -17,31 +26,288 @@
 #include "core/utils/utils.h"
 #include "tiny_gltf.h"
 
-#include "core/utils/Archive.h"
+#include "GraphIO.h"
 #include "RHIIO.h"
 #include "SceneIO.h"
-#include "GraphIO.h"
+#include "core/utils/Archive.h"
 
 namespace raum::asset::serialize {
 
 using OutputArchive = utils::OutputArchive;
 using InputArchive = utils::InputArchive;
 
+namespace {
+void reportProgress(const ProgressCallback& callback, float progress, std::string_view message) {
+    if (callback) {
+        callback(std::clamp(progress, 0.0f, 1.0f), message);
+    }
+}
+
+int64_t sourceTimestamp(const std::filesystem::path& filePath) {
+    return std::filesystem::last_write_time(filePath).time_since_epoch().count();
+}
+
+bool cacheIsCurrent(const std::filesystem::path& cachePath, const std::filesystem::path& sourcePath) {
+    const auto metadataPath = cachePath / SceneCacheMetadataFile;
+    if (!std::filesystem::exists(metadataPath)) {
+        return false;
+    }
+
+    SceneCacheMetadata metadata;
+    try {
+        InputArchive archive(metadataPath);
+        archive >> metadata;
+    } catch (const std::exception&) {
+        return false;
+    }
+    return metadata.version == SceneCacheVersion && metadata.sourceTimestamp == sourceTimestamp(sourcePath);
+}
+
+void writeCacheMetadata(const std::filesystem::path& cachePath, const std::filesystem::path& sourcePath) {
+    std::filesystem::create_directories(cachePath);
+    OutputArchive archive(cachePath / SceneCacheMetadataFile);
+    archive << SceneCacheMetadata{SceneCacheVersion, sourceTimestamp(sourcePath)};
+}
+
+Mat4 nodeLocalTransform(const tinygltf::Node& node) {
+    if (node.matrix.size() == 16) {
+        Mat4 transform{1.0f};
+        for (uint32_t column = 0; column < 4; ++column) {
+            for (uint32_t row = 0; row < 4; ++row) {
+                transform[column][row] = static_cast<float>(node.matrix[column * 4 + row]);
+            }
+        }
+        return transform;
+    }
+
+    Vec3f scale{1.0f};
+    Vec3f translation{0.0f};
+    Quaternion rotation{1.0f, 0.0f, 0.0f, 0.0f};
+    if (node.scale.size() == 3) {
+        scale = {node.scale[0], node.scale[1], node.scale[2]};
+    }
+    if (node.translation.size() == 3) {
+        translation = {node.translation[0], node.translation[1], node.translation[2]};
+    }
+    if (node.rotation.size() == 4) {
+        rotation = {
+            static_cast<float>(node.rotation[3]),
+            static_cast<float>(node.rotation[0]),
+            static_cast<float>(node.rotation[1]),
+            static_cast<float>(node.rotation[2]),
+        };
+    }
+    return glm::translate(Mat4{1.0f}, translation) * Mat4{rotation} * glm::scale(Mat4{1.0f}, scale);
+}
+
+float readAccessorComponent(const uint8_t* data, int componentType, bool normalized) {
+    switch (componentType) {
+        case TINYGLTF_COMPONENT_TYPE_BYTE: {
+            int8_t value{};
+            std::memcpy(&value, data, sizeof(value));
+            if (!normalized) return static_cast<float>(value);
+            const float result = static_cast<float>(value) / 127.0f;
+            return result < -1.0f ? -1.0f : result;
+        }
+        case TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE: {
+            uint8_t value{};
+            std::memcpy(&value, data, sizeof(value));
+            return normalized ? static_cast<float>(value) / 255.0f : static_cast<float>(value);
+        }
+        case TINYGLTF_COMPONENT_TYPE_SHORT: {
+            int16_t value{};
+            std::memcpy(&value, data, sizeof(value));
+            if (!normalized) return static_cast<float>(value);
+            const float result = static_cast<float>(value) / 32767.0f;
+            return result < -1.0f ? -1.0f : result;
+        }
+        case TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT: {
+            uint16_t value{};
+            std::memcpy(&value, data, sizeof(value));
+            return normalized ? static_cast<float>(value) / 65535.0f : static_cast<float>(value);
+        }
+        case TINYGLTF_COMPONENT_TYPE_INT: {
+            int32_t value{};
+            std::memcpy(&value, data, sizeof(value));
+            if (!normalized) return static_cast<float>(value);
+            const double result = static_cast<double>(value) / 2147483647.0;
+            return static_cast<float>(result < -1.0 ? -1.0 : result);
+        }
+        case TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT: {
+            uint32_t value{};
+            std::memcpy(&value, data, sizeof(value));
+            return normalized
+                       ? static_cast<float>(static_cast<double>(value) / 4294967295.0)
+                       : static_cast<float>(value);
+        }
+        case TINYGLTF_COMPONENT_TYPE_FLOAT: {
+            float value{};
+            std::memcpy(&value, data, sizeof(value));
+            return value;
+        }
+        case TINYGLTF_COMPONENT_TYPE_DOUBLE: {
+            double value{};
+            std::memcpy(&value, data, sizeof(value));
+            return static_cast<float>(value);
+        }
+        default:
+            raum_error("Unsupported glTF vertex component type");
+    }
+}
+
+const float* decodeVertexAccessor(const tinygltf::Model& model,
+                                  int accessorIndex,
+                                  uint32_t expectedComponents,
+                                  std::vector<float>& decoded) {
+    const auto& accessor = model.accessors.at(accessorIndex);
+    if (accessor.sparse.isSparse || accessor.bufferView < 0) {
+        raum_error("Sparse glTF vertex accessors are not supported");
+    }
+    const auto& bufferView = model.bufferViews.at(accessor.bufferView);
+    const auto& buffer = model.buffers.at(bufferView.buffer);
+    const auto componentCount = tinygltf::GetNumComponentsInType(accessor.type);
+    const auto componentSize = tinygltf::GetComponentSizeInBytes(accessor.componentType);
+    const auto byteStride = accessor.ByteStride(bufferView);
+    if (componentCount != static_cast<int32_t>(expectedComponents) || componentSize <= 0 || byteStride <= 0) {
+        raum_error("Invalid glTF vertex accessor layout");
+    }
+
+    const auto dataOffset = bufferView.byteOffset + accessor.byteOffset;
+    const auto packedElementSize = static_cast<size_t>(componentSize) * expectedComponents;
+    const auto requiredSize = accessor.count
+                                  ? dataOffset + (accessor.count - 1) * static_cast<size_t>(byteStride) + packedElementSize
+                                  : dataOffset;
+    if (requiredSize > buffer.data.size()) {
+        raum_error("glTF vertex accessor exceeds its source buffer");
+    }
+
+    decoded.resize(accessor.count * expectedComponents);
+    const auto* source = buffer.data.data() + dataOffset;
+    for (size_t vertex = 0; vertex < accessor.count; ++vertex) {
+        const auto* element = source + vertex * byteStride;
+        for (uint32_t component = 0; component < expectedComponents; ++component) {
+            decoded[vertex * expectedComponents + component] = readAccessorComponent(
+                element + component * componentSize, accessor.componentType, accessor.normalized);
+        }
+    }
+    return decoded.data();
+}
+} // namespace
+
+namespace {
+
+struct TextureBuildRequest {
+    int32_t sourceImageIndex{-1};
+    TextureColorSpace colorSpace{TextureColorSpace::LINEAR};
+    std::optional<float> alphaCutoff;
+};
+
+using TextureBuildPlan = std::vector<TextureBuildRequest>;
+
+bool sameRequest(const TextureBuildRequest& lhs, const TextureBuildRequest& rhs) {
+    return lhs.sourceImageIndex == rhs.sourceImageIndex &&
+           lhs.colorSpace == rhs.colorSpace &&
+           lhs.alphaCutoff == rhs.alphaCutoff;
+}
+
+int32_t addTextureRequest(TextureBuildPlan& plan, TextureBuildRequest request) {
+    const auto existing = std::ranges::find_if(plan, [&](const auto& item) {
+        return sameRequest(item, request);
+    });
+    if (existing != plan.end()) {
+        return static_cast<int32_t>(std::distance(plan.begin(), existing));
+    }
+    plan.emplace_back(std::move(request));
+    return static_cast<int32_t>(plan.size() - 1);
+}
+
+template <typename TextureInfo>
+int32_t textureVariant(TextureBuildPlan& plan,
+                       const TextureInfo& textureInfo,
+                       const tinygltf::Model& model,
+                       TextureColorSpace colorSpace,
+                       std::optional<float> alphaCutoff = std::nullopt) {
+    if (textureInfo.index < 0) {
+        return -1;
+    }
+    if (textureInfo.index >= static_cast<int32_t>(model.textures.size())) {
+        raum_error("glTF material refers to an invalid texture");
+    }
+    const auto sourceImageIndex = model.textures[textureInfo.index].source;
+    if (sourceImageIndex < 0 || sourceImageIndex >= static_cast<int32_t>(model.images.size())) {
+        raum_error("glTF texture refers to an invalid image");
+    }
+    return addTextureRequest(plan, TextureBuildRequest{
+                                       .sourceImageIndex = sourceImageIndex,
+                                       .colorSpace = colorSpace,
+                                       .alphaCutoff = alphaCutoff,
+                                   });
+}
+
+std::optional<float> effectiveAlphaCutoff(const tinygltf::Material& material) {
+    if (material.alphaMode != "MASK" || material.pbrMetallicRoughness.baseColorTexture.index < 0) {
+        return std::nullopt;
+    }
+    const auto& factor = material.pbrMetallicRoughness.baseColorFactor;
+    const float factorAlpha = factor.size() == 4 ? static_cast<float>(factor[3]) : 1.0f;
+    return factorAlpha > 0.0f
+               ? static_cast<float>(material.alphaCutoff) / factorAlpha
+               : std::numeric_limits<float>::infinity();
+}
+
+TextureBuildPlan makeTextureBuildPlan(const tinygltf::Model& model) {
+    TextureBuildPlan plan;
+    for (const auto& material : model.materials) {
+        const auto& pbr = material.pbrMetallicRoughness;
+        textureVariant(plan, pbr.baseColorTexture, model, TextureColorSpace::SRGB, effectiveAlphaCutoff(material));
+        textureVariant(plan, material.emissiveTexture, model, TextureColorSpace::SRGB);
+        textureVariant(plan, pbr.metallicRoughnessTexture, model, TextureColorSpace::LINEAR);
+        textureVariant(plan, material.normalTexture, model, TextureColorSpace::LINEAR);
+        textureVariant(plan, material.occlusionTexture, model, TextureColorSpace::LINEAR);
+    }
+    return plan;
+}
+
+} // namespace
+
 void loadTexture(
     std::string_view name,
-    uint32_t width,
-    uint32_t height,
-    const uint8_t* data,
+    const TextureCache& texture,
     rhi::DevicePtr device,
     rhi::CommandBufferPtr cmdBuffer,
     std::vector<std::pair<std::string, scene::Texture>>& textures) {
     rhi::ImageInfo info{};
-    info.extent = {width, height, 1};
-    info.usage = rhi::ImageUsage::TRANSFER_DST | rhi::ImageUsage::SAMPLED | rhi::ImageUsage::TRANSFER_SRC;
+    info.extent = {texture.width, texture.height, 1};
+    info.usage = rhi::ImageUsage::TRANSFER_DST | rhi::ImageUsage::SAMPLED;
 
     info.format = rhi::Format::RGBA8_UNORM;
-    info.mipCount = std::floor(std::log2(std::min(width, height))) + 1;
+    info.mipCount = texture.mipCount;
     auto img = rhi::ImagePtr(device->createImage(info));
+
+    std::vector<rhi::BufferImageCopyRegion> regions;
+    regions.reserve(info.mipCount);
+    uint64_t byteOffset{0};
+    for (uint32_t mip = 0; mip < info.mipCount; ++mip) {
+        const auto mipWidth = std::max(1U, texture.width >> mip);
+        const auto mipHeight = std::max(1U, texture.height >> mip);
+        const uint64_t mipSize = static_cast<uint64_t>(mipWidth) * mipHeight * rhi::getFormatSize(info.format);
+        if (byteOffset + mipSize > std::numeric_limits<uint32_t>::max()) {
+            raum_error("Texture mip chain is too large to upload");
+        }
+        regions.emplace_back(rhi::BufferImageCopyRegion{
+            .bufferSize = static_cast<uint32_t>(mipSize),
+            .bufferOffset = static_cast<uint32_t>(byteOffset),
+            .bufferRowLength = 0,
+            .bufferImageHeight = 0,
+            .imageAspect = rhi::AspectMask::COLOR,
+            .baseMip = mip,
+            .imageExtent = {mipWidth, mipHeight, 1},
+        });
+        byteOffset += mipSize;
+    }
+    if (byteOffset != texture.pixels.size()) {
+        raum_error("Cached texture mip data has an unexpected size");
+    }
 
     rhi::ImageBarrierInfo barrierInfo{
         .image = img.get(),
@@ -51,47 +317,32 @@ void loadTexture(
         .range = {
             .aspect = rhi::AspectMask::COLOR,
             .sliceCount = 1,
-            .mipCount = 1,
+            .mipCount = info.mipCount,
         },
     };
     cmdBuffer->appendImageBarrier(barrierInfo);
     cmdBuffer->applyBarrier({});
 
-    auto bufferSize = width * height * rhi::getFormatSize(info.format);
+    const auto bufferSize = static_cast<uint32_t>(texture.pixels.size());
     rhi::BufferSourceInfo bufferInfo{
         .bufferUsage = rhi::BufferUsage::TRANSFER_SRC,
         .size = bufferSize,
-        .data = data,
+        .data = texture.pixels.data(),
     };
     auto stagingBuffer = rhi::BufferPtr(device->createBuffer(bufferInfo));
-    rhi::BufferImageCopyRegion region{
-        .bufferSize = bufferSize,
-        .bufferOffset = 0,
-        .bufferRowLength = 0,
-        .bufferImageHeight = 0,
-        .imageAspect = rhi::AspectMask::COLOR,
-        .imageExtent = {
-            width,
-            height,
-            1,
-        },
-    };
     auto blitEncoder = rhi::BlitEncoderPtr(cmdBuffer->makeBlitEncoder());
     blitEncoder->copyBufferToImage(stagingBuffer.get(),
                                    img.get(),
                                    rhi::ImageLayout::TRANSFER_DST_OPTIMAL,
-                                   &region,
-                                   1);
+                                   regions.data(),
+                                   static_cast<uint32_t>(regions.size()));
 
-    rhi::generateMipmaps(img, rhi::ImageLayout::TRANSFER_DST_OPTIMAL, cmdBuffer, device);
-
-    // genmipmap turn image layout to TRANSFER_SRC_OPTIMAL, if mipcount > 1
-    barrierInfo.oldLayout = info.mipCount > 1 ? rhi::ImageLayout::TRANSFER_SRC_OPTIMAL : rhi::ImageLayout::TRANSFER_DST_OPTIMAL;
+    barrierInfo.oldLayout = rhi::ImageLayout::TRANSFER_DST_OPTIMAL;
     barrierInfo.newLayout = rhi::ImageLayout::SHADER_READ_ONLY_OPTIMAL;
     barrierInfo.srcAccessFlag = rhi::AccessFlags::TRANSFER_WRITE;
     barrierInfo.dstAccessFlag = rhi::AccessFlags::SHADER_READ;
     barrierInfo.srcStage = rhi::PipelineStage::TRANSFER;
-    barrierInfo.dstStage = rhi::PipelineStage::VERTEX_SHADER;
+    barrierInfo.dstStage = rhi::PipelineStage::VERTEX_SHADER | rhi::PipelineStage::FRAGMENT_SHADER;
     barrierInfo.range.mipCount = info.mipCount;
     cmdBuffer->appendImageBarrier(barrierInfo);
     cmdBuffer->applyBarrier({});
@@ -120,164 +371,139 @@ void loadTexture(
 }
 
 void texturePreprocess(const std::filesystem::path& cachePath,
-                       const tinygltf::Model& rawModel) {
+                       const tinygltf::Model& rawModel,
+                       const TextureBuildPlan& plan) {
     auto texCachePath = cachePath / "textures";
-    const auto& mats = rawModel.materials;
-    uint32_t count{0};
-    for (const auto& res : rawModel.images) {
-        if (!std::filesystem::exists(texCachePath)) {
-            std::filesystem::create_directories(texCachePath);
-        }
+    std::filesystem::remove_all(texCachePath);
+    std::filesystem::create_directories(texCachePath);
 
-        std::string resName = std::to_string(count++);
+    for (size_t variantIndex = 0; variantIndex < plan.size(); ++variantIndex) {
+        const auto& request = plan[variantIndex];
+        const auto& res = rawModel.images[request.sourceImageIndex];
+        std::string resName = std::to_string(variantIndex);
 
         auto imgPath = texCachePath / resName;
         imgPath.replace_extension(".bin");
-        OutputArchive ar(imgPath);
-        ar << res.width;
-        ar << res.height;
-        ar << res.image;
+        if (res.bits != 8 || res.component != 4) {
+            raum_error("Only 8-bit RGBA glTF images are supported");
+        }
 
-        raum_check(res.bits == 8, "image bits not supported");
-        raum_check(res.component == 4, "image channel count not supported");
+        auto mipChain = buildTextureMipChain(
+            static_cast<uint32_t>(res.width),
+            static_cast<uint32_t>(res.height),
+            res.image,
+            TextureMipBuildInfo{
+                .srgbColor = request.colorSpace == TextureColorSpace::SRGB,
+                .alphaCutoff = request.alphaCutoff,
+            });
+        TextureCache cachedTexture{
+            .sourceImageIndex = request.sourceImageIndex,
+            .width = static_cast<uint32_t>(res.width),
+            .height = static_cast<uint32_t>(res.height),
+            .mipCount = mipChain.mipCount,
+            .colorSpace = request.colorSpace,
+            .preservesAlphaCoverage = request.alphaCutoff.has_value(),
+            .alphaCutoff = request.alphaCutoff.value_or(0.5f),
+            .pixels = std::move(mipChain.pixels),
+        };
+        OutputArchive archive(imgPath);
+        archive << cachedTexture;
     }
+}
+
+template <typename TextureInfo>
+MaterialTextureCache makeMaterialTextureCache(
+    const TextureInfo& textureInfo,
+    const tinygltf::Model& model,
+    const TextureBuildPlan& plan,
+    TextureColorSpace colorSpace,
+    std::optional<float> alphaCutoff = std::nullopt) {
+    MaterialTextureCache cachedTexture{
+        .textureIndex = textureInfo.index,
+        .uvIndex = textureInfo.index >= 0 ? textureInfo.texCoord : -1,
+    };
+    if (!cachedTexture.enabled()) {
+        return cachedTexture;
+    }
+    if (textureInfo.index >= static_cast<int32_t>(model.textures.size())) {
+        raum_error("glTF material refers to an invalid texture");
+    }
+    const auto sourceImageIndex = model.textures[textureInfo.index].source;
+    const TextureBuildRequest request{
+        .sourceImageIndex = sourceImageIndex,
+        .colorSpace = colorSpace,
+        .alphaCutoff = alphaCutoff,
+    };
+    const auto variant = std::ranges::find_if(plan, [&](const auto& item) {
+        return sameRequest(item, request);
+    });
+    if (variant == plan.end()) {
+        raum_error("glTF texture variant is missing from the build plan");
+    }
+    cachedTexture.imageIndex = static_cast<int32_t>(std::distance(plan.begin(), variant));
+    return cachedTexture;
 }
 
 void materialPreprocess(
     const std::filesystem::path& cachePath,
     const tinygltf::Model& rawModel,
+    const TextureBuildPlan& texturePlan,
     int32_t index) {
-    const auto& rawTextures = rawModel.textures;
-    const auto& res = rawModel.materials[index];
-
-    const auto& ef = res.emissiveFactor;
-    raum_check(ef.size() == 3, "Unexpected emissive factor components!");
-
-    std::vector<float> mrno(12); // metallic, roughness, normalscale, occlusionscale
+    const tinygltf::Material defaultMaterial{};
+    if (index >= static_cast<int32_t>(rawModel.materials.size())) {
+        raum_error("glTF primitive refers to an invalid material");
+    }
+    const auto& res = index >= 0 ? rawModel.materials[index] : defaultMaterial;
 
     const auto& pmr = res.pbrMetallicRoughness;
     const auto& bcf = pmr.baseColorFactor;
-
-    const auto& bc = pmr.baseColorTexture;
-    int bcSourceIndex{0};
-    int bcuvIndex{-1};
-    if (bc.index != -1) {
-        auto imageIndex = rawTextures[bc.index].source;
-        mrno[0] = bcf[0];
-        mrno[1] = bcf[1];
-        mrno[2] = bcf[2];
-        mrno[3] = bcf[3];
-
-        bcSourceIndex = imageIndex;
-        bcuvIndex = pmr.baseColorTexture.texCoord;
+    const auto& ef = res.emissiveFactor;
+    if (bcf.size() != 4 || ef.size() != 3) {
+        raum_error("glTF material factors have unexpected component counts");
     }
 
-    const auto& mr = pmr.metallicRoughnessTexture;
-    int mrSourceIndex{0};
-    int mruvIndex{-1};
-    if (mr.index != -1) {
-        auto imageIndex = rawTextures[mr.index].source;
-        mrno[8] = pmr.metallicFactor;
-        mrno[9] = pmr.roughnessFactor;
-
-        mrSourceIndex = imageIndex;
-        mruvIndex = pmr.metallicRoughnessTexture.texCoord;
-    }
-
-    const auto& nt = res.normalTexture;
-    int ntSourceIndex{0};
-    int ntuIndex{-1};
-    if (nt.index != -1) {
-        auto imageIndex = rawTextures[nt.index].source;
-        mrno[10] = nt.scale;
-        ntSourceIndex = imageIndex;
-        ntuIndex = nt.texCoord;
-    }
-
-    const auto& ot = res.occlusionTexture;
-    int otSourceIndex{0};
-    int otuvIndex{-1};
-    if (ot.index != -1) {
-        auto imageIndex = rawTextures[ot.index].source;
-        mrno[11] = ot.strength;
-        otSourceIndex = imageIndex;
-        otuvIndex = ot.texCoord;
-    }
-
-    const auto& et = res.emissiveTexture;
-    int etSourceIndex{0};
-    int etuvIndex{-1};
-    if (et.index != -1) {
-        auto imageIndex = rawTextures[et.index].source;
-        mrno[4] = res.emissiveFactor[0];
-        mrno[5] = res.emissiveFactor[1];
-        mrno[6] = res.emissiveFactor[2];
-        if (res.emissiveFactor.size() == 4) {
-            mrno[7] = res.emissiveFactor[3];
-        } else {
-            mrno[7] = 1.0f;
-        }
-        etSourceIndex = imageIndex;
-        etuvIndex = et.texCoord;
-    }
+    MaterialCache cachedMaterial;
+    cachedMaterial.alphaMode = res.alphaMode;
+    cachedMaterial.doubleSided = res.doubleSided;
+    cachedMaterial.alphaCutoff = res.alphaCutoff;
+    cachedMaterial.baseColorFactor = Vec4f{bcf[0], bcf[1], bcf[2], bcf[3]};
+    cachedMaterial.emissiveFactor = Vec3f{ef[0], ef[1], ef[2]};
+    cachedMaterial.metallicFactor = static_cast<float>(pmr.metallicFactor);
+    cachedMaterial.roughnessFactor = static_cast<float>(pmr.roughnessFactor);
+    cachedMaterial.normalScale = static_cast<float>(res.normalTexture.scale);
+    cachedMaterial.occlusionStrength = static_cast<float>(res.occlusionTexture.strength);
+    cachedMaterial.baseColorTexture = makeMaterialTextureCache(
+        pmr.baseColorTexture, rawModel, texturePlan, TextureColorSpace::SRGB, effectiveAlphaCutoff(res));
+    cachedMaterial.metallicRoughnessTexture = makeMaterialTextureCache(
+        pmr.metallicRoughnessTexture, rawModel, texturePlan, TextureColorSpace::LINEAR);
+    cachedMaterial.normalTexture = makeMaterialTextureCache(
+        res.normalTexture, rawModel, texturePlan, TextureColorSpace::LINEAR);
+    cachedMaterial.occlusionTexture = makeMaterialTextureCache(
+        res.occlusionTexture, rawModel, texturePlan, TextureColorSpace::LINEAR);
+    cachedMaterial.emissiveTexture = makeMaterialTextureCache(
+        res.emissiveTexture, rawModel, texturePlan, TextureColorSpace::SRGB);
 
     auto matCachePath = cachePath / "material" / std::to_string(index);
     matCachePath.replace_extension(".mat");
     if (!std::filesystem::exists(matCachePath.parent_path())) {
         std::filesystem::create_directories(matCachePath.parent_path());
     }
-    OutputArchive ar(matCachePath);
-    ar << res.alphaMode;
-    ar << res.doubleSided;
-    ar << res.alphaCutoff;
-    ar << res.pbrMetallicRoughness.baseColorTexture.index;
-    ar << res.pbrMetallicRoughness.metallicRoughnessTexture.index;
-    ar << res.normalTexture.index;
-    ar << res.occlusionTexture.index;
-    ar << res.emissiveTexture.index;
-    ar << mrno;
-    ar << bcSourceIndex;
-    ar << bcuvIndex;
-    ar << mrSourceIndex;
-    ar << mruvIndex;
-    ar << ntSourceIndex;
-    ar << ntuIndex;
-    ar << otSourceIndex;
-    ar << otuvIndex;
-    ar << etSourceIndex;
-    ar << etuvIndex;
+    OutputArchive archive(matCachePath);
+    archive << cachedMaterial;
 }
 
-void applyNodeTransform(
-    const std::vector<double>& scale,
-    const std::vector<double>& rot,
-    const std::vector<double>& trans,
-    graph::SceneNode& node) {
-    raum_check(scale.size() == 3, "scale size not 3");
-    raum_check(rot.size() == 4, "rot size not 4");
-    raum_check(trans.size() == 3, "trans size not 3");
-
-    node.node.setScale({scale[0], scale[1], scale[2]});
-
-    node.node.setTranslation({trans[0], trans[1], trans[2]});
-
-    node.node.setOrientation({
-        static_cast<float>(rot[3]),
-        static_cast<float>(rot[0]),
-        static_cast<float>(rot[1]),
-        static_cast<float>(rot[2]),
-    });
-
-    node.node.update();
+void applyNodeTransform(const Mat4& transform, graph::SceneNode& node) {
+    node.node.setTransform(transform);
 }
 
 void meshPreprocess(
     const std::filesystem::path& cachePath,
     const tinygltf::Model& rawModel,
+    const TextureBuildPlan& texturePlan,
     uint32_t nodeIndex,
     graph::SceneGraph& sg,
     std::string_view parentName,
-    std::map<int, scene::TechniquePtr>& techs) {
+    const Mat4& worldTransform) {
     const auto& rawNode = rawModel.nodes[nodeIndex];
     const auto& rawMesh = rawModel.meshes[rawNode.mesh];
     auto meshName = std::to_string(nodeIndex);
@@ -285,22 +511,7 @@ void meshPreprocess(
     auto& modelNode = sg.addModel(meshName, parentName);
     auto& sceneNode = sg.get(meshName);
 
-    std::vector<double> scale{1.0, 1.0, 1.0};
-    std::vector<double> rot{0.0, 0.0, 0.0, 1.0};
-    std::vector<double> trans{0.0, 0.0, 0.0};
-    if (!rawNode.scale.empty()) {
-        scale[0] = rawNode.scale[0];
-        scale[1] = rawNode.scale[1];
-        scale[2] = rawNode.scale[2];
-    }
-    if (!rawNode.rotation.empty()) {
-        rot = rawNode.rotation;
-    }
-    if (!rawNode.translation.empty()) {
-        trans = rawNode.translation;
-    }
-
-    applyNodeTransform(scale, rot, trans, sceneNode);
+    applyNodeTransform(worldTransform, sceneNode);
 
     modelNode.model = std::make_shared<scene::Model>();
     auto& model = *modelNode.model;
@@ -315,11 +526,9 @@ void meshPreprocess(
     if (!std::filesystem::exists(resPath.parent_path())) {
         std::filesystem::create_directories(resPath.parent_path());
     }
-    OutputArchive ar(resPath);
-    ar << scale;
-    ar << rot;
-    ar << trans;
-    ar << rawMesh.primitives.size();
+    MeshCache cachedMesh;
+    cachedMesh.worldTransform = worldTransform;
+    cachedMesh.primitives.reserve(rawMesh.primitives.size());
 
     // TODO: Morph.
     for (const auto& prim : rawMesh.primitives) {
@@ -336,52 +545,74 @@ void meshPreprocess(
         const float* tangent{nullptr};
         const float* color{nullptr};
         bool color4{true};
+        std::vector<float> positionScratch;
+        std::vector<float> normalScratch;
+        std::vector<float> uvScratch;
+        std::vector<float> tangentScratch;
+        std::vector<float> colorScratch;
         for (const auto& [attrName, accessorIndex] : prim.attributes) {
             if (attrName == "POSITION") {
-                auto viewIndex = accessors[accessorIndex].bufferView;
-                const auto& buffer = rawBuffers[rawBufferViews[viewIndex].buffer];
-                position = reinterpret_cast<const float*>(buffer.data.data() + accessors[accessorIndex].byteOffset + rawBufferViews[viewIndex].byteOffset);
-                meshData.vertexCount = accessors[accessorIndex].count;
+                const auto& accessor = accessors.at(accessorIndex);
+                position = decodeVertexAccessor(rawModel, accessorIndex, 3, positionScratch);
+                meshData.vertexCount = accessor.count;
 
-                const auto& maxBound = accessors[accessorIndex].maxValues;
-                const auto& minBound = accessors[accessorIndex].minValues;
-
-                Vec4f transformedMax = sceneNode.node.transform() * Vec4f(maxBound[0], maxBound[1], maxBound[2], 1.0f);
-                Vec4f transformedMin = sceneNode.node.transform() * Vec4f(minBound[0], minBound[1], minBound[2], 1.0f);
-
-                aabb.maxBound.x = std::max(transformedMax.x, std::max(aabb.maxBound.x, transformedMin.x));
-                aabb.maxBound.y = std::max(transformedMax.y, std::max(aabb.maxBound.y, transformedMin.y));
-                aabb.maxBound.z = std::max(transformedMax.z, std::max(aabb.maxBound.z, transformedMin.z));
-
-                aabb.minBound.x = std::min(transformedMin.x, std::min(aabb.minBound.x, transformedMax.x));
-                aabb.minBound.y = std::min(transformedMin.y, std::min(aabb.minBound.y, transformedMax.y));
-                aabb.minBound.z = std::min(transformedMin.z, std::min(aabb.minBound.z, transformedMax.z));
-
+                Vec3f localMin{std::numeric_limits<float>::max()};
+                Vec3f localMax{std::numeric_limits<float>::lowest()};
+                if (accessor.maxValues.size() >= 3 && accessor.minValues.size() >= 3) {
+                    localMin = {accessor.minValues[0], accessor.minValues[1], accessor.minValues[2]};
+                    localMax = {accessor.maxValues[0], accessor.maxValues[1], accessor.maxValues[2]};
+                } else {
+                    for (size_t vertex = 0; vertex < accessor.count; ++vertex) {
+                        const Vec3f point{position[vertex * 3], position[vertex * 3 + 1], position[vertex * 3 + 2]};
+                        localMin = glm::min(localMin, point);
+                        localMax = glm::max(localMax, point);
+                    }
+                }
+                for (uint32_t corner = 0; corner < 8; ++corner) {
+                    const Vec4f local{
+                        (corner & 1) ? localMax.x : localMin.x,
+                        (corner & 2) ? localMax.y : localMin.y,
+                        (corner & 4) ? localMax.z : localMin.z,
+                        1.0f,
+                    };
+                    const Vec4f transformed = sceneNode.node.transform() * local;
+                    const Vec3f transformedPoint{transformed};
+                    aabb.maxBound = glm::max(aabb.maxBound, transformedPoint);
+                    aabb.minBound = glm::min(aabb.minBound, transformedPoint);
+                }
             } else if (attrName == "NORMAL") {
-                auto viewIndex = accessors[accessorIndex].bufferView;
-                const auto& buffer = rawBuffers[rawBufferViews[viewIndex].buffer];
-                normal = reinterpret_cast<const float*>(buffer.data.data() + accessors[accessorIndex].byteOffset + rawBufferViews[viewIndex].byteOffset);
+                normal = decodeVertexAccessor(rawModel, accessorIndex, 3, normalScratch);
             } else if (attrName == "TEXCOORD_0") {
-                auto viewIndex = accessors[accessorIndex].bufferView;
-                const auto& buffer = rawBuffers[rawBufferViews[viewIndex].buffer];
-                uv = reinterpret_cast<const float*>(buffer.data.data() + accessors[accessorIndex].byteOffset + rawBufferViews[viewIndex].byteOffset);
+                uv = decodeVertexAccessor(rawModel, accessorIndex, 2, uvScratch);
             } else if (attrName == "TANGENT") {
-                auto viewIndex = accessors[accessorIndex].bufferView;
-                const auto& buffer = rawBuffers[rawBufferViews[viewIndex].buffer];
-                tangent = reinterpret_cast<const float*>(buffer.data.data() + accessors[accessorIndex].byteOffset + rawBufferViews[viewIndex].byteOffset);
-            } else if (attrName == "COLOR") {
-                auto viewIndex = accessors[accessorIndex].bufferView;
-                const auto& buffer = rawBuffers[rawBufferViews[viewIndex].buffer];
-                color = reinterpret_cast<const float*>(buffer.data.data() + accessors[accessorIndex].byteOffset + rawBufferViews[viewIndex].byteOffset);
-                color4 = accessors[accessorIndex].type == TINYGLTF_TYPE_VEC4;
+                tangent = decodeVertexAccessor(rawModel, accessorIndex, 4, tangentScratch);
+            } else if (attrName == "COLOR_0" || attrName == "COLOR") {
+                color4 = accessors.at(accessorIndex).type == TINYGLTF_TYPE_VEC4;
+                color = decodeVertexAccessor(rawModel, accessorIndex, color4 ? 4 : 3, colorScratch);
             } else {
                 raum_warn("ignored vertex attribute: {}", attrName);
             }
         }
 
+        if (!position || !meshData.vertexCount) {
+            raum_error("glTF primitive has no usable POSITION attribute");
+        }
+        const auto validateAttributeCount = [vertexCount = meshData.vertexCount](
+                                                const std::vector<float>& values,
+                                                uint32_t components) {
+            if (!values.empty() && values.size() != static_cast<size_t>(vertexCount) * components) {
+                raum_error("glTF primitive vertex attributes have mismatched counts");
+            }
+        };
+        validateAttributeCount(normalScratch, 3);
+        validateAttributeCount(uvScratch, 2);
+        validateAttributeCount(tangentScratch, 4);
+        validateAttributeCount(colorScratch, color4 ? 4 : 3);
+
         std::vector<float> data;
-        auto eleNum = (!!position) * 3 + (!!normal) * 3 + (!!uv) * 2 + (!!tangent) * 4 + (!!color * 4);
-        data.resize(eleNum * 4 * meshData.vertexCount);
+        const auto eleNum = 3U + (normal ? 3U : 0U) + (uv ? 2U : 0U) +
+                            (tangent ? 4U : 0U) + (color ? 4U : 0U);
+        data.resize(eleNum * meshData.vertexCount);
         for (size_t i = 0; i < meshData.vertexCount; ++i) {
             uint32_t offset{0};
             if (position) [[likely]] {
@@ -406,20 +637,15 @@ void meshPreprocess(
                 data[i * eleNum + offset + 1] = tangent[i * 4 + 1];
                 data[i * eleNum + offset + 2] = tangent[i * 4 + 2];
                 data[i * eleNum + offset + 3] = tangent[i * 4 + 3];
+                offset += 4;
             }
             if (color) {
-                uint32_t colorStride = 4;
-                if (color4) {
-                    data[i * eleNum + 3 + offset] = color[i * colorStride + 3];
-                    offset += 4;
-                } else {
-                    colorStride = 3;
-                    offset += 3;
-                }
-
+                const uint32_t colorStride = color4 ? 4 : 3;
                 data[i * eleNum + offset] = color[i * colorStride];
                 data[i * eleNum + offset + 1] = color[i * colorStride + 1];
                 data[i * eleNum + offset + 2] = color[i * colorStride + 2];
+                data[i * eleNum + offset + 3] = color4 ? color[i * colorStride + 3] : 1.0f;
+                offset += 4;
             }
         }
 
@@ -453,7 +679,7 @@ void meshPreprocess(
             vertexLayout.vertexAttrs.emplace_back(rhi::VertexAttribute{
                 location++,
                 0,
-                rhi::Format::RGB32_SFLOAT,
+                rhi::Format::RG32_SFLOAT,
                 stride * static_cast<uint32_t>(sizeof(float)),
             });
             stride += 2;
@@ -491,131 +717,181 @@ void meshPreprocess(
         rhi::BufferSourceInfo indexBufferSource{
             .bufferUsage = rhi::BufferUsage::INDEX,
         };
-        const auto& indicesAccessor = accessors[prim.indices];
-        meshData.indexCount = indicesAccessor.count;
-        const auto& rawIndexBuffer = rawBuffers[rawBufferViews[indicesAccessor.bufferView].buffer];
-        const auto* indexBufferData = rawIndexBuffer.data.data() + indicesAccessor.byteOffset + rawBufferViews[indicesAccessor.bufferView].byteOffset;
         std::vector<uint16_t> u16arr;
-        switch (indicesAccessor.componentType) {
-            case TINYGLTF_PARAMETER_TYPE_UNSIGNED_INT: {
-                meshData.indexBuffer.type = rhi::IndexType::FULL;
-                indexBufferSource.size = meshData.indexCount * sizeof(rhi::FullIndexType);
-                indexBufferSource.data = indexBufferData;
-                break;
+        if (prim.indices >= 0) {
+            const auto& indicesAccessor = accessors.at(prim.indices);
+            if (indicesAccessor.sparse.isSparse || indicesAccessor.bufferView < 0 ||
+                indicesAccessor.type != TINYGLTF_TYPE_SCALAR) {
+                raum_error("Invalid or sparse glTF index accessor");
             }
-            case TINYGLTF_PARAMETER_TYPE_UNSIGNED_SHORT: {
-                meshData.indexBuffer.type = rhi::IndexType::HALF;
-                indexBufferSource.size = meshData.indexCount * sizeof(rhi::HalfIndexType);
-                indexBufferSource.data = indexBufferData;
-                break;
+            meshData.indexCount = indicesAccessor.count;
+            const auto& indexBufferView = rawBufferViews.at(indicesAccessor.bufferView);
+            const auto& rawIndexBuffer = rawBuffers.at(indexBufferView.buffer);
+            const auto sourceIndexSize = tinygltf::GetComponentSizeInBytes(indicesAccessor.componentType);
+            const auto sourceOffset = indicesAccessor.byteOffset + indexBufferView.byteOffset;
+            if (sourceIndexSize <= 0 ||
+                sourceOffset + meshData.indexCount * static_cast<size_t>(sourceIndexSize) > rawIndexBuffer.data.size()) {
+                raum_error("glTF index accessor exceeds its source buffer");
             }
-            case TINYGLTF_PARAMETER_TYPE_UNSIGNED_BYTE: {
-                u16arr.resize(meshData.indexCount);
-                for (size_t i = 0; i < meshData.indexCount; ++i) {
-                    u16arr[i] = indexBufferData[i];
+            const auto* indexBufferData = rawIndexBuffer.data.data() + sourceOffset;
+            switch (indicesAccessor.componentType) {
+                case TINYGLTF_PARAMETER_TYPE_UNSIGNED_INT: {
+                    meshData.indexBuffer.type = rhi::IndexType::FULL;
+                    indexBufferSource.size = meshData.indexCount * sizeof(rhi::FullIndexType);
+                    indexBufferSource.data = indexBufferData;
+                    break;
                 }
-                meshData.indexBuffer.type = rhi::IndexType::HALF;
-                indexBufferSource.size = meshData.indexCount * sizeof(rhi::HalfIndexType);
-                indexBufferSource.data = u16arr.data();
-                break;
+                case TINYGLTF_PARAMETER_TYPE_UNSIGNED_SHORT: {
+                    meshData.indexBuffer.type = rhi::IndexType::HALF;
+                    indexBufferSource.size = meshData.indexCount * sizeof(rhi::HalfIndexType);
+                    indexBufferSource.data = indexBufferData;
+                    break;
+                }
+                case TINYGLTF_PARAMETER_TYPE_UNSIGNED_BYTE: {
+                    u16arr.resize(meshData.indexCount);
+                    for (size_t i = 0; i < meshData.indexCount; ++i) {
+                        u16arr[i] = indexBufferData[i];
+                    }
+                    meshData.indexBuffer.type = rhi::IndexType::HALF;
+                    indexBufferSource.size = meshData.indexCount * sizeof(rhi::HalfIndexType);
+                    indexBufferSource.data = u16arr.data();
+                    break;
+                }
+                default:
+                    raum_error("Unsupported glTF index component type");
             }
+        } else {
+            meshData.indexCount = 0;
+            meshData.indexBuffer.type = rhi::IndexType::FULL;
+        }
+
+        std::vector<uint8_t> indexData;
+        if (indexBufferSource.size) {
+            const auto* serializedIndexData = static_cast<const uint8_t*>(indexBufferSource.data);
+            indexData.assign(serializedIndexData, serializedIndexData + indexBufferSource.size);
         }
 
         auto localMatIndex = prim.material;
-        if (!techs.contains(localMatIndex)) {
-            materialPreprocess(cachePath, rawModel, localMatIndex);
-        }
+        materialPreprocess(cachePath, rawModel, texturePlan, localMatIndex);
 
-        std::vector<char> indexData(indexBufferData, indexBufferData + indexBufferSource.size);
-        // vertexbuffer data
-        ar << meshData.vertexCount;
-        ar << data;
-        // indexbuffer data
-        ar << meshData.indexCount;
-        ar << meshData.indexBuffer.type;
-        ar << indexData;
-
-        ar << meshData.shaderAttrs;
-        ar << meshData.vertexLayout;
-
-        ar << localMatIndex;
-        ar << prim.mode;
-        ar << aabb;
+        cachedMesh.primitives.emplace_back(MeshPrimitiveCache{
+            .vertexCount = meshData.vertexCount,
+            .vertexData = std::move(data),
+            .indexCount = meshData.indexCount,
+            .indexType = meshData.indexBuffer.type,
+            .indexData = std::move(indexData),
+            .shaderAttributes = meshData.shaderAttrs,
+            .vertexLayout = std::move(meshData.vertexLayout),
+            .materialIndex = localMatIndex,
+            .primitiveMode = prim.mode < 0 ? TINYGLTF_MODE_TRIANGLES : prim.mode,
+            .bounds = aabb,
+        });
     }
+
+    OutputArchive archive(resPath);
+    archive << cachedMesh;
 }
 
-void loadCamera(const tinygltf::Model& rawModel, const tinygltf::Node& rawNode, graph::SceneGraph& sg, std::string_view parentName) {
+void loadCamera(const tinygltf::Model& rawModel,
+                const tinygltf::Node& rawNode,
+                graph::SceneGraph& sg,
+                std::string_view nodeName,
+                std::string_view parentName,
+                const Mat4& worldTransform) {
     const auto& rawCam = rawModel.cameras[rawNode.camera];
-    auto& camNode = sg.addCamera(rawCam.name, parentName);
-    auto& sceneNode = sg.get(rawCam.name);
-    applyNodeTransform(rawNode.scale, rawNode.rotation, rawNode.translation, sceneNode);
+    auto& camNode = sg.addCamera(nodeName, parentName);
+    auto& sceneNode = sg.get(nodeName);
+    applyNodeTransform(worldTransform, sceneNode);
     if (rawCam.type == "perspective") {
         const auto& cam = rawCam.perspective;
         camNode.camera = std::make_shared<scene::Camera>(
             scene::PerspectiveFrustum{
-                static_cast<float>(cam.yfov),
-                static_cast<float>(cam.aspectRatio),
+                utils::Degree{glm::degrees(static_cast<float>(cam.yfov))},
+                cam.aspectRatio > 0.0 ? static_cast<float>(cam.aspectRatio) : 1.0f,
                 static_cast<float>(cam.znear),
-                static_cast<float>(cam.zfar)});
+                cam.zfar > 0.0 ? static_cast<float>(cam.zfar) : 1000.0f});
 
     } else if (rawCam.type == "orthographic") {
         const auto& cam = rawCam.orthographic;
         camNode.camera = std::make_shared<scene::Camera>(
             scene::OrthoFrustum{
+                -static_cast<float>(cam.xmag),
                 static_cast<float>(cam.xmag),
+                -static_cast<float>(cam.ymag),
                 static_cast<float>(cam.ymag),
                 static_cast<float>(cam.znear),
                 static_cast<float>(cam.zfar)});
     }
+    if (camNode.camera) {
+        Mat3 rotation{1.0f};
+        for (uint32_t column = 0; column < 3; ++column) {
+            rotation[column] = glm::normalize(Vec3f{worldTransform[column]});
+        }
+        const auto gltfCameraCorrection = glm::angleAxis(glm::pi<float>(), Vec3f{0.0f, 1.0f, 0.0f});
+        auto& eye = camNode.camera->eye();
+        eye.setPosition(Vec3f{worldTransform[3]});
+        eye.setOrientation(glm::normalize(glm::quat_cast(rotation) * gltfCameraCorrection));
+        camNode.camera->update();
+    }
 }
 
-void loadLights(const tinygltf::Model& rawModel, uint32_t index, graph::SceneGraph& sg, std::string_view parentName) {
+void loadLights(const tinygltf::Model& rawModel,
+                uint32_t index,
+                graph::SceneGraph& sg,
+                std::string_view nodeName,
+                std::string_view parentName,
+                const Mat4& worldTransform) {
     const auto& rawLight = rawModel.lights[index];
-
-    //    rawLight.
+    auto& lightNode = sg.addLight(nodeName, parentName);
+    auto& sceneNode = sg.get(nodeName);
+    applyNodeTransform(worldTransform, sceneNode);
+    // TODO: map tinygltf::Light parameters to scene::Light.
 }
 
-void loadEmpty(uint32_t index, graph::SceneGraph& sg, std::string_view parentName) {
+void loadEmpty(std::string_view nodeName, const Mat4& worldTransform, graph::SceneGraph& sg) {
+    auto& sceneNode = sg.get(nodeName);
+    applyNodeTransform(worldTransform, sceneNode);
 }
 
 void scenePreprocess(const std::filesystem::path& cachePath,
                      graph::SceneGraph& sg,
                      const tinygltf::Model& rawModel,
                      uint32_t index) {
-    raum_check(index < rawModel.scenes.size(), "incorrect index of scene");
+    raum_expect(index < rawModel.scenes.size(), "incorrect index of scene");
     const auto& scene = rawModel.scenes[index];
-    auto& root = sg.addEmpty(scene.name);
+    constexpr std::string_view rootName{"Scene"};
+    auto& root = sg.addEmpty(rootName);
 
-    texturePreprocess(cachePath, rawModel);
-    std::map<int32_t, scene::TechniquePtr> techniques;
-
-    std::function<void(uint32_t, uint32_t)> loadNodes;
-    loadNodes = [&](uint32_t nodeIndex, uint32_t parent) {
+    const auto texturePlan = makeTextureBuildPlan(rawModel);
+    texturePreprocess(cachePath, rawModel, texturePlan);
+    std::function<void(uint32_t, int32_t, const Mat4&)> loadNodes;
+    loadNodes = [&](uint32_t nodeIndex, int32_t parent, const Mat4& parentTransform) {
         const auto& node = rawModel.nodes[nodeIndex];
-        std::string_view parentName{};
+        const auto nodeName = std::to_string(nodeIndex);
+        std::string parentName;
         if (parent == -1) {
-            parentName = scene.name;
+            parentName = rootName;
         } else {
-            parentName = rawModel.nodes[parent].name;
+            parentName = std::to_string(parent);
         }
+        const Mat4 worldTransform = parentTransform * nodeLocalTransform(node);
         if (node.mesh != -1) {
-            meshPreprocess(cachePath, rawModel, nodeIndex, sg, parentName, techniques);
+            meshPreprocess(cachePath, rawModel, texturePlan, nodeIndex, sg, parentName, worldTransform);
         } else if (node.light != -1) {
-            loadLights(rawModel, node.light, sg, parentName);
+            loadLights(rawModel, node.light, sg, nodeName, parentName, worldTransform);
         } else if (node.camera != -1) {
-            auto& camNode = sg.addCamera(node.name, parentName);
-            loadCamera(rawModel, node, sg, parentName);
+            loadCamera(rawModel, node, sg, nodeName, parentName, worldTransform);
         } else {
-            auto& emptyNode = sg.addEmpty(node.name, parentName);
-            loadEmpty(nodeIndex, sg, parentName);
+            sg.addEmpty(nodeName, parentName);
+            loadEmpty(nodeName, worldTransform, sg);
         }
         for (auto child : node.children) {
-            loadNodes(child, nodeIndex);
+            loadNodes(child, static_cast<int32_t>(nodeIndex), worldTransform);
         }
     };
 
     for (const auto& node : scene.nodes) {
-        loadNodes(node, -1);
+        loadNodes(node, -1, Mat4{1.0f});
     }
 }
 
@@ -627,21 +903,29 @@ void assetPreprocess(graph::SceneGraph& sg, const std::filesystem::path& filePat
     tinygltf::Model rawModel;
     tinygltf::TinyGLTF loader;
     bool res = loader.LoadASCIIFromFile(&rawModel, &err, &warn, filePath.string());
-    raum_check(res, "failed to load scene from {}, tinyGLTF: {}", filePath.string(), err);
+    if (!res) {
+        raum_error("Failed to load glTF scene '{}': {}", filePath.string(), err);
+    }
 
     if constexpr (raum_debug) {
         if (!warn.empty()) {
             raum_warn("tinyGLTF: {}", warn);
         }
     }
-    scenePreprocess(cachePath, sg, rawModel, rawModel.defaultScene);
+    if (rawModel.scenes.empty()) {
+        raum_error("glTF contains no scenes");
+    }
+    const auto sceneIndex = rawModel.defaultScene >= 0 ? rawModel.defaultScene : 0;
+    scenePreprocess(cachePath, sg, rawModel, sceneIndex);
+    writeCacheMetadata(cachePath, filePath);
 }
 
 void loadTexturesFromCache(
     const std::filesystem::path& cachePath,
     std::vector<std::pair<std::string, scene::Texture>>& textures,
     rhi::DevicePtr device,
-    rhi::CommandBufferPtr cmdBuffer) {
+    rhi::CommandBufferPtr cmdBuffer,
+    const ProgressCallback& progress) {
     const auto texCachePath = cachePath / "textures";
     // raum_check(std::filesystem::exists(texCachePath), "textures cache not found: %s", texCachePath.string());
     if (std::filesystem::exists(texCachePath)) {
@@ -659,30 +943,64 @@ void loadTexturesFromCache(
 
         textures.resize(files.size());
 
-        synchronized_pool_resource pool{std::pmr::get_default_resource()};
+        if (files.empty()) {
+            reportProgress(progress, 1.0f, "No scene textures to upload");
+            return;
+        }
+
         auto& threadPool = getIOThreadPool();
         auto sched = threadPool.get_scheduler();
 
         std::mutex taskMutex;
+        size_t completedTextures{0};
 
         auto imgTask = [&](int i) {
             // load image data
             auto& entry = files[i];
             std::string texName = entry.filename().string();
             std::string texIndex = texName.substr(0, texName.find_last_of('.'));
-            InputArchive ar(entry);
-            PmrVector<uint8_t> imgData{&pool};
-            uint32_t width{0}, height{0};
-            ar >> width;
-            ar >> height;
-            ar >> imgData;
+            TextureCache cachedTexture;
+            InputArchive archive(entry);
+            archive >> cachedTexture;
+
+            const auto maxMipCount = cachedTexture.width && cachedTexture.height
+                                         ? static_cast<uint32_t>(std::floor(std::log2(
+                                               std::max(cachedTexture.width, cachedTexture.height)))) + 1
+                                         : 0;
+            uint64_t expectedPixelBytes{0};
+            if (cachedTexture.mipCount <= maxMipCount) {
+                for (uint32_t mip = 0; mip < cachedTexture.mipCount; ++mip) {
+                    expectedPixelBytes += static_cast<uint64_t>(std::max(1U, cachedTexture.width >> mip)) *
+                                          std::max(1U, cachedTexture.height >> mip) *
+                                          rhi::getFormatSize(rhi::Format::RGBA8_UNORM);
+                }
+            }
+            if (cachedTexture.width == 0 ||
+                cachedTexture.height == 0 ||
+                cachedTexture.mipCount == 0 ||
+                cachedTexture.mipCount > maxMipCount ||
+                expectedPixelBytes > std::numeric_limits<uint32_t>::max() ||
+                cachedTexture.pixels.size() != expectedPixelBytes) {
+                raum_error("Cached glTF texture data has an unexpected size");
+            }
 
             std::lock_guard<std::mutex> lock(taskMutex);
-            loadTexture(texIndex, width, height, imgData.data(), device, cmdBuffer, textures);
+            loadTexture(texIndex,
+                        cachedTexture,
+                        device,
+                        cmdBuffer,
+                        textures);
+            ++completedTextures;
+            reportProgress(
+                progress,
+                static_cast<float>(completedTextures) / static_cast<float>(files.size()),
+                "Uploading scene textures");
         };
 
         auto sender = stdexec::schedule(sched) | stdexec::bulk(files.size(), std::move(imgTask));
         stdexec::sync_wait(std::move(sender));
+    } else {
+        reportProgress(progress, 1.0f, "No scene textures to upload");
     }
 }
 
@@ -690,46 +1008,47 @@ void loadLightsFromCache() {}
 
 void loadCamerasFromCache() {}
 
-void loadMaterialFromCache(
+struct LoadedMaterialTechniques {
+    scene::TechniquePtr forward;
+    scene::TechniquePtr alphaShadow;
+};
+
+LoadedMaterialTechniques loadMaterialFromCache(
     std::filesystem::path cachePath,
     std::string_view modelName,
     int32_t matIndex,
     std::vector<std::pair<std::string, scene::Texture>>& textures,
     scene::MaterialTemplatePtr matTemplate,
-    std::map<int32_t, scene::TechniquePtr>& techs,
+    scene::ShaderAttribute shaderAttributes,
     rhi::DevicePtr device) {
     auto matCachePath = cachePath / "material" / std::to_string(matIndex);
     matCachePath.replace_extension(".mat");
-    InputArchive ar(matCachePath);
+    MaterialCache cachedMaterial;
+    InputArchive archive(matCachePath);
+    archive >> cachedMaterial;
 
-    std::string alphaMode{};
-    bool doubleSided{false};
-    double alphaCutoff{0.5f};
-    ar >> alphaMode;
-    ar >> doubleSided;
-    ar >> alphaCutoff;
-
-    int32_t baseColorIndex{-1}, metallicRoughnessIndex{-1}, normalIndex{-1}, occlusionIndex{-1}, emissiveIndex{-1};
-    ar >> baseColorIndex;
-    ar >> metallicRoughnessIndex;
-    ar >> normalIndex;
-    ar >> occlusionIndex;
-    ar >> emissiveIndex;
-
-    if (baseColorIndex != -1) {
+    if (cachedMaterial.baseColorTexture.enabled()) {
         matTemplate->addDefine("BASE_COLOR_MAP");
     }
-    if (metallicRoughnessIndex != -1) {
+    if (cachedMaterial.metallicRoughnessTexture.enabled()) {
         matTemplate->addDefine("MATALLIC_ROUGHNESS_MAP");
     }
-    if (normalIndex != -1) {
+    if (cachedMaterial.normalTexture.enabled()) {
         matTemplate->addDefine("NORMAL_MAP");
     }
-    if (occlusionIndex != -1) {
+    if (cachedMaterial.occlusionTexture.enabled()) {
         matTemplate->addDefine("OCCLUSION_MAP");
     }
-    if (emissiveIndex != -1) {
+    if (cachedMaterial.emissiveTexture.enabled()) {
         matTemplate->addDefine("EMISSIVE_MAP");
+    }
+    if (cachedMaterial.alphaMode == "MASK") {
+        matTemplate->addDefine("ALPHA_MASK");
+    } else if (cachedMaterial.alphaMode == "BLEND") {
+        matTemplate->addDefine("ALPHA_BLEND");
+    }
+    if (cachedMaterial.doubleSided) {
+        matTemplate->addDefine("DOUBLE_SIDED");
     }
 
     std::string matName{modelName};
@@ -738,20 +1057,25 @@ void loadMaterialFromCache(
     scene::MaterialPtr mat = matTemplate->instantiate(matName, scene::MaterialType::PBR);
     auto pbrMat = std::static_pointer_cast<scene::PBRMaterial>(mat);
     auto tech = std::make_shared<scene::Technique>(mat, "default");
-    techs.emplace(matIndex, tech);
     auto& ds = tech->depthStencilInfo();
     ds.depthTestEnable = true;
     ds.depthWriteEnable = true;
+    auto& rasterization = tech->rasterizationInfo();
+    rasterization.cullMode = cachedMaterial.doubleSided
+                                 ? rhi::FaceMode::NONE
+                                 : rhi::FaceMode::BACK;
+    rasterization.frontFace = rhi::FrontFace::CLOCKWISE;
     auto& bs = tech->blendInfo();
     bs.attachmentBlends.emplace_back();
 
-    if (alphaMode == "OPAQUE") {
+    if (cachedMaterial.alphaMode == "OPAQUE") {
         // TODO: cmake introduce <wingdi.h> cause `OPAQUE` was preprocessed by macro.
         pbrMat->setAlphaMode(scene::PBRMaterial::AlphaMode::AM_OPAQUE);
-    } else if (alphaMode == "MASK") {
+    } else if (cachedMaterial.alphaMode == "MASK") {
         pbrMat->setAlphaMode(scene::PBRMaterial::AlphaMode::AM_MASK);
-    } else if (alphaMode == "BLEND") {
+    } else if (cachedMaterial.alphaMode == "BLEND") {
         pbrMat->setAlphaMode(scene::PBRMaterial::AlphaMode::AM_BLEND);
+        ds.depthWriteEnable = false;
         auto& colorBlend = bs.attachmentBlends.back();
         colorBlend.blendEnable = true;
         colorBlend.srcColorBlendFactor = rhi::BlendFactor::SRC_ALPHA;
@@ -759,79 +1083,56 @@ void loadMaterialFromCache(
         colorBlend.srcAlphaBlendFactor = rhi::BlendFactor::ONE;
         colorBlend.dstAlphaBlendFactor = rhi::BlendFactor::ZERO;
     }
-    pbrMat->setDoubleSided(doubleSided);
-    pbrMat->setAlphaCutoff(alphaCutoff);
+    pbrMat->setDoubleSided(cachedMaterial.doubleSided);
+    pbrMat->setAlphaCutoff(cachedMaterial.alphaCutoff);
+    pbrMat->setBaseColorFactor(cachedMaterial.baseColorFactor.r,
+                               cachedMaterial.baseColorFactor.g,
+                               cachedMaterial.baseColorFactor.b,
+                               cachedMaterial.baseColorFactor.a);
+    pbrMat->setEmissiveFactor(cachedMaterial.emissiveFactor.r,
+                              cachedMaterial.emissiveFactor.g,
+                              cachedMaterial.emissiveFactor.b);
+    pbrMat->setMetallicFactor(cachedMaterial.metallicFactor);
+    pbrMat->setRoughnessFactor(cachedMaterial.roughnessFactor);
+    pbrMat->setNormalScale(cachedMaterial.normalScale);
+    pbrMat->setOcclusionStrength(cachedMaterial.occlusionStrength);
 
-    std::vector<float> mrno; // metallic, roughness, normalscale, occlusionscale
-    ar >> mrno;
+    auto bindTexture = [&](const MaterialTextureCache& cachedTexture, std::string_view slot) {
+        if (!cachedTexture.enabled()) {
+            return;
+        }
+        if (cachedTexture.imageIndex < 0 || cachedTexture.imageIndex >= static_cast<int32_t>(textures.size())) {
+            raum_error("Cached glTF material refers to an invalid image");
+        }
+        auto& texture = textures[cachedTexture.imageIndex].second;
+        texture.uvIndex = cachedTexture.uvIndex;
+        pbrMat->set(slot, texture);
+    };
+    bindTexture(cachedMaterial.baseColorTexture, "albedoMap");
+    bindTexture(cachedMaterial.metallicRoughnessTexture, "metallicRoughnessMap");
+    bindTexture(cachedMaterial.normalTexture, "normalMap");
+    bindTexture(cachedMaterial.occlusionTexture, "aoMap");
+    bindTexture(cachedMaterial.emissiveTexture, "emissiveMap");
 
-    raum_check(mrno.size() == 12, "Unexpected components size!");
-
-    int32_t bcSourceIndex{0};
-    int32_t bcuvIndex{-1};
-    ar >> bcSourceIndex;
-    ar >> bcuvIndex;
-    if (baseColorIndex != -1) {
-        auto imageIndex = bcSourceIndex;
-        auto& baseColor = textures[imageIndex].second;
-        baseColor.uvIndex = bcuvIndex;
-        pbrMat->set("albedoMap", baseColor);
-        pbrMat->setBaseColorFactor(mrno[0], mrno[1], mrno[2], mrno[3]);
-    }
-
-    int metallicRoughnessSourceIndex{0};
-    int mruvIndex{-1};
-    ar >> metallicRoughnessSourceIndex;
-    ar >> mruvIndex;
-    if (metallicRoughnessIndex != -1) {
-        auto imageIndex = metallicRoughnessSourceIndex;
-        auto& metallicRoughness = textures[imageIndex].second;
-        metallicRoughness.uvIndex = mruvIndex;
-        pbrMat->set("metallicRoughnessMap", metallicRoughness);
-        pbrMat->setMetallicFactor(mrno[8]);
-        pbrMat->setRoughnessFactor(mrno[9]);
-    }
-
-    int normalSourceIndex{0};
-    int normaluvIndex{-1};
-    ar >> normalSourceIndex;
-    ar >> normaluvIndex;
-    if (normalIndex != -1) {
-        auto imageIndex = normalSourceIndex;
-        auto& normal = textures[imageIndex].second;
-        normal.uvIndex = normaluvIndex;
-        pbrMat->set("normalMap", normal);
-        pbrMat->setNormalScale(mrno[10]);
-    }
-
-    int occlusionSourceIndex{0};
-    int occlusionuvIndex{-1};
-    ar >> occlusionSourceIndex;
-    ar >> occlusionuvIndex;
-    if (occlusionIndex != -1) {
-        auto imageIndex = occlusionSourceIndex;
-        auto& occlusion = textures[imageIndex].second;
-        occlusion.uvIndex = occlusionuvIndex;
-        pbrMat->set("aoMap", occlusion);
-        pbrMat->setOcclusionStrength(mrno[11]);
-    }
-
-    int emissiveSourceIndex{0};
-    int emissiveuvIndex{-1};
-    ar >> emissiveSourceIndex;
-    ar >> emissiveuvIndex;
-    if (emissiveIndex != -1) {
-        auto imageIndex = emissiveSourceIndex;
-        auto& emissive = textures[imageIndex].second;
-        emissive.uvIndex = emissiveuvIndex;
-        pbrMat->set("emissiveMap", emissive);
-        pbrMat->setEmissiveFactor(mrno[4], mrno[5], mrno[6]);
-    }
+    const std::array materialParameters{
+        cachedMaterial.baseColorFactor.r,
+        cachedMaterial.baseColorFactor.g,
+        cachedMaterial.baseColorFactor.b,
+        cachedMaterial.baseColorFactor.a,
+        cachedMaterial.emissiveFactor.r,
+        cachedMaterial.emissiveFactor.g,
+        cachedMaterial.emissiveFactor.b,
+        1.0f,
+        cachedMaterial.metallicFactor,
+        cachedMaterial.roughnessFactor,
+        cachedMaterial.normalScale,
+        cachedMaterial.occlusionStrength,
+    };
 
     rhi::BufferSourceInfo bufferInfo{
         .bufferUsage = rhi::BufferUsage::UNIFORM | rhi::BufferUsage::TRANSFER_DST,
-        .size = static_cast<uint32_t>(mrno.size() * sizeof(float)),
-        .data = mrno.data(),
+        .size = static_cast<uint32_t>(materialParameters.size() * sizeof(float)),
+        .data = materialParameters.data(),
     };
     auto mrnoBuffer = rhi::BufferPtr(device->createBuffer(bufferInfo));
     pbrMat->set("PBRParams", scene::Buffer{mrnoBuffer});
@@ -861,164 +1162,279 @@ void loadMaterialFromCache(
         .textureView = BuiltinRes::iblBrdfLUTView(),
     };
     pbrMat->set("brdfLUT", brdfLUT);
+
+    scene::TechniquePtr alphaShadow;
+    if (cachedMaterial.alphaMode == "MASK" && cachedMaterial.baseColorTexture.enabled()) {
+        const auto imageIndex = cachedMaterial.baseColorTexture.imageIndex;
+        if (imageIndex < 0 || imageIndex >= static_cast<int32_t>(textures.size())) {
+            raum_error("Cached alpha-mask material refers to an invalid image");
+        }
+
+        auto shadowTemplate = std::make_shared<scene::MaterialTemplate>("asset/layout/shadowMapAlpha");
+        if (test(shaderAttributes, scene::ShaderAttribute::NORMAL)) {
+            shadowTemplate->addDefine("VERTEX_NORMAL");
+        }
+        auto shadowMaterial = shadowTemplate->instantiate(
+            matName + "_alphaShadow", scene::MaterialType::CUSTOM);
+        shadowMaterial->set("albedoMap", textures[imageIndex].second);
+        shadowMaterial->set("linearSampler", {linearInfo});
+
+        const std::array alphaParameters{
+            static_cast<float>(cachedMaterial.alphaCutoff),
+            cachedMaterial.baseColorFactor.a,
+            0.0f,
+            0.0f,
+        };
+        rhi::BufferSourceInfo alphaBufferInfo{
+            .bufferUsage = rhi::BufferUsage::UNIFORM | rhi::BufferUsage::TRANSFER_DST,
+            .size = static_cast<uint32_t>(alphaParameters.size() * sizeof(float)),
+            .data = alphaParameters.data(),
+        };
+        shadowMaterial->set(
+            "AlphaParams",
+            scene::Buffer{rhi::BufferPtr(device->createBuffer(alphaBufferInfo))});
+
+        alphaShadow = std::make_shared<scene::Technique>(shadowMaterial, "shadowMap");
+        alphaShadow->depthStencilInfo().depthTestEnable = true;
+        alphaShadow->depthStencilInfo().depthWriteEnable = true;
+        auto& shadowRasterization = alphaShadow->rasterizationInfo();
+        shadowRasterization.cullMode = cachedMaterial.doubleSided
+                                           ? rhi::FaceMode::NONE
+                                           : rhi::FaceMode::BACK;
+        shadowRasterization.frontFace = rhi::FrontFace::CLOCKWISE;
+        alphaShadow->blendInfo().attachmentBlends.emplace_back();
+    }
+
+    return {.forward = std::move(tech), .alphaShadow = std::move(alphaShadow)};
 }
 
 void loadMeshFromCache(
     const std::filesystem::path& cachePath,
     std::string_view parentName,
+    std::string_view nodePrefix,
     graph::SceneGraph& sg,
-    std::map<int, scene::TechniquePtr>& techs,
     std::vector<std::pair<std::string, scene::Texture>>& textures,
     rhi::CommandBufferPtr cmdBuffer,
-    rhi::DevicePtr device) {
+    rhi::DevicePtr device,
+    std::vector<std::string>& loadedNodes,
+    const ProgressCallback& progress) {
     const auto& meshCachePath = cachePath / "mesh";
-    raum_check(std::filesystem::exists(meshCachePath), "mesh cache not found: %s", meshCachePath.string());
+    if (!std::filesystem::exists(meshCachePath)) {
+        raum_error("glTF mesh cache was not found: {}", meshCachePath.string());
+    }
 
-    uint32_t count{0};
+    std::vector<std::filesystem::path> meshFiles;
     for (const auto& entry : std::filesystem::directory_iterator(meshCachePath)) {
-        if (!entry.is_regular_file()) {
-            continue;
+        if (entry.is_regular_file() && entry.path().extension() == ".mesh") {
+            meshFiles.emplace_back(entry.path());
         }
+    }
+    std::ranges::sort(meshFiles);
+    if (meshFiles.empty()) {
+        reportProgress(progress, 1.0f, "No scene meshes to load");
+        return;
+    }
 
-        const auto& meshName = entry.path().filename().string();
+    size_t completedMeshes{0};
+    for (const auto& meshFile : meshFiles) {
+
+        const auto meshName = meshFile.stem().string();
+        const auto nodeName = std::string{nodePrefix} + meshName;
         std::filesystem::path resPath = cachePath / "mesh" / meshName;
         resPath.replace_extension(".mesh");
-        InputArchive ar(resPath);
+        MeshCache cachedMesh;
+        InputArchive archive(resPath);
+        archive >> cachedMesh;
 
-        if (!std::filesystem::exists(resPath.parent_path())) {
-            std::filesystem::create_directories(resPath.parent_path());
-        }
+        auto& modelNode = sg.addModel(nodeName, parentName);
+        auto& sceneNode = sg.get(nodeName);
+        loadedNodes.emplace_back(nodeName);
 
-        std::vector<double> scale;
-        std::vector<double> rot;
-        std::vector<double> trans;
-
-        ar >> scale;
-        ar >> rot;
-        ar >> trans;
-
-        auto& modelNode = sg.addModel(meshName, parentName);
-        auto& sceneNode = sg.get(meshName);
-
-        applyNodeTransform(scale, rot, trans, sceneNode);
+        applyNodeTransform(cachedMesh.worldTransform, sceneNode);
 
         modelNode.model = std::make_shared<scene::Model>();
         auto& model = *modelNode.model;
+        std::optional<scene::AABB> modelBounds;
 
-        size_t primCount{0};
-        ar >> primCount;
-
-        for (size_t i = 0; i < primCount; i++) {
+        for (const auto& cachedPrimitive : cachedMesh.primitives) {
             auto mesh = std::make_shared<scene::Mesh>();
             auto& meshData = mesh->meshData();
-            const float* position{nullptr};
-            const float* normal{nullptr};
-            const float* uv{nullptr};
-            const float* tangent{nullptr};
-            const float* color{nullptr};
-            bool color4{true};
 
-            ar >> meshData.vertexCount;
-            std::vector<float> data;
-            ar >> data;
+            if (cachedPrimitive.vertexLayout.vertexBufferAttrs.size() != 1 ||
+                cachedPrimitive.vertexLayout.vertexBufferAttrs.front().stride % sizeof(float) != 0) {
+                raum_error("Cached glTF vertex layout is invalid");
+            }
+            const auto vertexStride = cachedPrimitive.vertexLayout.vertexBufferAttrs.front().stride;
+            const auto expectedVertexBytes = static_cast<uint64_t>(cachedPrimitive.vertexCount) * vertexStride;
+            if (cachedPrimitive.vertexCount == 0 ||
+                expectedVertexBytes > std::numeric_limits<uint32_t>::max() ||
+                expectedVertexBytes != cachedPrimitive.vertexData.size() * sizeof(float)) {
+                raum_error("Cached glTF vertex data has an unexpected size");
+            }
+
+            meshData.vertexCount = cachedPrimitive.vertexCount;
+            meshData.indexCount = cachedPrimitive.indexCount;
+            meshData.indexBuffer.type = cachedPrimitive.indexType;
+            meshData.shaderAttrs = cachedPrimitive.shaderAttributes;
+            meshData.vertexLayout = cachedPrimitive.vertexLayout;
+            mesh->aabb() = cachedPrimitive.bounds;
+            if (modelBounds) {
+                modelBounds->minBound = glm::min(modelBounds->minBound, cachedPrimitive.bounds.minBound);
+                modelBounds->maxBound = glm::max(modelBounds->maxBound, cachedPrimitive.bounds.maxBound);
+            } else {
+                modelBounds = cachedPrimitive.bounds;
+            }
+
             rhi::BufferSourceInfo bufferSourceInfo{
                 .bufferUsage = rhi::BufferUsage::VERTEX,
-                .size = static_cast<uint32_t>(data.size() * sizeof(float)),
-                .data = data.data(),
+                .size = static_cast<uint32_t>(cachedPrimitive.vertexData.size() * sizeof(float)),
+                .data = cachedPrimitive.vertexData.data(),
             };
             meshData.vertexBuffer.buffer = rhi::BufferPtr(device->createBuffer(bufferSourceInfo));
-
-            ar >> meshData.indexCount;
-            ar >> meshData.indexBuffer.type;
-            std::vector<uint8_t> indexData;
-            ar >> indexData;
-
-            ar >> meshData.shaderAttrs;
-            ar >> meshData.vertexLayout;
 
             rhi::BufferSourceInfo indexBufferSource{
                 .bufferUsage = rhi::BufferUsage::INDEX,
             };
-            std::vector<uint16_t> u16arr;
             switch (meshData.indexBuffer.type) {
                 case rhi::IndexType::FULL: {
                     indexBufferSource.size = meshData.indexCount * sizeof(rhi::FullIndexType);
-                    indexBufferSource.data = indexData.data();
+                    indexBufferSource.data = cachedPrimitive.indexData.data();
                     break;
                 }
                 case rhi::IndexType::HALF: {
                     indexBufferSource.size = meshData.indexCount * sizeof(rhi::HalfIndexType);
-                    indexBufferSource.data = indexData.data();
+                    indexBufferSource.data = cachedPrimitive.indexData.data();
                     break;
                 }
                 default: {
-                    raum_error("wrong index type: {}", static_cast<uint8_t>(meshData.indexBuffer.type));
+                    raum_error("Cached glTF mesh has an unsupported index type");
                 }
             }
-            meshData.indexBuffer.buffer = rhi::BufferPtr(device->createBuffer(indexBufferSource));
+            if (meshData.indexCount) {
+                const auto expectedIndexDataSize = indexBufferSource.size;
+                if (cachedPrimitive.indexData.size() != expectedIndexDataSize) {
+                    raum_error("Cached glTF index data has an unexpected size");
+                }
+                meshData.indexBuffer.buffer = rhi::BufferPtr(device->createBuffer(indexBufferSource));
+            }
 
             scene::MaterialTemplatePtr matTemplate = std::make_shared<scene::MaterialTemplate>("asset/layout/gltfpbr");
-            int32_t localMatIndex{0};
-            ar >> localMatIndex;
-            int primMode{0};
-            ar >> primMode;
-            ar >> mesh->aabb();
-
-            if (!techs.contains(localMatIndex)) {
-                loadMaterialFromCache(cachePath, cachePath.filename().string(), localMatIndex, textures, matTemplate, techs, device);
+            if (test(meshData.shaderAttrs, scene::ShaderAttribute::NORMAL)) {
+                matTemplate->addDefine("VERTEX_NORMAL");
             }
-            auto tech = techs.at(localMatIndex);
-            if (primMode == TINYGLTF_MODE_TRIANGLES) {
-                techs[localMatIndex]->setPrimitiveType(rhi::PrimitiveType::TRIANGLE_LIST);
-            } else if (primMode == TINYGLTF_MODE_TRIANGLE_STRIP) {
-                techs[localMatIndex]->setPrimitiveType(rhi::PrimitiveType::TRIANGLE_STRIP);
-            } else if (primMode == TINYGLTF_MODE_POINTS) {
-                techs[localMatIndex]->setPrimitiveType(rhi::PrimitiveType::POINT_LIST);
-            } else if (primMode == TINYGLTF_MODE_LINE) {
-                techs[localMatIndex]->setPrimitiveType(rhi::PrimitiveType::LINE_LIST);
-            } else if (primMode == TINYGLTF_MODE_LINE_STRIP) {
-                techs[localMatIndex]->setPrimitiveType(rhi::PrimitiveType::LINE_STRIP);
+            if (test(meshData.shaderAttrs, scene::ShaderAttribute::UV)) {
+                matTemplate->addDefine("VERTEX_UV");
+            }
+            if (test(meshData.shaderAttrs, scene::ShaderAttribute::TANGENT)) {
+                matTemplate->addDefine("VERTEX_TANGENT");
+            }
+            if (test(meshData.shaderAttrs, scene::ShaderAttribute::COLOR)) {
+                matTemplate->addDefine("VERTEX_COLOR");
+            }
+            auto techniques = loadMaterialFromCache(
+                cachePath,
+                cachePath.filename().string(),
+                cachedPrimitive.materialIndex,
+                textures,
+                matTemplate,
+                meshData.shaderAttrs,
+                device);
+            rhi::PrimitiveType primitiveType;
+            if (cachedPrimitive.primitiveMode == TINYGLTF_MODE_TRIANGLES) {
+                primitiveType = rhi::PrimitiveType::TRIANGLE_LIST;
+            } else if (cachedPrimitive.primitiveMode == TINYGLTF_MODE_TRIANGLE_STRIP) {
+                primitiveType = rhi::PrimitiveType::TRIANGLE_STRIP;
+            } else if (cachedPrimitive.primitiveMode == TINYGLTF_MODE_POINTS) {
+                primitiveType = rhi::PrimitiveType::POINT_LIST;
+            } else if (cachedPrimitive.primitiveMode == TINYGLTF_MODE_LINE) {
+                primitiveType = rhi::PrimitiveType::LINE_LIST;
+            } else if (cachedPrimitive.primitiveMode == TINYGLTF_MODE_LINE_STRIP) {
+                primitiveType = rhi::PrimitiveType::LINE_STRIP;
             } else {
-                raum_error("primitive:{} not supported.", primMode);
+                raum_error("Unsupported glTF primitive mode: {}", cachedPrimitive.primitiveMode);
+            }
+            techniques.forward->setPrimitiveType(primitiveType);
+            if (techniques.alphaShadow) {
+                techniques.alphaShadow->setPrimitiveType(primitiveType);
             }
 
             auto meshRenderer = model.meshRenderers().emplace_back(std::make_shared<scene::MeshRenderer>(mesh));
-            meshRenderer->addTechnique(tech);
+            meshRenderer->addTechnique(techniques.forward);
             meshRenderer->setVertexInfo(0, meshData.vertexCount, meshData.indexCount);
             meshRenderer->setTransform(sceneNode.node.transform());
             meshRenderer->setTransformSlot("LocalMat");
 
             auto embededTechSize = static_cast<uint32_t>(scene::EmbededTechnique::COUNT);
             for (size_t i = 0; i < embededTechSize; ++i) {
-                meshRenderer->addTechnique(scene::makeEmbededTechnique(static_cast<scene::EmbededTechnique>(i)));
+                const auto embedded = static_cast<scene::EmbededTechnique>(i);
+                if (embedded == scene::EmbededTechnique::SHADOWMAP && techniques.alphaShadow) {
+                    meshRenderer->addTechnique(techniques.alphaShadow);
+                } else {
+                    meshRenderer->addTechnique(scene::makeEmbededTechnique(embedded));
+                }
             }
         }
-
-        ++count;
+        if (modelBounds) {
+            model.aabb() = *modelBounds;
+        }
+        ++completedMeshes;
+        reportProgress(
+            progress,
+            static_cast<float>(completedMeshes) / static_cast<float>(meshFiles.size()),
+            "Building scene meshes");
     }
 }
 
 // TODO: hierarchy
-void loadSceneFromCache(const std::filesystem::path& cachePath,
-                        graph::SceneGraph& sg,
-                        rhi::CommandBufferPtr cmdBuffer,
-                        rhi::DevicePtr device) {
-    auto& root = sg.addEmpty("Scene");
+std::vector<std::string> loadSceneFromCache(const std::filesystem::path& cachePath,
+                                            graph::SceneGraph& sg,
+                                            rhi::CommandBufferPtr cmdBuffer,
+                                            rhi::DevicePtr device,
+                                            std::string_view scope,
+                                            const ProgressCallback& progress) {
+    const auto nodePrefix = scope.empty() ? std::string{} : std::string{scope} + "/";
+    const auto rootName = nodePrefix + "Scene";
+    sg.addEmpty(rootName);
+    std::vector<std::string> loadedNodes{rootName};
     std::vector<std::pair<std::string, scene::Texture>> textures;
-    loadTexturesFromCache(cachePath, textures, device, cmdBuffer);
+    loadTexturesFromCache(
+        cachePath,
+        textures,
+        device,
+        cmdBuffer,
+        [&](float value, std::string_view message) {
+            reportProgress(progress, 0.05f + value * 0.55f, message);
+        });
 
-    std::map<int32_t, scene::TechniquePtr> techniques;
-    loadMeshFromCache(cachePath, "Scene", sg, techniques, textures, cmdBuffer, device);
+    loadMeshFromCache(
+        cachePath,
+        rootName,
+        nodePrefix,
+        sg,
+        textures,
+        cmdBuffer,
+        device,
+        loadedNodes,
+        [&](float value, std::string_view message) {
+            reportProgress(progress, 0.60f + value * 0.38f, message);
+        });
+    return loadedNodes;
 }
 
-void loadFromCache(graph::SceneGraph& sg, const std::filesystem::path& cachePath, rhi::DevicePtr device) {
-    auto commandPool = rhi::CommandPoolPtr(device->createCoomandPool({}));
+std::vector<std::string> loadFromCache(
+    graph::SceneGraph& sg,
+    const std::filesystem::path& cachePath,
+    rhi::DevicePtr device,
+    std::string_view scope = {},
+    const ProgressCallback& progress = {}) {
+    const auto graphicsQueueIndex = device->getQueue({rhi::QueueType::GRAPHICS})->index();
+    auto commandPool = rhi::CommandPoolPtr(device->createCoomandPool({graphicsQueueIndex}));
     auto commandBuffer = rhi::CommandBufferPtr(commandPool->makeCommandBuffer({}));
     auto* queue = device->getQueue({rhi::QueueType::GRAPHICS});
     commandBuffer->enqueue(queue);
     commandBuffer->begin({});
 
-    loadSceneFromCache(cachePath, sg, commandBuffer, device);
+    auto loadedNodes = loadSceneFromCache(cachePath, sg, commandBuffer, device, scope, progress);
 
     commandBuffer->commit();
 
@@ -1027,11 +1443,18 @@ void loadFromCache(graph::SceneGraph& sg, const std::filesystem::path& cachePath
         commandPool.reset();
     });
     queue->submit(false);
+    reportProgress(progress, 0.99f, "Waiting for GPU uploads");
+    device->waitQueueIdle(queue);
+    reportProgress(progress, 1.0f, "GPU uploads complete");
+    return loadedNodes;
 }
 
 void load(graph::SceneGraph& sg, const std::filesystem::path& filePath, rhi::DevicePtr device) {
     std::filesystem::path cachePath = raum::utils::resourceDirectory() / "cache" / filePath.stem();
-    if (!std::filesystem::exists(cachePath)) {
+    if (!cacheIsCurrent(cachePath, filePath)) {
+        if (std::filesystem::exists(cachePath)) {
+            std::filesystem::remove_all(cachePath);
+        }
         graph::SceneGraph offlineSg;
         assetPreprocess(offlineSg, filePath);
     }
@@ -1039,13 +1462,55 @@ void load(graph::SceneGraph& sg, const std::filesystem::path& filePath, rhi::Dev
     loadFromCache(sg, cachePath, device);
 }
 
+std::vector<std::string> loadScoped(
+    graph::SceneGraph& sg,
+    const std::filesystem::path& filePath,
+    std::string_view scope,
+    rhi::DevicePtr device,
+    const ProgressCallback& progress) {
+    if (scope.empty()) {
+        throw std::invalid_argument("A scoped scene load requires a non-empty scope");
+    }
+    reportProgress(progress, 0.01f, "Checking scene cache");
+    const auto cachePath = raum::utils::resourceDirectory() / "cache" / filePath.stem();
+    if (!cacheIsCurrent(cachePath, filePath)) {
+        reportProgress(progress, 0.03f, "Parsing scene and rebuilding cache");
+        if (std::filesystem::exists(cachePath)) {
+            std::filesystem::remove_all(cachePath);
+        }
+        graph::SceneGraph offlineScene;
+        assetPreprocess(offlineScene, filePath);
+    }
+    raum_expect(std::filesystem::exists(cachePath), "Failed to store cache file");
+    reportProgress(progress, 0.15f, "Reading cached scene resources");
+    auto loadedNodes = loadFromCache(
+        sg,
+        cachePath,
+        device,
+        scope,
+        [&](float value, std::string_view message) {
+            reportProgress(progress, 0.15f + value * 0.83f, message);
+        });
+    reportProgress(progress, 1.0f, "Scene resources ready");
+    return loadedNodes;
+}
+
 void load(graph::SceneGraph& sg, const std::filesystem::path& filePath, std::string_view sceneName, rhi::DevicePtr device) {
+    const auto cacheKey = filePath.stem().string() + "_" + std::to_string(std::hash<std::string_view>{}(sceneName));
+    const auto cachePath = raum::utils::resourceDirectory() / "cache" / cacheKey;
+    if (cacheIsCurrent(cachePath, filePath)) {
+        loadFromCache(sg, cachePath, device);
+        return;
+    }
+
     std::string err;
     std::string warn;
     tinygltf::Model rawModel;
     tinygltf::TinyGLTF loader;
     bool res = loader.LoadASCIIFromFile(&rawModel, &err, &warn, filePath.string());
-    raum_check(res, "failed to load scene from {}, tinyGLTF: {}", filePath.string(), err);
+    if (!res) {
+        raum_error("Failed to load glTF scene '{}': {}", filePath.string(), err);
+    }
 
     if constexpr (raum_debug) {
         if (!warn.empty()) {
@@ -1053,26 +1518,23 @@ void load(graph::SceneGraph& sg, const std::filesystem::path& filePath, std::str
         }
     }
 
-    auto commandPool = rhi::CommandPoolPtr(device->createCoomandPool({}));
-    auto commandBuffer = rhi::CommandBufferPtr(commandPool->makeCommandBuffer({}));
-    auto* queue = device->getQueue({rhi::QueueType::GRAPHICS});
-    commandBuffer->enqueue(queue);
-    commandBuffer->begin({});
-
-    std::filesystem::path cachePath = raum::utils::resourceDirectory() / "cache" / filePath.filename();
+    if (std::filesystem::exists(cachePath)) {
+        std::filesystem::remove_all(cachePath);
+    }
+    graph::SceneGraph offlineScene;
+    bool found{false};
     for (const auto& s : rawModel.scenes) {
         if (s.name == sceneName) {
-            scenePreprocess(cachePath, sg, rawModel, &s - &rawModel.scenes[0]);
+            scenePreprocess(cachePath, offlineScene, rawModel, &s - &rawModel.scenes[0]);
+            found = true;
             break;
         }
     }
-
-    commandBuffer->commit();
-    commandBuffer->onComplete([commandBuffer, commandPool]() mutable {
-        commandBuffer.reset();
-        commandPool.reset();
-    });
-    queue->submit(false);
+    if (!found) {
+        raum_error("glTF scene was not found: {}", sceneName);
+    }
+    writeCacheMetadata(cachePath, filePath);
+    loadFromCache(sg, cachePath, device);
 }
 
 } // namespace raum::asset::serialize

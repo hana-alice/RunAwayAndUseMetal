@@ -1,4 +1,5 @@
 #include "VKBuffer.h"
+#include <algorithm>
 #include "VKDevice.h"
 #include "VKUtils.h"
 
@@ -83,8 +84,7 @@ Buffer::Buffer(const BufferInfo& info, RHIDevice* device) : RHIBuffer(info, devi
 
     VmaAllocator& allocator = _device->allocator();
 
-    VkResult res = vmaCreateBuffer(allocator, &bufferInfo, &allocaInfo, &_buffer, &_allocation, &_allocInfo);
-    RAUM_ERROR_IF(res != VK_SUCCESS, "Failed to create buffer!");
+    VK_EXPECT(vmaCreateBuffer(allocator, &bufferInfo, &allocaInfo, &_buffer, &_allocation, &_allocInfo));
 }
 
 Buffer::Buffer(const BufferSourceInfo& info, RHIDevice* device) : RHIBuffer(info, device), _device(static_cast<Device*>(device)) {
@@ -106,14 +106,15 @@ Buffer::Buffer(const BufferSourceInfo& info, RHIDevice* device) : RHIBuffer(info
 
     VmaAllocator& allocator = _device->allocator();
 
-    VkResult res = vmaCreateBuffer(allocator, &bufferInfo, &allocaInfo, &_buffer, &_allocation, &_allocInfo);
-    RAUM_ERROR_IF(res != VK_SUCCESS, "Failed to create buffer!");
+    VK_EXPECT(vmaCreateBuffer(allocator, &bufferInfo, &allocaInfo, &_buffer, &_allocation, &_allocInfo));
 
     memcpy(_allocInfo.pMappedData, info.data, info.size);
 }
 
 Buffer::~Buffer() {
-    vmaDestroyBuffer(_device->allocator(), _buffer, _allocation);
+    if (_buffer != VK_NULL_HANDLE) {
+        vmaDestroyBuffer(_device->allocator(), _buffer, _allocation);
+    }
 }
 
 StagingBuffer::StagingBuffer(VmaAllocator allocator) : _allocator(allocator) {
@@ -130,15 +131,17 @@ StagingBuffer::StagingBuffer(VmaAllocator allocator) : _allocator(allocator) {
                             VMA_ALLOCATION_CREATE_MAPPED_BIT;
 
     VmaAllocationInfo allocInfo;
-    vmaCreateBuffer(allocator, &bufCreateInfo, &allocCreateInfo, &chunk.buffer, &chunk.allocation, &allocInfo);
+    VK_EXPECT(vmaCreateBuffer(
+        allocator, &bufCreateInfo, &allocCreateInfo, &chunk.buffer, &chunk.allocation, &allocInfo));
 }
 
 StagingInfo StagingBuffer::alloc(uint32_t size) {
     auto* curChunk = &_chunks.back();
     if (size + curChunk->offset > curChunk->size) {
         curChunk = &_chunks.emplace_back();
+        curChunk->size = std::max(CHUNK_SIZE, size);
         VkBufferCreateInfo bufCreateInfo = {VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
-        bufCreateInfo.size = CHUNK_SIZE;
+        bufCreateInfo.size = curChunk->size;
         bufCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
 
         VmaAllocationCreateInfo allocCreateInfo = {};
@@ -147,7 +150,8 @@ StagingInfo StagingBuffer::alloc(uint32_t size) {
                                 VMA_ALLOCATION_CREATE_MAPPED_BIT;
 
         VmaAllocationInfo allocInfo;
-        vmaCreateBuffer(_allocator, &bufCreateInfo, &allocCreateInfo, &curChunk->buffer, &curChunk->allocation, &allocInfo);
+        VK_EXPECT(vmaCreateBuffer(
+            _allocator, &bufCreateInfo, &allocCreateInfo, &curChunk->buffer, &curChunk->allocation, &allocInfo));
 
     }
     StagingInfo info;
@@ -158,7 +162,7 @@ StagingInfo StagingBuffer::alloc(uint32_t size) {
 }
 
 void Buffer::map(uint32_t offset, uint32_t size) {
-    vkMapMemory(_device->device(), _allocInfo.deviceMemory, offset, size, 0, &_allocInfo.pMappedData);
+    VK_EXPECT(vkMapMemory(_device->device(), _allocInfo.deviceMemory, offset, size, 0, &_allocInfo.pMappedData));
 }
 
 void Buffer::unmap() {

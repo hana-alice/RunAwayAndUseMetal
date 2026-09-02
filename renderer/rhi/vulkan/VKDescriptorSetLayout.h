@@ -17,6 +17,6 @@ public:
 
 private:
     Device* _device{nullptr};
-    VkDescriptorSetLayout _descriptorSetLayout;
+    VkDescriptorSetLayout _descriptorSetLayout{VK_NULL_HANDLE};
 };
 } // namespace raum::rhi

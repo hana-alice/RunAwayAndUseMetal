@@ -95,7 +95,7 @@ layout (set = 0, binding = 1) uniform CamPos {
     vec3 camPos;
 };
 layout (set = 0, binding = 2) uniform Light {
-    vec4 lightPos;
+    vec4 lightDirection;
     vec4 lightColor;
 };
 
@@ -141,28 +141,40 @@ float G_component(float alpha_sq, float NdotL, float NdotV, float NdotH, float H
 }
 
 vec3 getNormal(vec3 sampledNormal, float scaleFactor) {
+    vec3 geometricNormal = normalize(f_normal);
+    float faceSign = 1.0;
+#ifdef DOUBLE_SIDED
+    if (!gl_FrontFacing) {
+        faceSign = -1.0;
+    }
+#endif
+
+#ifdef NORMAL_MAP
     vec3 sn = sampledNormal;
     sn = (sn * 2.0 - vec3(1.0f)) * vec3(scaleFactor, scaleFactor, 1.0f);
 #ifdef VERTEX_TANGENT
-    vec3 bi = cross(f_normal, f_tan.xyz) * f_tan.w;
-    mat3x3 tbn = mat3x3(f_tan.xyz, bi, f_normal);
+    vec3 tangent = normalize(f_tan.xyz - geometricNormal * dot(geometricNormal, f_tan.xyz));
+    vec3 bi = normalize(cross(geometricNormal, tangent)) * f_tan.w;
+    mat3x3 tbn = mat3x3(faceSign * tangent, faceSign * bi, faceSign * geometricNormal);
     vec3 N = tbn * sn;
 #else
-    #ifdef NORMAL_MAP
-    mat3 tbn = getTBN(f_worldPos, f_uv, f_normal);
+    mat3 tbn = getTBN(f_worldPos, f_uv, geometricNormal);
+    tbn[0] *= faceSign;
+    tbn[1] *= faceSign;
+    tbn[2] *= faceSign;
     vec3 N = tbn * sn;
-    #else
-    vec3 N = f_normal;
-    #endif
+#endif
+#else
+    vec3 N = faceSign * geometricNormal;
 #endif
     return normalize(N);
 }
 
 vec3 getIBLContributions(vec3 R, vec3 N, vec3 diffuseIn, vec3 specularIn, float roughness, float NdotV) {
-    const float MAX_REFLECTION_LOD = 4.0;
     vec2 brdf = texture(sampler2D(brdfLUT, linearSampler), vec2(NdotV, roughness)).rg;
     vec3 diffuseLight = texture(samplerCube(diffuseEnvMap, linearSampler), N).rgb;
-    vec3 specularLight = textureLod(samplerCube(specularMap, linearSampler), R, roughness * MAX_REFLECTION_LOD).rgb;
+    float maxReflectionLod = float(textureQueryLevels(samplerCube(specularMap, linearSampler)) - 1);
+    vec3 specularLight = textureLod(samplerCube(specularMap, linearSampler), R, roughness * maxReflectionLod).rgb;
 
     vec3 diffuse = diffuseLight * diffuseIn;
     vec3 specular = specularLight * (specularIn * brdf.x + brdf.y);
@@ -181,33 +193,56 @@ float getAOContributions(float factor) {
 }
 
 void main() {
+#ifdef BASE_COLOR_MAP
     vec4 albedo = SRGBtoLINEAR(texture(sampler2D(albedoMap, linearSampler), f_uv));
-
-    if (albedo.a < alphaCutoff) {
-       discard;
-    }
+#else
+    vec4 albedo = vec4(1.0);
+#endif
 
     vec4 baseColor = albedo * baseColorFactor;
 
-    vec4 em = texture(sampler2D(emissiveMap, linearSampler), f_uv);
+#ifdef ALPHA_MASK
+    if (baseColor.a < alphaCutoff) {
+       discard;
+    }
+#endif
+
+#ifdef EMISSIVE_MAP
+    vec4 em = SRGBtoLINEAR(texture(sampler2D(emissiveMap, linearSampler), f_uv));
     vec3 emissive = vec3(em * emissiveFactor);
+#else
+    vec3 emissive = emissiveFactor.xyz;
+#endif
 
+#ifdef MATALLIC_ROUGHNESS_MAP
     vec4 mr = texture(sampler2D(metallicRoughnessMap, linearSampler), f_uv);
-    float metallic = mr.b * mrno.x;
-    float roughness = mr.g * mrno.y;
+    float metallic = clamp(mr.b * mrno.x, 0.0, 1.0);
+    float roughness = clamp(mr.g * mrno.y, 0.045, 1.0);
+#else
+    float metallic = clamp(mrno.x, 0.0, 1.0);
+    float roughness = clamp(mrno.y, 0.045, 1.0);
+#endif
 
-    vec3 sampledNormal = texture(sampler2D(normalMap, pointSampler), f_uv).rgb;
+#ifdef NORMAL_MAP
+    vec3 sampledNormal = texture(sampler2D(normalMap, linearSampler), f_uv).rgb;
+#else
+    vec3 sampledNormal = vec3(0.5, 0.5, 1.0);
+#endif
     vec3 N = getNormal(sampledNormal, mrno.z);
 
     vec3 V = normalize(camPos - f_worldPos);
-    vec3 L = normalize(lightPos.xyz - f_worldPos);
-    vec3 H = normalize(V + L);
+    vec3 L = normalize(-lightDirection.xyz);
+    vec3 halfVector = V + L;
+    float halfLengthSquared = dot(halfVector, halfVector);
+    vec3 H = halfLengthSquared > 0.000001
+                 ? halfVector * inversesqrt(halfLengthSquared)
+                 : N;
 
-    float NdotL = max(dot(N, L), 0.001);
-    float NdotV = max(dot(N, V), 0.001);
-    float HdotV = dot(H, V);
-    float HdotL = dot(H, L);
-    float NdotH = dot(N, H);
+    float NdotL = max(dot(N, L), 0.0);
+    float NdotV = max(dot(N, V), 0.0);
+    float HdotV = clamp(dot(H, V), 0.0, 1.0);
+    float HdotL = clamp(dot(H, L), 0.0, 1.0);
+    float NdotH = clamp(dot(N, H), 0.0, 1.0);
 
     // gltf pbr
     vec3 black = vec3(0.0f);
@@ -221,15 +256,19 @@ void main() {
 
     float alpha = roughness * roughness;
     float alpha_sq = alpha * alpha;
-    float D = D_component(alpha_sq, NdotH);
-    float G = G_component(alpha_sq, NdotL, NdotV, NdotH, HdotL, HdotV);
-    vec3 f_specular = F * D * G / (4.0f * NdotL * NdotV);
-    vec3 outColor = NdotL * (f_diffuse + f_specular);
+    vec3 directLighting = vec3(0.0);
+    if (NdotL > 0.0 && NdotV > 0.0) {
+        float D = D_component(alpha_sq, NdotH);
+        float G = G_component(alpha_sq, NdotL, NdotV, NdotH, HdotL, HdotV);
+        vec3 f_specular = F * D * G / max(4.0f * NdotL * NdotV, 0.0001f);
+        directLighting = lightColor.rgb * NdotL * (f_diffuse + f_specular);
+    }
+    vec3 outColor = directLighting;
 
     // ibl
     vec3 envDiffuseFactor = baseColor.rgb * (vec3(1.0) - F0);
     envDiffuseFactor *= 1.0 - metallic;
-    vec3 envSpecFactor = mix(F0, baseColor.rgb, metallic);
+    vec3 envSpecFactor = F0;
 
     vec3 ibl = getIBLContributions(reflect(-V, N), N, envDiffuseFactor, envSpecFactor, roughness, NdotV);
 
@@ -240,5 +279,9 @@ void main() {
 
     outColor = outColor / (outColor + vec3(1.0));
     outColor = pow(outColor, vec3(1.0 / 2.2));
+#ifdef ALPHA_BLEND
+    FragColor = vec4(outColor, baseColor.a);
+#else
     FragColor = vec4(outColor, 1.0f);
+#endif
 }

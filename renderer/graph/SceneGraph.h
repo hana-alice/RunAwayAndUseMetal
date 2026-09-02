@@ -1,5 +1,7 @@
 #pragma once
 #include <boost/graph/adjacency_list.hpp>
+#include <string_view>
+#include <unordered_set>
 #include <variant>
 #include "Camera.h"
 #include "GraphTypes.h"
@@ -32,7 +34,10 @@ struct LightNode {
 };
 
 struct SceneNode {
-    std::string name{};
+    SceneNode() = default;
+    explicit SceneNode(std::string_view nodeName) : name(nodeName) {}
+
+    std::string_view name{};
     scene::Node node;
     std::variant<ModelNode, CameraNode, LightNode, EmptyNode> sceneNodeData;
 };
@@ -44,7 +49,7 @@ namespace graph {
 
 template <>
 struct internal_vertex_name<raum::graph::SceneNode> {
-    typedef multi_index::member<raum::graph::SceneNode, std::string, &raum::graph::SceneNode::name> type;
+    typedef multi_index::member<raum::graph::SceneNode, std::string_view, &raum::graph::SceneNode::name> type;
 };
 
 template <>
@@ -83,19 +88,22 @@ public:
     void enable(std::string_view name);
     void disable(std::string_view name);
 
-    void reset() {};
+    void reset() {
+        _graph.clear();
+        _names.clear();
+    }
 
     SceneGraphImpl& impl() { return _graph; }
 
     const SceneGraphImpl& impl() const { return _graph; }
 
-    const std::vector<CameraNode*>& cameras() const {
-        return _cameras;
-    }
+    std::vector<const CameraNode*> cameras() const;
 
 private:
-    std::vector<CameraNode*> _cameras;
+    std::string_view internName(std::string_view name);
 
+    // The pool must outlive the graph because SceneNode names refer into it.
+    std::unordered_set<std::string, hash_string, std::equal_to<>> _names;
     SceneGraphImpl _graph;
 };
 

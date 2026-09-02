@@ -1,5 +1,5 @@
-#pragma once
 #include "RHIStagingBuffer.h"
+#include <algorithm>
 #include "RHIDevice.h"
 
 namespace raum::rhi {
@@ -20,14 +20,14 @@ StagingBufferInfo RHIStagingBuffer::allocate(uint32_t size) {
         BufferInfo bufferInfo{
             .memUsage = MemoryUsage::STAGING,
             .bufferUsage = BufferUsage::TRANSFER_SRC,
-            .size = _chunkSize,
+            .size = std::max(_chunkSize, size),
         };
         buffer.buffer = BufferPtr(_device->createBuffer(bufferInfo));
-        buffer.size = _chunkSize;
+        buffer.size = bufferInfo.size;
         buffer.offset = 0;
         target = &buffer;
     }
-    auto offset = _buffers[_currentIndex].offset;
+    auto offset = target->offset;
     target->offset = offset + size;
     return {target->buffer, offset, size};
 }

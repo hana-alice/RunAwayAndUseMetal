@@ -5,6 +5,7 @@
 
 namespace raum::rhi {
 class RHIDevice;
+class RHISwapchain;
 }
 
 namespace raum::graph {
@@ -20,8 +21,6 @@ using Aspect = rhi::AspectMask;
 
 struct SwapchainData {
     rhi::SwapchainPtr swapchain;
-    std::map<uint8_t, rhi::ImagePtr> images;
-    std::map<uint8_t, rhi::ImageViewPtr> imageViews;
 };
 
 struct Resource {
@@ -97,8 +96,9 @@ public:
 private:
     void addImageView(std::string_view name, const rhi::ImageInfo& info);
     rhi::RHIDevice* _device{nullptr};
-    ResourceGraphImpl _graph;
+    // Resource names back string_views stored by the graph and must outlive it.
     std::unordered_set<std::string, hash_string, std::equal_to<>> _names;
+    ResourceGraphImpl _graph;
 };
 
 }

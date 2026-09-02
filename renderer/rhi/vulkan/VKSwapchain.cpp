@@ -1,4 +1,8 @@
 #include "VKSwapchain.h"
+#include <algorithm>
+#include <limits>
+#include <memory>
+#include <utility>
 #ifdef RAUM_WINDOWS
 // clang-format off
     #include <windows.h>
@@ -14,54 +18,78 @@
 
 namespace raum::rhi {
 
-void Swapchain::initialize(uintptr_t hwnd, SyncType type, uint32_t width, uint32_t height) {
-#ifdef RAUM_WINDOWS
-    auto physicalDevice = _device->physicalDevice();
-    auto* grfxQ = _device->getQueue({QueueType::GRAPHICS});
-    _presentQueue = static_cast<Queue*>(grfxQ);
-    auto qIndex = _presentQueue->index();
+namespace {
 
-    if (_surface == VK_NULL_HANDLE) {
-        VkWin32SurfaceCreateInfoKHR surfaceInfo{};
-        surfaceInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
-        surfaceInfo.hwnd = (HWND)hwnd;
-        surfaceInfo.hinstance = GetModuleHandle(nullptr);
+struct PendingSwapchain {
+    explicit PendingSwapchain(Device* owningDevice) : device(owningDevice) {}
 
-        auto instance = static_cast<VkInstance>(_device->instance());
-        VkResult res = vkCreateWin32SurfaceKHR(instance, &surfaceInfo, nullptr, &_surface);
-        RAUM_CRITICAL_IF(res != VK_SUCCESS, "failed to create surface");
-        VkBool32 support{false};
-
-        vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, qIndex, _surface, &support);
-        RAUM_CRITICAL_IF(!support, "surface presentation not supported");
+    ~PendingSwapchain() {
+        readyPresentSemaphores.clear();
+        imageViews.clear();
+        images.clear();
+        if (swapchain != VK_NULL_HANDLE) {
+            vkDestroySwapchainKHR(device->device(), swapchain, nullptr);
+        }
+        if (surface != VK_NULL_HANDLE) {
+            vkDestroySurfaceKHR(static_cast<VkInstance>(device->instance()), surface, nullptr);
+        }
     }
 
-    VkSurfaceCapabilitiesKHR caps;
-    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, _surface, &caps);
+    Device* device;
+    VkSurfaceKHR surface{VK_NULL_HANDLE};
+    VkSwapchainKHR swapchain{VK_NULL_HANDLE};
+    std::vector<VkImage> vkImages;
+    std::vector<ImagePtr> images;
+    std::vector<ImageViewPtr> imageViews;
+    std::vector<std::unique_ptr<Semaphore>> readyPresentSemaphores;
+};
 
-    uint32_t formatCount{0};
-    vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, _surface, &formatCount, nullptr);
-    std::vector<VkSurfaceFormatKHR> formats(formatCount);
-    vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, _surface, &formatCount, formats.data());
+} // namespace
 
-    uint32_t presentModeCount{0};
-    vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, _surface, &presentModeCount, nullptr);
+void Swapchain::initialize(uintptr_t hwnd, SyncType type, uint32_t width, uint32_t height) {
+#ifdef RAUM_WINDOWS
+    PendingSwapchain pending{_device};
+    auto physicalDevice = _device->physicalDevice();
+    auto* grfxQ = _device->getQueue({QueueType::GRAPHICS});
+    auto* presentQueue = static_cast<Queue*>(grfxQ);
+    auto qIndex = presentQueue->index();
 
-    std::vector<VkPresentModeKHR> presentModes(presentModeCount);
-    vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, _surface, &presentModeCount, presentModes.data());
+    VkWin32SurfaceCreateInfoKHR surfaceInfo{};
+    surfaceInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
+    surfaceInfo.hwnd = (HWND)hwnd;
+    surfaceInfo.hinstance = GetModuleHandle(nullptr);
 
-    RAUM_CRITICAL_IF(!formatCount || !presentModeCount, "no available format or present mode");
+    auto instance = static_cast<VkInstance>(_device->instance());
+    VK_EXPECT(vkCreateWin32SurfaceKHR(instance, &surfaceInfo, nullptr, &pending.surface));
+    VkBool32 support{false};
+
+    VK_EXPECT(vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, qIndex, pending.surface, &support));
+    VK_ENSURE(support, "The graphics queue cannot present to the Vulkan surface");
+
+    VkSurfaceCapabilitiesKHR caps{};
+    VK_EXPECT(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, pending.surface, &caps));
+
+    const auto formats = VK_ENUMERATE(
+        VkSurfaceFormatKHR, vkGetPhysicalDeviceSurfaceFormatsKHR, physicalDevice, pending.surface);
+    VK_ENSURE(!formats.empty(), "The Vulkan surface has no supported formats");
+
+    const auto presentModes = VK_ENUMERATE(
+        VkPresentModeKHR, vkGetPhysicalDeviceSurfacePresentModesKHR, physicalDevice, pending.surface);
+    VK_ENSURE(!presentModes.empty(), "The Vulkan surface has no supported present modes");
 
     VkSurfaceFormatKHR preferred = formats[0];
+    if (formats.size() == 1 && formats[0].format == VK_FORMAT_UNDEFINED) {
+        preferred = {VK_FORMAT_B8G8R8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR};
+    }
     for (auto format : formats) {
         if (format.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR &&
-            format.format == VK_FORMAT_B8G8R8_SNORM) {
+            format.format == VK_FORMAT_B8G8R8A8_UNORM) {
             preferred = format;
             break;
         }
     }
 
-    _preferredFormat = mapSwapchainFormat(preferred.format);
+    const auto preferredFormat = mapSwapchainFormat(preferred.format);
 
     VkPresentModeKHR mode{VK_PRESENT_MODE_FIFO_KHR};
     VkPresentModeKHR hint{VK_PRESENT_MODE_FIFO_KHR};
@@ -85,18 +113,36 @@ void Swapchain::initialize(uintptr_t hwnd, SyncType type, uint32_t width, uint32
         }
     }
 
-    VkExtent2D extent{width, height};
+    VkExtent2D extent{};
+    if (caps.currentExtent.width != UINT32_MAX) {
+        extent = caps.currentExtent;
+    } else {
+        extent.width = std::clamp(width, caps.minImageExtent.width, caps.maxImageExtent.width);
+        extent.height = std::clamp(height, caps.minImageExtent.height, caps.maxImageExtent.height);
+    }
+    uint32_t imageCount = caps.minImageCount + 1;
+    if (caps.maxImageCount > 0) {
+        imageCount = (std::min)(imageCount, caps.maxImageCount);
+    }
 
-    _imageCount = caps.minImageCount;
-    constexpr uint32_t preferredSwapchainCount = 3;
-    if (caps.maxImageCount > 0 && caps.maxImageCount >= preferredSwapchainCount) {
-        _imageCount = preferredSwapchainCount;
+    VkCompositeAlphaFlagBitsKHR compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+    constexpr std::array<VkCompositeAlphaFlagBitsKHR, 4> compositeAlphaOptions{
+        VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
+        VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR,
+        VK_COMPOSITE_ALPHA_POST_MULTIPLIED_BIT_KHR,
+        VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR,
+    };
+    for (const auto option : compositeAlphaOptions) {
+        if (caps.supportedCompositeAlpha & option) {
+            compositeAlpha = option;
+            break;
+        }
     }
 
     VkSwapchainCreateInfoKHR createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-    createInfo.surface = _surface;
-    createInfo.minImageCount = _imageCount;
+    createInfo.surface = pending.surface;
+    createInfo.minImageCount = imageCount;
     createInfo.imageFormat = preferred.format;
     createInfo.imageColorSpace = preferred.colorSpace;
     createInfo.imageExtent = extent;
@@ -106,31 +152,79 @@ void Swapchain::initialize(uintptr_t hwnd, SyncType type, uint32_t width, uint32
     createInfo.queueFamilyIndexCount = 0;
     createInfo.pQueueFamilyIndices = nullptr;
     createInfo.preTransform = caps.currentTransform;
-    createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+    createInfo.compositeAlpha = compositeAlpha;
     createInfo.presentMode = mode;
     createInfo.clipped = VK_TRUE;
     createInfo.oldSwapchain = VK_NULL_HANDLE;
 
-    auto res = vkCreateSwapchainKHR(_device->device(), &createInfo, nullptr, &_swapchain);
-    RAUM_CRITICAL_IF(res != VK_SUCCESS, "failed to create swapchain");
+    VK_EXPECT(vkCreateSwapchainKHR(_device->device(), &createInfo, nullptr, &pending.swapchain));
 
-    vkGetSwapchainImagesKHR(_device->device(), _swapchain, &_imageCount, nullptr);
-    _vkImages.resize(_imageCount);
-    vkGetSwapchainImagesKHR(_device->device(), _swapchain, &_imageCount, _vkImages.data());
-
-    _valid.clear();
-    _valid.resize(_imageCount, 0);
+    pending.vkImages = VK_ENUMERATE(VkImage, vkGetSwapchainImagesKHR, _device->device(), pending.swapchain);
+    VK_ENSURE(!pending.vkImages.empty(), "The Vulkan swapchain has no images");
+    imageCount = static_cast<uint32_t>(pending.vkImages.size());
 
 #else
     #pragma error Run Away
 #endif
 
-    _acquireSemaphores.resize(_imageCount, nullptr);
-    _readyPresentSemaphores.resize(_imageCount, nullptr);
-    for (size_t i = 0; i < _imageCount; i++) {
-        _readyPresentSemaphores[i] = static_cast<Semaphore*>(_device->createSemaphore());
+    std::vector<Semaphore*> readyPresentSemaphores;
+    readyPresentSemaphores.reserve(imageCount);
+    pending.readyPresentSemaphores.reserve(imageCount);
+    for (size_t i = 0; i < imageCount; ++i) {
+        pending.readyPresentSemaphores.emplace_back(
+            static_cast<Semaphore*>(_device->createSemaphore()));
+        readyPresentSemaphores.emplace_back(pending.readyPresentSemaphores.back().get());
     }
 
+    std::vector<Semaphore*> acquireSemaphores(imageCount, nullptr);
+    std::vector<uint32_t> valid(imageCount, 1);
+
+    pending.images.reserve(imageCount);
+    pending.imageViews.reserve(imageCount);
+    for (const auto vkImage : pending.vkImages) {
+        ImageInfo imageInfo{};
+        imageInfo.type = ImageType::IMAGE_2D;
+        imageInfo.format = preferredFormat;
+        imageInfo.usage = ImageUsage::COLOR_ATTACHMENT | ImageUsage::TRANSFER_DST;
+        imageInfo.initialLayout = ImageLayout::UNDEFINED;
+        imageInfo.sliceCount = 1;
+        imageInfo.mipCount = 1;
+        imageInfo.sampleCount = 1;
+        imageInfo.extent = {extent.width, extent.height, 1};
+        auto image = ImagePtr(new Image(imageInfo, _device, vkImage));
+
+        ImageViewInfo viewInfo{};
+        viewInfo.type = ImageViewType::IMAGE_VIEW_2D;
+        viewInfo.image = image.get();
+        viewInfo.format = preferredFormat;
+        viewInfo.range = {
+            .aspect = AspectMask::COLOR,
+            .sliceCount = 1,
+            .mipCount = 1,
+        };
+        pending.imageViews.emplace_back(_device->createImageView(viewInfo));
+        pending.images.emplace_back(std::move(image));
+    }
+
+    _surface = std::exchange(pending.surface, VK_NULL_HANDLE);
+    _swapchain = std::exchange(pending.swapchain, VK_NULL_HANDLE);
+    _vkImages = std::move(pending.vkImages);
+    _images = std::move(pending.images);
+    _imageViews = std::move(pending.imageViews);
+    _acquireSemaphores = std::move(acquireSemaphores);
+    _readyPresentSemaphores = std::move(readyPresentSemaphores);
+    for (auto& semaphore : pending.readyPresentSemaphores) {
+        semaphore.release();
+    }
+    _valid = std::move(valid);
+    _imageCount = imageCount;
+    _imageIndex = 0;
+    _preferredFormat = preferredFormat;
+    _presentQueue = presentQueue;
+    _info.width = extent.width;
+    _info.height = extent.height;
+    _info.type = type;
+    _info.hwnd = hwnd;
 }
 
 Swapchain::Swapchain(const SwapchainInfo& info, Device* device)
@@ -140,7 +234,7 @@ Swapchain::Swapchain(const SwapchainInfo& info, Device* device)
 
 Swapchain::Swapchain(const raum::rhi::SwapchainSurfaceInfo& info, raum::rhi::Device* device)
 : RHISwapchain(info, device), _device(static_cast<Device*>(device)) {
-    _info = {info.width, info.height, info.type, 0};
+    _info = {info.width, info.height, info.type, info.windId};
     initialize(info.windId, info.type, info.width, info.height);
 }
 
@@ -154,12 +248,20 @@ RHISemaphore* Swapchain::getSignalPresentSemaphore() {
 
 bool Swapchain::acquire() {
     Semaphore* acquireSem = _semaphorePool.allocate(_device);
-    auto res = vkAcquireNextImageKHR(_device->device(), _swapchain, UINT64_MAX, acquireSem->semaphore(), VK_NULL_HANDLE, &_imageIndex) == VK_SUCCESS;
+    const auto result = vkAcquireNextImageKHR(
+        _device->device(), _swapchain, UINT64_MAX, acquireSem->semaphore(), VK_NULL_HANDLE, &_imageIndex);
+    if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
+        _semaphorePool.dealloccate(acquireSem);
+        if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+            return false;
+        }
+    }
+    VK_CHECK(result, VK_SUCCESS, VK_SUBOPTIMAL_KHR);
     if (_acquireSemaphores[_imageIndex]) [[likely]] {
         _semaphorePool.dealloccate(_acquireSemaphores[_imageIndex]);
     }
     _acquireSemaphores[_imageIndex] = acquireSem;
-    return res;
+    return true;
 }
 
 void Swapchain::present() {
@@ -173,23 +275,43 @@ void Swapchain::present() {
     presentInfo.pSwapchains = &_swapchain;
     presentInfo.pImageIndices = &_imageIndex;
     presentInfo.pResults = nullptr;
-    vkQueuePresentKHR(_presentQueue->_vkQueue, &presentInfo);
+    const auto result = vkQueuePresentKHR(_presentQueue->_vkQueue, &presentInfo);
     _presentQueue->increaseFrameIndex();
+    VK_CHECK(result, VK_SUCCESS, VK_SUBOPTIMAL_KHR, VK_ERROR_OUT_OF_DATE_KHR);
 }
 
 void Swapchain::destroy() {
-    vkQueueWaitIdle(_presentQueue->_vkQueue);
+    if (_presentQueue && _presentQueue->_vkQueue != VK_NULL_HANDLE) {
+        vkQueueWaitIdle(_presentQueue->_vkQueue);
+    }
 
-    auto instance = static_cast<VkInstance>(_device->instance());
-    vkDestroySwapchainKHR(_device->device(), _swapchain, nullptr);
-    _swapchain = VK_NULL_HANDLE;
-    vkDestroySurfaceKHR(instance, _surface, nullptr);
-    _surface = VK_NULL_HANDLE;
-
-    for (auto* sem : _readyPresentSemaphores) {
+    for (auto*& sem : _acquireSemaphores) {
         delete sem;
+        sem = nullptr;
+    }
+    _acquireSemaphores.clear();
+
+    for (auto*& sem : _readyPresentSemaphores) {
+        delete sem;
+        sem = nullptr;
     }
     _readyPresentSemaphores.clear();
+
+    _imageViews.clear();
+    _images.clear();
+
+    auto instance = static_cast<VkInstance>(_device->instance());
+    if (_swapchain != VK_NULL_HANDLE) {
+        vkDestroySwapchainKHR(_device->device(), _swapchain, nullptr);
+        _swapchain = VK_NULL_HANDLE;
+    }
+    if (_surface != VK_NULL_HANDLE) {
+        vkDestroySurfaceKHR(instance, _surface, nullptr);
+        _surface = VK_NULL_HANDLE;
+    }
+    _vkImages.clear();
+    _valid.clear();
+    _imageCount = 0;
 }
 
 Swapchain::~Swapchain() {
@@ -197,27 +319,27 @@ Swapchain::~Swapchain() {
 }
 
 bool Swapchain::imageValid(uint32_t index) {
-    return _valid[index];
+    return index < _valid.size() && _valid[index];
 }
 
 bool Swapchain::holds(RHIImage* img) {
-    return static_cast<Image*>(img)->_swapchain;
+    return std::ranges::any_of(_images, [img](const auto& image) {
+        return image.get() == img;
+    });
 }
 
-RHIImage* Swapchain::allocateImage(uint32_t index) {
-    _valid[index] = 1;
-    auto img = _vkImages[index];
+ImagePtr Swapchain::image(uint32_t index) {
+    if (index >= _images.size()) {
+        raum_error("Vulkan swapchain image index {} is out of range", index);
+    }
+    return _images[index];
+}
 
-    ImageInfo imageInfo{};
-    imageInfo.type = ImageType::IMAGE_2D;
-    imageInfo.format = _preferredFormat;
-    imageInfo.usage = ImageUsage::COLOR_ATTACHMENT | ImageUsage::TRANSFER_DST;
-    imageInfo.initialLayout = ImageLayout::UNDEFINED;
-    imageInfo.sliceCount = 1;
-    imageInfo.mipCount = 1;
-    imageInfo.sampleCount = 1;
-    imageInfo.extent = {_info.width, _info.height, 1};
-    return new Image(imageInfo, _device, img);
+ImageViewPtr Swapchain::imageView(uint32_t index) {
+    if (index >= _imageViews.size()) {
+        raum_error("Vulkan swapchain image-view index {} is out of range", index);
+    }
+    return _imageViews[index];
 }
 
 uint32_t Swapchain::imageCount() const {
@@ -229,6 +351,9 @@ uint32_t Swapchain::imageIndex() const {
 }
 
 void Swapchain::resize(uint32_t w, uint32_t h) {
+    if (!w || !h || (w == _info.width && h == _info.height)) {
+        return;
+    }
     destroy();
     _info.width = w;
     _info.height = h;
@@ -236,18 +361,13 @@ void Swapchain::resize(uint32_t w, uint32_t h) {
 }
 
 void Swapchain::resize(uint32_t w, uint32_t h, uintptr_t surface) {
-    if (w == _info.width && h == _info.height) {
+    if (!w || !h || (w == _info.width && h == _info.height && surface == _info.hwnd)) {
         return;
     }
     destroy();
-    vkQueueWaitIdle(_presentQueue->_vkQueue);
-    vkDestroySwapchainKHR(_device->device(), _swapchain, nullptr);
-
-    for (auto& v : _valid) {
-        v = 0;
-    }
     _info.width = w;
     _info.height = h;
+    _info.hwnd = surface;
     initialize(surface, _info.type, w, h);
 }
 

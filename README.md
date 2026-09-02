@@ -1,14 +1,28 @@
 # RunAwayAndUseMetal
 https://vulkan-tutorial.com/Introduction
 
-```
+Prerequisites: CMake 3.24+, Ninja, LLVM, the Vulkan SDK, and Git.
+
+```powershell
 git submodule update --init --recursive
 cd vcpkg
 .\bootstrap-vcpkg.bat
+cd ..
 ```
-using Visual Studio or Clion open this folder direclty, IDEs take care of the next step.
-For Clion, you may need to choose cmake preset manually at first launch.
-For the first time, you may need to set `VCPKG_MANIFEST_INSTALL` to `ON` in `CMakePresets.json` to properly prepare the built-essentials.
+
+The project uses CMake Presets as its single build entry point. The shared
+presets use Ninja and LLVM; Visual Studio and CLion can both open the folder
+and select the same preset.
+
+```powershell
+cmake --preset debug
+cmake --build --preset debug
+ctest --preset debug
+.\build\debug\raum_sample.exe
+```
+
+Use the `release` preset for optimized builds. CMake installs manifest
+dependencies into the shared `vcpkg_installed` directory automatically.
 
 
 ### Most recent work:

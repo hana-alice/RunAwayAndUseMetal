@@ -32,8 +32,7 @@ Image::Image(const ImageInfo& info, RHIDevice* device)
     allocInfo.flags = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT;
     allocInfo.priority = 1.0f;
 
-    VkResult res = vmaCreateImage(_device->allocator(), &createInfo, &allocInfo, &_image, &_allocation, nullptr);
-    RAUM_ERROR_IF(res != VK_SUCCESS, "Failed to create image.");
+    VK_EXPECT(vmaCreateImage(_device->allocator(), &createInfo, &allocInfo, &_image, &_allocation, nullptr));
 }
 
 Image::Image(const ImageInfo& imgInfo, RHIDevice* device, VkImage image)

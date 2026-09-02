@@ -81,12 +81,12 @@ RenderPass::RenderPass(const RenderPassInfo& info, RHIDevice* device)
             for (const auto& ds : subpassDesc.depthStencil) {
                 subpassDepthStencil[i].emplace_back(VkAttachmentReference{ds.index, imageLayout(ds.layout)});
             }
-            subpass.pDepthStencilAttachment = subpassDepthStencil[i].data();
+            subpass.pDepthStencilAttachment = subpassDepthStencil[i].empty() ? nullptr : subpassDepthStencil[i].data();
 
             for (const auto& resolve : subpassDesc.resolves) {
                 subpassResolves[i].emplace_back(VkAttachmentReference{resolve.index, imageLayout(resolve.layout)});
             }
-            subpass.pResolveAttachments = subpassResolves[i].data();
+            subpass.pResolveAttachments = subpassResolves[i].empty() ? nullptr : subpassResolves[i].data();
 
             subpass.preserveAttachmentCount = static_cast<uint32_t>(subpassDesc.preserves.size());
             subpass.pPreserveAttachments = subpassDesc.preserves.data();
@@ -111,8 +111,7 @@ RenderPass::RenderPass(const RenderPassInfo& info, RHIDevice* device)
     createInfo.dependencyCount = static_cast<uint32_t>(dependencies.size());
     createInfo.pDependencies = dependencies.data();
 
-    VkResult res = vkCreateRenderPass(_device->device(), &createInfo, nullptr, &_renderPass);
-    RAUM_ERROR_IF(res != VK_SUCCESS, "Failed to create renderpass");
+    VK_EXPECT(vkCreateRenderPass(_device->device(), &createInfo, nullptr, &_renderPass));
 }
 
 RenderPass::~RenderPass() {

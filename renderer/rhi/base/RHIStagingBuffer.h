@@ -14,7 +14,6 @@ public:
 private:
     uint32_t _chunkSize{0};
     RHIDevice* _device{nullptr};
-    uint32_t _currentIndex{0};
     std::vector<StagingBufferInfo> _buffers;
 };
 

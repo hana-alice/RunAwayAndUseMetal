@@ -1,110 +1,120 @@
 #pragma once
+
+#include <cstdint>
+#include "SceneGraph.h"
 #include "SceneIO.h"
+#include "core/utils/log.h"
 
-namespace raum{
-namespace graph {
+namespace raum::graph {
+
 template <class Archive>
-void serialize(Archive& ar, CameraNode& cameraNode) {
-    ar(cameraNode.camera);
+void serialize(Archive& archive, CameraNode& node) {
+    archive(node.camera);
 }
 
 template <class Archive>
-void serialize(Archive& ar, ModelNode& modelNode) {
-    ar(modelNode.model);
-    ar(modelNode.hint);
+void serialize(Archive& archive, ModelNode& node) {
+    archive(node.model, node.hint);
 }
 
 template <class Archive>
-void serialize(Archive& ar, LightNode& lightNode) {
-    ar(lightNode.light);
+void serialize(Archive& archive, LightNode& node) {
+    archive(node.light);
 }
 
 template <class Archive>
-void serialize(Archive& ar, EmptyNode& emptyNode) {
-    // ar(emptyNode);
+void serialize(Archive&, EmptyNode&) {
+}
+
+struct SceneGraphEdgeArchive {
+    uint64_t source{0};
+    uint64_t target{0};
+};
+
+struct SceneNodeArchive {
+    std::string name;
+    scene::Node node;
+    std::variant<ModelNode, CameraNode, LightNode, EmptyNode> sceneNodeData;
+};
+
+struct SceneGraphArchive {
+    std::vector<SceneNodeArchive> nodes;
+    std::vector<SceneGraphEdgeArchive> edges;
+};
+
+template <class Archive>
+void serialize(Archive& archive, SceneGraphEdgeArchive& edge) {
+    archive(edge.source, edge.target);
 }
 
 template <class Archive>
-void serialize(Archive& ar, SceneNode& node) {
-    ar(node.name);
-    ar(node.node);
-    ar(node.sceneNodeData);
+void serialize(Archive& archive, SceneNodeArchive& node) {
+    archive(node.name, node.node, node.sceneNodeData);
+}
+
+template <class Archive>
+void serialize(Archive& archive, SceneGraphArchive& graph) {
+    archive(graph.nodes, graph.edges);
 }
 
 } // namespace raum::graph
 
+namespace raum {
 
-template<>
-inline void utils::InputArchive::read(graph::SceneGraph& sg) {
-    auto& ar = *iarchive;
-    sg.reset();
+template <>
+inline void utils::InputArchive::read(graph::SceneGraph& sceneGraph) {
+    graph::SceneGraphArchive savedGraph;
+    (*iarchive)(savedGraph);
 
-    auto vnum{0};
-    ar >> vnum;
-
-    for (int i = 0; i < vnum; i++) {
-        graph::SceneNode node;
-        ar >> node.name;
-        ar >> node.node;
-        ar >> node.sceneNodeData;
-
+    sceneGraph.reset();
+    for (auto& savedNode : savedGraph.nodes) {
         std::visit(overloaded{
-                       [&](graph::ModelNode&) {
-                           sg.addModel(node.name);
-                           auto& data = sg.get(node.name);
-                           data.node = node.node;
-                           data.sceneNodeData = node.sceneNodeData;
-                       },
-                       [&](graph::CameraNode&) {
-                           sg.addCamera(node.name);
-                           auto& data = sg.get(node.name);
-                           data.node = node.node;
-                           data.sceneNodeData = node.sceneNodeData;
-                       },
-                       [&](graph::LightNode&) {
-                           sg.addLight(node.name);
-                           auto& data = sg.get(node.name);
-                           data.node = node.node;
-                           data.sceneNodeData = node.sceneNodeData;
-                       },
-                       [&](graph::EmptyNode&) {
-                           sg.addEmpty(node.name);
-                           auto& data = sg.get(node.name);
-                           data.node = node.node;
-                           data.sceneNodeData = node.sceneNodeData;
-                       },
-                       [&](auto&& arg) {},
+                       [&](graph::ModelNode&) { sceneGraph.addModel(savedNode.name); },
+                       [&](graph::CameraNode&) { sceneGraph.addCamera(savedNode.name); },
+                       [&](graph::LightNode&) { sceneGraph.addLight(savedNode.name); },
+                       [&](graph::EmptyNode&) { sceneGraph.addEmpty(savedNode.name); },
                    },
-                   node.sceneNodeData);
+                   savedNode.sceneNodeData);
+
+        auto& node = sceneGraph.get(savedNode.name);
+        node.node = std::move(savedNode.node);
+        node.sceneNodeData = std::move(savedNode.sceneNodeData);
     }
 
-    auto eNum{0};
-    ar >> eNum;
-    auto& impl = sg.impl();
-    for (int i = 0; i < eNum; i++) {
-        graph::SceneGraph::VertexType v1, v2;
-        ar(v1, v2);
-        add_edge(v1, v2, impl);
+    const auto vertexCount = boost::num_vertices(sceneGraph.impl());
+    for (const auto& edge : savedGraph.edges) {
+        if (edge.source >= vertexCount || edge.target >= vertexCount) {
+            raum_error("Serialized scene graph contains an invalid edge");
+        }
+        add_edge(static_cast<graph::SceneGraph::VertexType>(edge.source),
+                 static_cast<graph::SceneGraph::VertexType>(edge.target),
+                 sceneGraph.impl());
     }
 }
 
-template<>
-inline void utils::OutputArchive::write(const graph::SceneGraph& sg) {
-    const auto& graph = sg.impl();
-    auto& ar = *oarchive;
-    ar << boost::num_vertices(graph);
-    for (auto [it, end] = vertices(graph); it != end; ++it) {
-        auto v = *it;
-        auto& node = graph[v];
-        ar << node.name;
-        ar << node.node;
-        ar << node.sceneNodeData;
+template <>
+inline void utils::OutputArchive::write(const graph::SceneGraph& sceneGraph) {
+    const auto& impl = sceneGraph.impl();
+    graph::SceneGraphArchive savedGraph;
+    savedGraph.nodes.reserve(boost::num_vertices(impl));
+    savedGraph.edges.reserve(boost::num_edges(impl));
+
+    for (auto [it, end] = vertices(impl); it != end; ++it) {
+        const auto& node = impl[*it];
+        savedGraph.nodes.emplace_back(graph::SceneNodeArchive{
+            .name = std::string{node.name},
+            .node = node.node,
+            .sceneNodeData = node.sceneNodeData,
+        });
     }
-    ar << boost::num_edges(graph);
-    for (auto [it, end] = edges(graph); it != end; ++it) {
-        auto e = *it;
-        ar(e.m_source, e.m_target);
+    for (auto [it, end] = edges(impl); it != end; ++it) {
+        savedGraph.edges.emplace_back(graph::SceneGraphEdgeArchive{
+            .source = static_cast<uint64_t>(source(*it, impl)),
+            .target = static_cast<uint64_t>(target(*it, impl)),
+        });
     }
+
+    (*oarchive)(savedGraph);
 }
 
-}  // namespace raum
+} // namespace raum

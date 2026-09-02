@@ -21,6 +21,16 @@ const AABB& Mesh::aabb() const {
 
 MeshRenderer::MeshRenderer(MeshPtr mesh) : _mesh(mesh) {}
 
+std::shared_ptr<MeshRenderer> MeshRenderer::createInstance() const {
+    auto instance = std::make_shared<MeshRenderer>(_mesh);
+    instance->_techs = _techs;
+    instance->_drawInfo = _drawInfo;
+    instance->_transform = _transform;
+    instance->_localSLotName = _localSLotName;
+    instance->_dirty = !_localSLotName.empty();
+    return instance;
+}
+
 void MeshRenderer::addTechnique(TechniquePtr tech) {
     _techs.emplace_back(tech);
 }

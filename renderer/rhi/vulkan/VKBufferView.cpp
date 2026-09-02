@@ -1,4 +1,4 @@
-#include "VKBufferView.h"
+#include "VkBufferView.h"
 #include "VKBuffer.h"
 #include "VKDevice.h"
 #include "VKUtils.h"
@@ -13,7 +13,7 @@ BufferView::BufferView(const BufferViewInfo& info, RHIDevice* device)
     createInfo.offset = info.offset;
     createInfo.range = info.size;
 
-    vkCreateBufferView(_device->device(), &createInfo, nullptr, &_bufferView);
+    VK_EXPECT(vkCreateBufferView(_device->device(), &createInfo, nullptr, &_bufferView));
 }
 
 BufferView::~BufferView() {

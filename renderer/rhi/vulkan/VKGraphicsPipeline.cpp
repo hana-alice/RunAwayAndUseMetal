@@ -16,7 +16,7 @@ GraphicsPipeline::GraphicsPipeline(const GraphicsPipelineInfo& pipelineInfo, Dev
 : RHIGraphicsPipeline(pipelineInfo, device), 
 _device(static_cast<Device*>(device)), 
 _layout(static_cast<PipelineLayout*>(pipelineInfo.pipelineLayout)) {
-    RAUM_ERROR_IF(pipelineInfo.shaders.size() < 2, "At least two shaders are required!");
+    VK_ENSURE(pipelineInfo.shaders.size() >= 2, "At least two shaders are required");
 
     VkGraphicsPipelineCreateInfo pipelineCreateInfo = {};
     pipelineCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
@@ -128,6 +128,7 @@ _layout(static_cast<PipelineLayout*>(pipelineInfo.pipelineLayout)) {
     VkPipelineRasterizationStateCreateInfo rsInfo{};
     rsInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
     rsInfo.cullMode = cullMode(rasterizationInfo.cullMode);
+    rsInfo.frontFace = frontFace(rasterizationInfo.frontFace);
     rsInfo.lineWidth = rasterizationInfo.lineWidth;
     rsInfo.polygonMode = polygonMode(rasterizationInfo.polygonMode);
     rsInfo.depthClampEnable = rasterizationInfo.depthClamp;
@@ -196,6 +197,7 @@ _layout(static_cast<PipelineLayout*>(pipelineInfo.pipelineLayout)) {
         colorBlendAttachment.blendEnable = attachmentBlend.blendEnable;
         colorBlendAttachment.srcColorBlendFactor = blendFactor(attachmentBlend.srcColorBlendFactor);
         colorBlendAttachment.dstColorBlendFactor = blendFactor(attachmentBlend.dstColorBlendFactor);
+        colorBlendAttachment.colorBlendOp = blendOp(attachmentBlend.colorBlendOp);
         colorBlendAttachment.srcAlphaBlendFactor = blendFactor(attachmentBlend.srcAlphaBlendFactor);
         colorBlendAttachment.dstAlphaBlendFactor = blendFactor(attachmentBlend.dstAlphaBlendFactor);
         colorBlendAttachment.alphaBlendOp = blendOp(attachmentBlend.alphaBlendOp);
@@ -209,7 +211,7 @@ _layout(static_cast<PipelineLayout*>(pipelineInfo.pipelineLayout)) {
     pipelineCreateInfo.layout = static_cast<PipelineLayout*>(pipelineInfo.pipelineLayout)->layout();
     pipelineCreateInfo.renderPass = static_cast<RenderPass*>(pipelineInfo.renderPass)->renderPass();
 
-    VkResult res = vkCreateGraphicsPipelines(_device->device(), VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &_pipeline);
+    VK_EXPECT(vkCreateGraphicsPipelines(_device->device(), VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &_pipeline));
 }
 
 GraphicsPipeline::~GraphicsPipeline() {

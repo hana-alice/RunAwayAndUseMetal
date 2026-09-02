@@ -20,10 +20,10 @@ public:
     VkShaderModule shaderModule() const { return _shaderModule; }
 
 private:
-    VkShaderModule _shaderModule;
+    VkShaderModule _shaderModule{VK_NULL_HANDLE};
 
     Device* _device{nullptr};
-    ShaderStage _stage;
+    ShaderStage _stage{ShaderStage::VERTEX};
     DEBUG(std::string _source;)
 };
 

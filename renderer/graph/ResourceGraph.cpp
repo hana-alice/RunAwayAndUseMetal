@@ -6,6 +6,7 @@
 #include "RHIImage.h"
 #include "RHIImageView.h"
 #include "RHISwapchain.h"
+#include "RHIUtils.h"
 
 namespace raum::graph {
 using raum::rhi::RHIBuffer;
@@ -19,7 +20,7 @@ rhi::ImageViewInfo getDefaultViewInfo(const rhi::ImageInfo& info) {
     rhi::ImageViewInfo viewInfo{};
     viewInfo.format = info.format;
     viewInfo.range = {
-        .aspect = info.format >= rhi::Format::D16_UNORM && info.format <= rhi::Format::D32_SFLOAT_S8_UINT ? rhi::AspectMask::DEPTH | rhi::AspectMask::STENCIL : rhi::AspectMask::COLOR,
+        .aspect = rhi::formatAspectMask(info.format),
         .firstSlice = 0,
         .sliceCount = info.sliceCount,
         .firstMip = 0,
@@ -42,10 +43,6 @@ rhi::ImageViewInfo getDefaultViewInfo(const rhi::ImageInfo& info) {
             break;
     }
     return viewInfo;
-}
-
-bool isDepthStencil(const rhi::Format& format) {
-    return format >= rhi::Format::D16_UNORM && format <= rhi::Format::D32_SFLOAT_S8_UINT;
 }
 
 } // namespace
@@ -85,7 +82,7 @@ void ResourceGraph::addBufferView(std::string_view name, const BufferViewData& d
 
 void ResourceGraph::addImageView(std::string_view name, const rhi::ImageInfo& info) {
     // ds/Depth , ds/Stencil
-    if (isDepthStencil(info.format)) {
+    if (rhi::hasDepth(info.format)) {
         ImageViewData depthView{
             .origin = std::string{name},
             .info = getDefaultViewInfo(info),
@@ -93,7 +90,9 @@ void ResourceGraph::addImageView(std::string_view name, const rhi::ImageInfo& in
         };
         depthView.info.range.aspect = rhi::AspectMask::DEPTH;
         addImageView("Depth", depthView);
+    }
 
+    if (rhi::hasStencil(info.format)) {
         ImageViewData stencilView{
             .origin = std::string{name},
             .info = getDefaultViewInfo(info),
@@ -158,7 +157,7 @@ void ResourceGraph::addSampler(std::string_view name, const rhi::SamplerInfo& in
 void ResourceGraph::import(std::string_view name, rhi::SwapchainPtr swapchain) {
     const auto& p = _names.emplace(name);
     if (p.second) {
-        const auto& v = add_vertex(name, _graph);
+        const auto& v = add_vertex(*p.first, _graph);
         _graph[v].data = SwapchainData{swapchain};
         _graph[v].residency = ResourceResidency::SWAPCHAIN;
     }
@@ -196,13 +195,15 @@ void ResourceGraph::mount(std::string_view name) {
                        if (!data.image) {
                            data.image = rhi::ImagePtr(_device->createImage(data.info));
 
-                           // depth/stencil seperate aspect view
-                           if (isDepthStencil(data.info.format)) {
+                           // depth/stencil separate aspect views
+                           if (rhi::hasDepth(data.info.format)) {
                                auto& depthViewResource = getAspectView(name, Aspect::DEPTH);
                                auto& depthView = std::get<ImageViewData>(depthViewResource.data);
                                depthView.info.image = data.image.get();
                                depthView.imageView = rhi::ImageViewPtr(_device->createImageView(depthView.info));
+                           }
 
+                           if (rhi::hasStencil(data.info.format)) {
                                auto& stencilViewResource = getAspectView(name, Aspect::STENCIL);
                                auto& stencilView = std::get<ImageViewData>(stencilViewResource.data);
                                stencilView.info.image = data.image.get();
@@ -221,21 +222,6 @@ void ResourceGraph::mount(std::string_view name) {
                            const auto& originData = std::get<ImageData>(_graph[v].data);
                            data.info.image = originData.image.get();
                            data.imageView = rhi::ImageViewPtr(_device->createImageView(data.info));
-                       }
-                   },
-                   [&](SwapchainData& data) {
-                       auto& swapchain = data.swapchain;
-                       if (!swapchain->imageValid(0)) {
-                           for (uint32_t i = 0; i < swapchain->imageCount(); ++i) {
-                               auto index = static_cast<uint8_t>(i);
-                               auto imagePtr = rhi::ImagePtr(swapchain->allocateImage(index));
-                               data.images[index] = imagePtr;
-
-                               const auto& imageInfo = imagePtr->info();
-                               rhi::ImageViewInfo viewInfo = getDefaultViewInfo(imageInfo);
-                               viewInfo.image = imagePtr.get();
-                               data.imageViews[index] = rhi::ImageViewPtr(_device->createImageView(viewInfo));;
-                           }
                        }
                    },
                    [](auto&) {
@@ -377,6 +363,8 @@ rhi::BufferPtr ResourceGraph::getBuffer(std::string_view name) {
     Resource& res = get(name);
     if (std::holds_alternative<BufferData>(res.data)) {
         return std::get<BufferData>(res.data).buffer;
+    } else if (std::holds_alternative<BufferViewData>(res.data)) {
+        return getBuffer(std::get<BufferViewData>(res.data).origin);
     }
     raum_unreachable();
     return nullptr;
@@ -395,9 +383,11 @@ rhi::ImagePtr ResourceGraph::getImage(std::string_view name) {
     Resource& res = get(name);
     if (std::holds_alternative<ImageData>(res.data)) {
         return std::get<ImageData>(res.data).image;
+    } else if (std::holds_alternative<ImageViewData>(res.data)) {
+        return getImage(std::get<ImageViewData>(res.data).origin);
     } else if (std::holds_alternative<SwapchainData>(res.data)) {
         auto& swapchainData = std::get<SwapchainData>(res.data);
-        return swapchainData.images.at(swapchainData.swapchain->imageIndex());
+        return swapchainData.swapchain->image(swapchainData.swapchain->imageIndex());
     }
     raum_unreachable();
     return nullptr;
@@ -412,7 +402,7 @@ rhi::ImageViewPtr ResourceGraph::getImageView(std::string_view name) {
         return std::get<ImageViewData>(viewRes.data).imageView;
     } else if (std::holds_alternative<SwapchainData>(res.data)) {
         auto& swapchainData = std::get<SwapchainData>(res.data);
-        return swapchainData.imageViews.at(swapchainData.swapchain->imageIndex());
+        return swapchainData.swapchain->imageView(swapchainData.swapchain->imageIndex());
     }
     raum_unreachable();
     return nullptr;

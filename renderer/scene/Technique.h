@@ -73,5 +73,6 @@ const std::unordered_map<std::string_view, EmbededTechnique, hash_string, std::e
 };
 
 TechniquePtr makeEmbededTechnique(EmbededTechnique type);
+void clearTechniqueCaches();
 
 } // namespace raum::scene

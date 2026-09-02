@@ -14,7 +14,7 @@ public:
     VkCommandPool commandPool() const { return _pool; }
 
 private:
-    Device* _device;
-    VkCommandPool _pool;
+    Device* _device{nullptr};
+    VkCommandPool _pool{VK_NULL_HANDLE};
 };
 }

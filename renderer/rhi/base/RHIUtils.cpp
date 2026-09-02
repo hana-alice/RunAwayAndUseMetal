@@ -1,4 +1,5 @@
 #include "RHIUtils.h"
+#include <algorithm>
 #include <boost/functional/hash.hpp>
 #include <unordered_set>
 #include "RHIBlitEncoder.h"
@@ -86,7 +87,7 @@ size_t hash_value(const SubpassInfo& info) {
 
 bool operator==(const SubpassDependency& lhs, const SubpassDependency& rhs) {
     return lhs.dependencyFlags == rhs.dependencyFlags && lhs.dst == rhs.dst && lhs.src == rhs.src && lhs.srcStage == rhs.srcStage && lhs.dstStage == rhs.dstStage &&
-           lhs.srcAccessFlags == rhs.dstAccessFlags;
+           lhs.srcAccessFlags == rhs.srcAccessFlags && lhs.dstAccessFlags == rhs.dstAccessFlags;
 }
 size_t hash_value(const SubpassDependency& info) {
     size_t seed = 9527;
@@ -418,7 +419,6 @@ const std::unordered_set<Format> depthFormats{
     Format::D32_SFLOAT_S8_UINT,
 };
 const std::unordered_set<Format> stencilFormats{
-    Format::X8_D24_UNORM_PACK32,
     Format::S8_UINT,
     Format::D16_UNORM_S8_UINT,
     Format::D24_UNORM_S8_UINT,
@@ -433,11 +433,24 @@ bool hasStencil(Format format) {
     return stencilFormats.contains(format);
 }
 
+AspectMask formatAspectMask(Format format) {
+    auto aspect = static_cast<AspectMask>(0);
+    if (hasDepth(format)) {
+        aspect |= AspectMask::DEPTH;
+    }
+    if (hasStencil(format)) {
+        aspect |= AspectMask::STENCIL;
+    }
+    return static_cast<uint32_t>(aspect) == 0 ? AspectMask::COLOR : aspect;
+}
+
 namespace {
 ImagePtr sampledImage;
 ImagePtr storageImage;
+ImagePtr inputAttachment;
 ImageViewPtr sampledImageView;
 ImageViewPtr storageImageView;
+ImageViewPtr inputAttachmentView;
 BufferPtr uniformBuffer;
 BufferPtr storageBuffer;
 BufferViewPtr uniformBufferView;
@@ -468,6 +481,18 @@ SamplerInfo sampler{
         storageImage = ImagePtr(device->createImage(info));
     }
     return storageImage;
+}
+
+[[nodiscard]] ImagePtr defaultInputAttachment(DevicePtr device) {
+    if (!inputAttachment) {
+        ImageInfo info{
+            .usage = ImageUsage::INPUT_ATTACHMENT | ImageUsage::SAMPLED,
+            .format = Format::RGBA8_UNORM,
+            .extent = {2, 2, 1},
+        };
+        inputAttachment = ImagePtr(device->createImage(info));
+    }
+    return inputAttachment;
 }
 
 [[nodiscard]] ImageViewPtr defaultSampledImageView(DevicePtr device) {
@@ -502,6 +527,23 @@ SamplerInfo sampler{
         storageImageView = ImageViewPtr(device->createImageView(info));
     }
     return storageImageView;
+}
+
+[[nodiscard]] ImageViewPtr defaultInputAttachmentView(DevicePtr device) {
+    auto image = defaultInputAttachment(device);
+    if (!inputAttachmentView) {
+        ImageViewInfo info{
+            .image = image.get(),
+            .range = {
+                .aspect = AspectMask::COLOR,
+                .sliceCount = 1,
+                .mipCount = 1,
+            },
+            .format = image->info().format,
+        };
+        inputAttachmentView = ImageViewPtr(device->createImageView(info));
+    }
+    return inputAttachmentView;
 }
 
 [[nodiscard]] BufferPtr defaultUniformBuffer(DevicePtr device) {
@@ -554,6 +596,23 @@ SamplerInfo sampler{
 
 [[nodiscard]] SamplerInfo defaultLinearSampler(DevicePtr device) {
     return sampler;
+}
+
+void clearResourceCaches() {
+    _pplLayoutMap.clear();
+    _descriptorsetLayoutMap.clear();
+
+    sampledImageView.reset();
+    storageImageView.reset();
+    inputAttachmentView.reset();
+    uniformBufferView.reset();
+    storageBufferView.reset();
+
+    sampledImage.reset();
+    storageImage.reset();
+    inputAttachment.reset();
+    uniformBuffer.reset();
+    storageBuffer.reset();
 }
 
 [[nodiscard]] ImagePtr createImageFromBuffer(BufferPtr buffer,
@@ -627,9 +686,11 @@ void generateMipmaps(ImagePtr image, ImageLayout oldLayout, CommandBufferPtr cmd
     if (mipLevels > 1) {
         ImageBarrierInfo readBarrier{
             .image = image.get(),
+            .srcStage = PipelineStage::TRANSFER,
             .dstStage = PipelineStage::TRANSFER,
             .oldLayout = oldLayout,
             .newLayout = ImageLayout::TRANSFER_SRC_OPTIMAL,
+            .srcAccessFlag = AccessFlags::TRANSFER_WRITE,
             .dstAccessFlag = AccessFlags::TRANSFER_READ,
             .range = {
                 .aspect = AspectMask::COLOR,
@@ -658,14 +719,14 @@ void generateMipmaps(ImagePtr image, ImageLayout oldLayout, CommandBufferPtr cmd
         auto width = info.extent.x;
         auto height = info.extent.y;
 
-        auto blitEncoder = cmdBuffer->makeBlitEncoder();
+        auto blitEncoder = BlitEncoderPtr(cmdBuffer->makeBlitEncoder());
         for (uint32_t i = 1; i < mipLevels; ++i) {
             ImageBlit region{
                 .srcBaseMip = i - 1,
                 .dstBaseMip = i,
                 .sliceCount = info.sliceCount,
-                .srcExtent = {width >> (i - 1), height >> (i - 1), 1},
-                .dstExtent = {width >> i, height >> i, 1},
+                .srcExtent = {std::max(1U, width >> (i - 1)), std::max(1U, height >> (i - 1)), 1},
+                .dstExtent = {std::max(1U, width >> i), std::max(1U, height >> i), 1},
             };
 
             blitEncoder->blitImage(image.get(), ImageLayout::TRANSFER_SRC_OPTIMAL, image.get(), ImageLayout::TRANSFER_DST_OPTIMAL, &region, 1, Filter::LINEAR);

@@ -22,9 +22,7 @@ ComputePipeline::ComputePipeline(const ComputePipelineInfo& info, Device* device
     pipelineCreateInfo.basePipelineHandle = VK_NULL_HANDLE;
     pipelineCreateInfo.basePipelineIndex = 0;
 
-    VkPipeline pipeline;
-    VK_CHECK_RESULT(vkCreateComputePipelines(_device->device(), VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &pipeline));
-    _pipeline = pipeline;
+    VK_EXPECT(vkCreateComputePipelines(_device->device(), VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &_pipeline));
 }
 
 ComputePipeline::~ComputePipeline() {

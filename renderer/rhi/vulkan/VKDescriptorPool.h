@@ -12,8 +12,8 @@ public:
 
     VkDescriptorPool descriptorPool() const { return _pool; }
 private:
-    VkDescriptorPool _pool;
-    Device* _device;
+    VkDescriptorPool _pool{VK_NULL_HANDLE};
+    Device* _device{nullptr};
 };
 
 }

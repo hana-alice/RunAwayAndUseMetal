@@ -4,6 +4,7 @@
 #include "utils.h"
 
 #include "cereal/cereal.hpp"
+#include "cereal/types/array.hpp"
 #include "cereal/types/string.hpp"
 #include "cereal/types/vector.hpp"
 #include "cereal/types/variant.hpp"
@@ -13,21 +14,21 @@ namespace cereal {
 
 template <class Archive>
 void serialize(Archive& ar, raum::Mat2& mat2) {
-    for (int i = 0; i < 4; i++) {
+    for (int i = 0; i < 2; i++) {
         ar(mat2[i]);
     }
 }
 
 template <class Archive>
 void serialize(Archive& ar, raum::Mat3& mat3) {
-    for (int i = 0; i < 9; i++) {
+    for (int i = 0; i < 3; i++) {
         ar(mat3[i]);
     }
 }
 
 template <class Archive>
 void serialize(Archive& ar, raum::Mat4& mat4) {
-    for (int i = 0; i < 16; i++) {
+    for (int i = 0; i < 4; i++) {
         ar(mat4[i]);
     }
 }
@@ -72,21 +73,4 @@ void serialize(Archive& ar, raum::utils::Radian& rad) {
     ar(rad.value);
 }
 
-// template <class Archive, typename Enum>
-// void serialize(Archive& ar, Enum& e)
-//     requires std::is_enum<Enum>::value
-// {
-//     ar(static_cast<std::underlying_type_t<Enum>>(e));
-// }
-
-// template <class Archive, typename... Tpyes>
-// void serialize(Archive& ar, std::variant<Tpyes...>& var) {
-//     ar(var.index());
-//
-//     std::visit([&](auto&& arg) {
-//         ar(arg);
-//     },
-//                var);
-// }
-
-} // namespace raum
+} // namespace cereal

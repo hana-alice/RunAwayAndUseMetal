@@ -47,7 +47,7 @@ private:
     bool _doubleSided{false};
     float _alphaCutoff{0.5};
     std::array<float, 3> _emissiveFactor{0.0, 0.0, 0.0};
-    std::array<float, 4> _baseColorFactor{0.0, 0.0, 0.0};
+    std::array<float, 4> _baseColorFactor{1.0, 1.0, 1.0, 1.0};
     float _metallicFactor{1.0};
     float _roughnessFactor{1.0};
     float _normalScale{1.0};

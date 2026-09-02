@@ -6,7 +6,12 @@
 #include "SceneSerializer.h"
 #include "RHICommandBuffer.h"
 #include "RHIManager.h"
+#include "RHISemaphore.h"
+#include "RHIUtils.h"
 #include "BuiltinRes.h"
+#include "GraphUtils.h"
+#include "Method.h"
+#include "Technique.h"
 
 namespace raum::framework {
 
@@ -91,11 +96,17 @@ void Director::postRender(std::chrono::milliseconds miliSec, rhi::CommandBufferP
 void Director::update(std::chrono::milliseconds milisec) {
     auto* queue = _device->getQueue({rhi::QueueType::GRAPHICS});
 
-    auto res = _swapchain->acquire();
-    raum_check(res, "");
+    if (!_swapchain->acquire()) {
+        if (_window && _pipeline) {
+            const auto& size = _window->size();
+            _pipeline->resizeSwapchain(size.width, size.height, _window->handle());
+        }
+        return;
+    }
     auto* acquireSem = _swapchain->getAvailableSemaphore();
+    acquireSem->setStage(rhi::PipelineStage::COLOR_ATTACHMENT_OUTPUT);
 
-    auto cmd = _cmds[_swapchain->imageIndex()];
+    auto cmd = _cmds[_swapchain->imageIndex() % _cmds.size()];
 
     cmd->reset();
     cmd->enqueue(queue);
@@ -113,6 +124,7 @@ void Director::update(std::chrono::milliseconds milisec) {
     queue->submit(true);
 
     _swapchain->present();
+    _hasPresentedFrame.store(true, std::memory_order_release);
 }
 
 void Director::run() {
@@ -122,7 +134,31 @@ void Director::run() {
 }
 
 Director::~Director() {
-    _window->removeTick(_tickID);
+    if (_window && _tickID) {
+        _window->removeTick(_tickID);
+    }
+    if (_device) {
+        _device->waitDeviceIdle();
+    }
+
+    _preRenderTasks.clear();
+    _postRenderTasks.clear();
+
+    graph::clearGraphCaches();
+    _pipeline.reset();
+    _sceneGraph.reset();
+    asset::BuiltinRes::shutdown();
+    _shaderGraph.reset();
+    scene::Method::pool().clear();
+    scene::clearTechniqueCaches();
+    rhi::clearResourceCaches();
+
+    for (auto& cmd : _cmds) {
+        cmd.reset();
+    }
+    _cmdPool.reset();
+    _swapchain.reset();
+    _device.reset();
 }
 
 } // namespace raum::framework

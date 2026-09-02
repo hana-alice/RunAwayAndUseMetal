@@ -1,8 +1,11 @@
 #include "RenderGraph.h"
+#include <stdexcept>
 #include "RHIBuffer.h"
 #include "RHIBufferView.h"
+#include "RHIDevice.h"
 #include "RHIImage.h"
 #include "RHIImageView.h"
+#include "RHIQueue.h"
 
 using boost::add_edge;
 using boost::add_vertex;
@@ -18,31 +21,31 @@ RenderGraph::RenderGraph(rhi::DevicePtr device) : _device(device) {
 
 RenderPass RenderGraph::addRenderPass(std::string_view name) {
     const auto& p = _names.emplace(name);
-    auto id = RenderGraph::null_vertex();
-    if (p.second) {
-        id = add_vertex(*p.first, _graph);
-        _graph[id].data = RenderPassData{};
+    if (!p.second) {
+        throw std::invalid_argument("Duplicate render graph pass: " + std::string{name});
     }
+    const auto id = add_vertex(*p.first, _graph);
+    _graph[id].data = RenderPassData{};
     return RenderPass{id, _graph, _names};
 }
 
 ComputePass RenderGraph::addComputePass(std::string_view name) {
     const auto& p = _names.emplace(name);
-    auto id = RenderGraph::null_vertex();
-    if (p.second) {
-        id = add_vertex(*p.first, _graph);
-        _graph[id].data = ComputePassData{};
+    if (!p.second) {
+        throw std::invalid_argument("Duplicate render graph pass: " + std::string{name});
     }
+    const auto id = add_vertex(*p.first, _graph);
+    _graph[id].data = ComputePassData{};
     return ComputePass{std::get<ComputePassData>(_graph[id].data)};
 }
 
 CopyPass RenderGraph::addCopyPass(std::string_view name) {
     const auto& p = _names.emplace(name);
-    auto id = RenderGraph::null_vertex();
-    if (p.second) {
-        id = add_vertex(*p.first, _graph);
-        _graph[id].data = CopyPassData{};
+    if (!p.second) {
+        throw std::invalid_argument("Duplicate render graph pass: " + std::string{name});
     }
+    const auto id = add_vertex(*p.first, _graph);
+    _graph[id].data = CopyPassData{};
     return CopyPass{std::get<CopyPassData>(_graph[id].data), _device};
 }
 
@@ -71,21 +74,21 @@ RenderPass& RenderPass::addShadingRate(std::string_view name) {
 }
 
 RenderQueue RenderPass::addQueue(std::string_view name) {
-    auto outs = out_degree(_id, _graph);
     const auto& passName = _graph[_id].name;
     const auto& p = _names.emplace(std::string{passName} + "/" + std::string{name});
-    auto id = RenderGraph::null_vertex();
-    if (p.second) {
-        id = add_vertex(*p.first, _graph);
-        _graph[id].data = RenderQueueData{};
-        add_edge(_id, id, _graph);
+    if (!p.second) {
+        throw std::invalid_argument("Duplicate render graph queue: " + std::string{name});
     }
+    const auto id = add_vertex(*p.first, _graph);
+    _graph[id].data = RenderQueueData{};
+    add_edge(_id, id, _graph);
     return RenderQueue{id, _graph};
 }
 
 RenderQueue& RenderQueue::addCamera(scene::Camera* camera) {
     auto& data = std::get<RenderQueueData>(_graph[_id].data);
     data.camera = camera;
+    data.flags |= RenderQueueFlags::GEOMETRY;
     return *this;
 }
 
@@ -188,7 +191,8 @@ CopyPass& CopyPass::addPair(const CopyPair& pair) {
 }
 
 CopyPass& CopyPass::uploadBuffer(const void* const data, uint32_t size, std::string_view name, uint32_t dstOffset) {
-    auto stagingBuffer = _device->allocateStagingBuffer(size, 0);
+    const auto queueIndex = static_cast<uint8_t>(_device->getQueue({rhi::QueueType::GRAPHICS})->index());
+    auto stagingBuffer = _device->allocateStagingBuffer(size, queueIndex);
     auto* dst = static_cast<uint8_t*>(stagingBuffer.buffer->mappedData()) + stagingBuffer.offset;
     memcpy(dst, data, size);
 

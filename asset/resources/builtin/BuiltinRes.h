@@ -7,6 +7,7 @@ namespace raum::asset {
 class BuiltinRes {
 public:
     static void initialize(graph::ShaderGraph& shaderGraph,rhi::DevicePtr device);
+    static void shutdown();
 
     static rhi::ImagePtr iblBrdfLUT();
     static rhi::ImageViewPtr iblBrdfLUTView();

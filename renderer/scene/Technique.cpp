@@ -47,6 +47,10 @@ void Technique::setPrimitiveType(rhi::PrimitiveType type) {
     _primitiveType = type;
 }
 
+rhi::PrimitiveType Technique::primitiveType() const {
+    return _primitiveType;
+}
+
 void Technique::bakeMaterial(const SlotMap& perBatchBinding,
                              rhi::DescriptorSetLayoutPtr batchLayout,
                              rhi::DevicePtr device) {
@@ -67,9 +71,6 @@ void Technique::bakePipeline(rhi::RenderPassPtr renderpass,
                              rhi::VertexLayout vertexLayout,
                              const boost::container::flat_map<rhi::ShaderStage, std::string>& shaderIn,
                              rhi::DevicePtr device) {
-    if (_pso) {
-        return;
-    }
     std::vector<rhi::RHIShader*> shaders;
     shaders.reserve(shaderIn.size());
 
@@ -145,6 +146,11 @@ bool Technique::hasInstanceBinding() const {
 
 bool Technique::hasDrawBinding() const {
     return _bindingBound[3];
+}
+
+void clearTechniqueCaches() {
+    _psoMap.clear();
+    _shaderMap.clear();
 }
 
 template <EmbededTechnique T>

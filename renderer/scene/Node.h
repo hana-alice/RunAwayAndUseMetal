@@ -23,8 +23,8 @@ private:
     bool _dirty{false};
 
     Mat4 _transform{1.0f};
-    Vec3f _translation;
-    Quaternion _orientation;
+    Vec3f _translation{0.0f};
+    Quaternion _orientation{1.0f, 0.0f, 0.0f, 0.0f};
     Vec3f _scale{1.0f};
 
 };

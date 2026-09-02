@@ -3,6 +3,7 @@
 //
 
 #pragma once
+#include <atomic>
 #include "SceneGraph.h"
 #include "RenderGraph.h"
 #include "ResourceGraph.h"
@@ -40,6 +41,7 @@ public:
     graph::PipelinePtr pipeline() { return _pipeline; }
     rhi::DevicePtr device() { return _device; }
     rhi::SwapchainPtr swapchain() { return _swapchain; }
+    bool hasPresentedFrame() const { return _hasPresentedFrame.load(std::memory_order_acquire); }
 private:
     void preRender(std::chrono::milliseconds miliSec, rhi::CommandBufferPtr cmd);
     void postRender(std::chrono::milliseconds miliSec, rhi::CommandBufferPtr cmd);
@@ -58,7 +60,8 @@ private:
     std::vector<RenderTask*> _preRenderTasks;
     std::vector<RenderTask*> _postRenderTasks;
 
-    platform::TickID _tickID;
+    platform::TickID _tickID{0};
+    std::atomic<bool> _hasPresentedFrame{false};
 };
 
 } // namespace raum::framework

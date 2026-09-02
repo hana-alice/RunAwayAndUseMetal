@@ -136,11 +136,20 @@ vec3 perturb_normal(vec3 N, vec3 V, vec2 texcoord) {
 }
 
 void main() {
+#ifdef BASE_COLOR_MAP
     vec3 raw = texture(sampler2D(albedoMap, linearSampler), f_uv).rgb;
     vec3 albedo = pow(raw, vec3(2.2));
     albedo = albedo * baseColorFactor.xyz;
+#else
+    vec3 albedo = baseColorFactor.xyz;
+#endif
+#ifdef MATALLIC_ROUGHNESS_MAP
     float metallic = texture(sampler2D(metallicRoughnessMap, linearSampler), f_uv).b * mrno.x;
     float roughness = texture(sampler2D(metallicRoughnessMap, linearSampler), f_uv).g * mrno.y;
+#else
+    float metallic = mrno.x;
+    float roughness = mrno.y;
+#endif
     #ifdef VERTEX_TANGENT
     vec3 sn = texture(sampler2D(normalMap, pointSampler), f_uv).rgb;
     sn = (sn * 2.0 - vec3(1.0f)) * vec3(mrno.z, mrno.z, 1.0f);
@@ -215,7 +224,7 @@ void main() {
     #ifdef EMISSIVE_MAP
     vec3 emissive = texture(sampler2D(emissiveMap, linearSampler), f_uv).rgb * emissiveFactor.xyz;
     #else
-    vec3 emissive = vec3(0.0f);
+    vec3 emissive = emissiveFactor.xyz;
     #endif
     vec3 color = ambient + Lo + emissive;
     color = color / (color + vec3(1.0));

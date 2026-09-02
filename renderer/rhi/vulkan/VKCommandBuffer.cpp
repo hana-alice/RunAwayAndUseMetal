@@ -1,17 +1,17 @@
-#include "VkCommandBuffer.h"
+#include "VKCommandBuffer.h"
 #include <type_traits>
+#include "RHIUtils.h"
 #include "VKBlitEncoder.h"
 #include "VKBuffer.h"
+#include "VKCommandPool.h"
 #include "VKComputeEncoder.h"
+#include "VKDescriptorSet.h"
 #include "VKDevice.h"
 #include "VKImage.h"
 #include "VKQueue.h"
 #include "VKRenderEncoder.h"
-#include "VKUtils.h"
-#include "VKDescriptorSet.h"
-#include "VKCommandPool.h"
 #include "VKSparseImage.h"
-#include "RHIUtils.h"
+#include "VKUtils.h"
 namespace raum::rhi {
 CommandBuffer::CommandBuffer(const CommandBufferInfo& info, CommandPool* commandPool, RHIDevice* device)
 : RHICommandBuffer(info, device),
@@ -22,11 +22,16 @@ CommandBuffer::CommandBuffer(const CommandBufferInfo& info, CommandPool* command
     createInfo.commandBufferCount = 1;
     createInfo.commandPool = commandPool->commandPool();
     createInfo.level = commandBufferLevel(info.type);
-    vkAllocateCommandBuffers(_device->device(), &createInfo, &_commandBuffer);
+    VK_EXPECT(vkAllocateCommandBuffers(_device->device(), &createInfo, &_commandBuffer));
 }
 
 CommandBuffer::~CommandBuffer() {
-    vkFreeCommandBuffers(_device->device(), _commandPool->commandPool(), 1, &_commandBuffer);
+    if (_enqueued && _queue) {
+        _queue->remove(this);
+    }
+    if (_commandBuffer != VK_NULL_HANDLE) {
+        vkFreeCommandBuffers(_device->device(), _commandPool->commandPool(), 1, &_commandBuffer);
+    }
 }
 
 RHIRenderEncoder* CommandBuffer::makeRenderEncoder(RenderEncoderHint hint) {
@@ -49,21 +54,28 @@ void CommandBuffer::begin(const CommandBufferBeginInfo& info) {
     VkCommandBufferBeginInfo beginInfo{};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     beginInfo.flags = commandBufferUsage(info.flags);
-    vkBeginCommandBuffer(_commandBuffer, &beginInfo);
+    VK_EXPECT(vkBeginCommandBuffer(_commandBuffer, &beginInfo));
+    _status = CommandBufferStatus::RENDERING;
 }
 
 void CommandBuffer::enqueue(RHIQueue* queue) {
+    VK_ENSURE(!_enqueued, "Command buffer is already enqueued");
     queue->enqueue(this);
     _enqueued = true;
     _queue = static_cast<Queue*>(queue);
 }
 
 void CommandBuffer::commit() {
-    vkEndCommandBuffer(_commandBuffer);
+    VK_EXPECT(vkEndCommandBuffer(_commandBuffer));
+    _status = CommandBufferStatus::COMMITTED;
 }
 
 void CommandBuffer::reset() {
-    vkResetCommandBuffer(_commandBuffer, VkCommandBufferResetFlagBits{});
+    if (_enqueued && _queue) {
+        _queue->remove(this);
+    }
+    VK_EXPECT(vkResetCommandBuffer(_commandBuffer, VkCommandBufferResetFlagBits{}));
+    _status = CommandBufferStatus::AVAILABLE;
 }
 
 void CommandBuffer::appendImageBarrier(const ImageBarrierInfo& info) {
@@ -94,14 +106,14 @@ void CommandBuffer::applyBarrier(DependencyFlags flags) {
         bufferBarriers[i].srcQueueFamilyIndex = _bufferBarriers[i].srcQueueIndex;
         bufferBarriers[i].dstQueueFamilyIndex = _bufferBarriers[i].dstQueueIndex;
         bufferBarriers[i].offset = _bufferBarriers[i].offset;
-        bufferBarriers[i].size = _bufferBarriers[i].size;
+        bufferBarriers[i].size = _bufferBarriers[i].size == 0 ? VK_WHOLE_SIZE : _bufferBarriers[i].size;
     }
 
     for (size_t i = 0; i < _imageBarriers.size(); ++i) {
         srcStageMask |= pipelineStageFlags(_imageBarriers[i].srcStage);
         dstStageMask |= pipelineStageFlags(_imageBarriers[i].dstStage);
         imageBarriers[i].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-        if(isSparse(_imageBarriers[i].image)) {
+        if (isSparse(_imageBarriers[i].image)) {
             imageBarriers[i].image = static_cast<SparseImage*>(_imageBarriers[i].image)->image();
         } else {
             imageBarriers[i].image = static_cast<Image*>(_imageBarriers[i].image)->image();
@@ -119,7 +131,7 @@ void CommandBuffer::applyBarrier(DependencyFlags flags) {
         imageBarriers[i].subresourceRange.levelCount = _imageBarriers[i].range.mipCount;
     }
 
-    for(size_t i = 0; i < _executionBarriers.size(); ++i) {
+    for (size_t i = 0; i < _executionBarriers.size(); ++i) {
         srcStageMask |= pipelineStageFlags(_executionBarriers[i].srcStage);
         dstStageMask |= pipelineStageFlags(_executionBarriers[i].dstStage);
         executionBarriers[i].srcAccessMask = accessFlags(_executionBarriers[i].srcAccessFlag);
@@ -127,7 +139,7 @@ void CommandBuffer::applyBarrier(DependencyFlags flags) {
         executionBarriers[i].sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
     }
 
-    if (!_bufferBarriers.empty() || !_imageBarriers.empty()) {
+    if (!_bufferBarriers.empty() || !_imageBarriers.empty() || !_executionBarriers.empty()) {
         vkCmdPipelineBarrier(_commandBuffer, srcStageMask, dstStageMask, dependencyFlags(flags),
                              executionBarriers.size(), executionBarriers.data(),
                              static_cast<uint32_t>(bufferBarriers.size()), bufferBarriers.data(),
@@ -135,6 +147,7 @@ void CommandBuffer::applyBarrier(DependencyFlags flags) {
     }
     _bufferBarriers.clear();
     _imageBarriers.clear();
+    _executionBarriers.clear();
 }
 
 void CommandBuffer::onComplete(std::function<void()>&& func) {

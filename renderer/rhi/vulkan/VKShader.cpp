@@ -1,6 +1,7 @@
 #include "VKShader.h"
 #include "VKDevice.h"
 #include "VKUtils.h"
+#include "core/utils/log.h"
 #include "shaderc/shaderc.h"
 #include "shaderc/shaderc.hpp"
 
@@ -20,6 +21,8 @@ Shader::Shader(const ShaderSourceInfo& shaderInfo, RHIDevice* device)
     // P. B. T
     auto mapStage = [](ShaderStage stage) {
         switch (stage) {
+            case ShaderStage::NONE:
+                raum_error("A shader stage must be specified");
             case ShaderStage::VERTEX:
                 return shaderc_glsl_vertex_shader;
             case ShaderStage::FRAGMENT:
@@ -38,16 +41,14 @@ Shader::Shader(const ShaderSourceInfo& shaderInfo, RHIDevice* device)
 
     auto result = shaderCompiler.CompileGlslToSpv(stage.source.c_str(), stage.source.size(), mapStage(stage.stage), shaderInfo.sourcePath.c_str(), "main", options);
     if (result.GetCompilationStatus() != shaderc_compilation_status_success) {
-        RAUM_ERROR("Failed to compile shader: {0}", result.GetErrorMessage());
+        raum_error("Failed to compile shader '{}': {}", shaderInfo.sourcePath, result.GetErrorMessage());
     }
 
     VkShaderModuleCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
     createInfo.codeSize = (result.end() - result.begin())*4;
     createInfo.pCode = reinterpret_cast<const uint32_t*>(result.cbegin());
-    VkResult res = vkCreateShaderModule(_device->device(), &createInfo, nullptr, &_shaderModule);
-
-    RAUM_ERROR_IF(res != VK_SUCCESS, "Failed to create shader module");
+    VK_EXPECT(vkCreateShaderModule(_device->device(), &createInfo, nullptr, &_shaderModule));
 }
 
 Shader::Shader(const raum::rhi::ShaderBinaryInfo& shaderInfo, raum::rhi::RHIDevice* device)
@@ -61,9 +62,7 @@ Shader::Shader(const raum::rhi::ShaderBinaryInfo& shaderInfo, raum::rhi::RHIDevi
     createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
     createInfo.codeSize = shaderInfo.stage.spv.size() * 4;
     createInfo.pCode = shaderInfo.stage.spv.data();
-    VkResult res = vkCreateShaderModule(_device->device(), &createInfo, nullptr, &_shaderModule);
-
-    RAUM_ERROR_IF(res != VK_SUCCESS, "Failed to create shader module");
+    VK_EXPECT(vkCreateShaderModule(_device->device(), &createInfo, nullptr, &_shaderModule));
 }
 
 Shader::~Shader() {

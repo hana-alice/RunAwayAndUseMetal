@@ -2,7 +2,7 @@
 #include <fstream>
 #include "cereal/access.hpp"
 #include "cereal/archives/binary.hpp"
-#include "core/utils/log.h"
+#include "log.h"
 
 
 namespace raum::utils {
@@ -11,14 +11,11 @@ InputArchive::InputArchive(const std::filesystem::path& filePath) : InputArchive
 }
 
 InputArchive::InputArchive(const std::filesystem::path& filePath, std::ios::openmode stdFileMode) {
-    if (!std::filesystem::exists(filePath.parent_path())) {
-        std::filesystem::create_directories(filePath.parent_path());
-    }
     is = std::ifstream(filePath.string(), stdFileMode);
     if (!is) {
-        raum_error("Could not find file: {}", filePath.string());
+        raum_error("Failed to open archive for reading: {}", filePath.string());
     }
-    iarchive = std::make_shared<cereal::BinaryInputArchive>(is);
+    iarchive = std::make_unique<cereal::BinaryInputArchive>(is);
 }
 
 
@@ -31,19 +28,20 @@ OutputArchive::OutputArchive(const std::filesystem::path& filePath) : OutputArch
 }
 
 OutputArchive::OutputArchive(const std::filesystem::path& filePath, std::ios::openmode stdFileMode) {
-    if (!std::filesystem::exists(filePath.parent_path())) {
-        std::filesystem::create_directories(filePath.parent_path());
+    const auto& parentPath = filePath.parent_path();
+    if (!parentPath.empty() && !std::filesystem::exists(parentPath)) {
+        std::filesystem::create_directories(parentPath);
     }
     os = std::ofstream(filePath.string(), stdFileMode);
     if (!os) {
-        raum_error("Failed to open file: %s", filePath.string());
+        raum_error("Failed to open archive for writing: {}", filePath.string());
     }
-    oarchive = std::make_shared<cereal::BinaryOutputArchive>(os);
+    oarchive = std::make_unique<cereal::BinaryOutputArchive>(os);
 }
 
 void OutputArchive::write(const uint8_t* data, uint32_t size) {
     auto& ar = *oarchive;
-    ar << cereal::binary_data(data, size);
+    ar(cereal::binary_data(data, size));
 }
 
 

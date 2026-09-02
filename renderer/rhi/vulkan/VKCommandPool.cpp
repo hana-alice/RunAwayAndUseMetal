@@ -10,11 +10,13 @@ CommandPool::CommandPool(const CommandPoolInfo& info, RHIDevice* device)
     poolInfo.queueFamilyIndex = info.queueFamilyIndex;
     poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 
-    vkCreateCommandPool(_device->device(), &poolInfo, nullptr, &_pool);
+    VK_EXPECT(vkCreateCommandPool(_device->device(), &poolInfo, nullptr, &_pool));
 }
 
 CommandPool::~CommandPool() {
-    vkDestroyCommandPool(_device->device(), _pool, nullptr);
+    if (_pool != VK_NULL_HANDLE) {
+        vkDestroyCommandPool(_device->device(), _pool, nullptr);
+    }
 }
 
 RHICommandBuffer* CommandPool::makeCommandBuffer(const CommandBufferInfo& info) {

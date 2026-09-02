@@ -32,17 +32,21 @@ void collectRenderables(std::vector<scene::RenderablePtr>& renderables,
                         std::span<scene::RenderablePtr>& nocullRenderables,
                         const SceneGraph& sg);
 
-void BVHCulling(const std::vector<CameraNode*>& cameras,
+void BVHCulling(const std::vector<const CameraNode*>& cameras,
                 const scene::BVHNode* node,
                 std::vector<scene::RenderablePtr>& renderables);
 
 scene::BVHNode* buildBVH(std::span<scene::RenderablePtr>& renderables, uint32_t maxObjectsPerNode = 4);
+void destroyBVH(scene::BVHNode* node);
 
 void warmUp(SceneGraph& sg, ShaderGraph& shg, rhi::DevicePtr device);
 
 std::string_view getPhaseName(std::string_view queueName);
 
 void bindResourceToMaterial(std::string_view resourceName, std::string_view slotName, scene::MaterialPtr mat, ResourceGraph& resg);
+
+void clearGraphCaches();
+void clearFrameBufferCache();
 
 scene::MeshRendererPtr getLocalQuad(rhi::DevicePtr device);
 

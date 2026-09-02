@@ -223,7 +223,7 @@ void VirtualTexture::setMiptail(uint8_t* data, uint8_t mip) {
 void VirtualTexture::update(rhi::CommandBufferPtr cb) {
     if (!_updates.empty() || _remainTask) {
         _remainTask = !_updates.empty();
-        auto* queue = _device->getQueue({{rhi::QueueType::GRAPHICS}});
+        auto* queue = _device->getQueue({rhi::QueueType::GRAPHICS});
         _sparseImage->bind(rhi::SparseType::OPAQUE | rhi::SparseType::IMAGE);
 
         std::vector<uint8_t> temp_buffer(_pageSize);

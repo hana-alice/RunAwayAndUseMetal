@@ -18,6 +18,8 @@ public:
 
     void enqueue(RHICommandBuffer* commandBuffer) override;
 
+    void remove(CommandBuffer* commandBuffer);
+
     void bindSparse(const SparseBindingInfo& info, SparseType type) override;
 
     void addCompleteHandler(std::function<void()>&& func);
@@ -37,6 +39,7 @@ public:
 private:
     Queue(const QueueInfo& info, Device* device);
     void initQueue();
+    void completePendingHandlers();
 
     VkQueue _vkQueue{VK_NULL_HANDLE};
 

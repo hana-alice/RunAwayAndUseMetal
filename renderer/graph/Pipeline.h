@@ -19,6 +19,7 @@ public:
     ~Pipeline();
 
     void run(rhi::CommandBufferPtr cmd);
+    void resizeSwapchain(uint32_t width, uint32_t height, uintptr_t surface);
 
     //    bool contains();
 
@@ -34,11 +35,11 @@ public:
 private:
     SceneGraphPtr _sceneGraph;
     ShaderGraphPtr _shaderGraph;
-    RenderGraph* _renderGraph;
-    ResourceGraph* _resourceGraph;
-    AccessGraph* _accessGraph;
-    TaskGraph* _taskGraph;
-    GraphScheduler* _scheduler;
+    RenderGraph* _renderGraph{nullptr};
+    ResourceGraph* _resourceGraph{nullptr};
+    AccessGraph* _accessGraph{nullptr};
+    TaskGraph* _taskGraph{nullptr};
+    GraphScheduler* _scheduler{nullptr};
     rhi::DevicePtr _device;
     rhi::SwapchainPtr _swapchain;
 };

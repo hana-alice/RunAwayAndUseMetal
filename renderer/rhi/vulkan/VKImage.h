@@ -18,8 +18,8 @@ public:
 
 private:
     explicit Image(const ImageInfo& imgInfo, RHIDevice* device, VkImage image);
-    VmaAllocation _allocation;
-    VkImage _image;
+    VmaAllocation _allocation{VK_NULL_HANDLE};
+    VkImage _image{VK_NULL_HANDLE};
     Device* _device{nullptr};
     bool _swapchain{false};
 

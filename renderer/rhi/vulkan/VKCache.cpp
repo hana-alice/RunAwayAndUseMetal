@@ -1,33 +1,60 @@
 #include "VKCache.h"
+#include <algorithm>
+#include <array>
 #include <vulkan/vulkan.h>
 #include "VKDefine.h"
 #include "VKDevice.h"
 namespace raum::rhi {
 
+namespace {
+
+struct PipelineCacheHeader {
+    uint32_t maxKeySize{0};
+    uint32_t keySize{0};
+    std::array<uint8_t, VK_MAX_PIPELINE_BINARY_KEY_SIZE_KHR> key{};
+
+};
+
+template <class Archive>
+void serialize(Archive& archive, PipelineCacheHeader& header) {
+    archive(header.maxKeySize, header.keySize, header.key);
+}
+
+} // namespace
+
 ProgramCache::ProgramCache(Device* device):_device(device) {
 }
 
 void ProgramCache::validate() {
+    if (!pfn_vkGetPipelineKeyKHR) {
+        _needRegeneratePSO = true;
+        return;
+    }
+
     VkPipelineBinaryKeyKHR globalKey{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_BINARY_KEY_KHR
     };
-    pfn_vkGetPipelineKeyKHR(_device->device(), nullptr, &globalKey);
+    VK_EXPECT(pfn_vkGetPipelineKeyKHR(_device->device(), nullptr, &globalKey));
 
     const auto& resourcePath = utils::resourceDirectory();
     auto psoCache = resourcePath / "PSOCache" / "PipelineCache.bin";
 
     if (exists(psoCache)) {
-        utils::InputArchive archive(psoCache);
+        try {
+            utils::InputArchive archive(psoCache);
+            PipelineCacheHeader cachedHeader;
+            archive >> cachedHeader;
 
-        uint32_t maxGlobalKeySize{0};
-        uint32_t globalKeySize{0};
-        uint8_t key[VK_MAX_PIPELINE_BINARY_KEY_SIZE_KHR];
-
-        archive >> maxGlobalKeySize;
-        archive >> globalKeySize;
-        archive >> key;
-
-        _needRegeneratePSO = memcmp(&key[0], &globalKey.key[0], globalKeySize) == 0;
+            _needRegeneratePSO = cachedHeader.maxKeySize != VK_MAX_PIPELINE_BINARY_KEY_SIZE_KHR ||
+                                 cachedHeader.keySize != globalKey.keySize ||
+                                 cachedHeader.keySize > VK_MAX_PIPELINE_BINARY_KEY_SIZE_KHR ||
+                                 memcmp(cachedHeader.key.data(),
+                                        globalKey.key,
+                                        std::min(cachedHeader.keySize,
+                                                 uint32_t{VK_MAX_PIPELINE_BINARY_KEY_SIZE_KHR})) != 0;
+        } catch (const std::exception&) {
+            _needRegeneratePSO = true;
+        }
     } else {
         _needRegeneratePSO = true;
     }

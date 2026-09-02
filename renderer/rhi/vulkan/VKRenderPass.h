@@ -18,6 +18,6 @@ public:
 
 private:
     Device* _device{nullptr};
-    VkRenderPass _renderPass;
+    VkRenderPass _renderPass{VK_NULL_HANDLE};
 };
 } // namespace raum::rhi

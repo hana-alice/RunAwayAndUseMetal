@@ -41,8 +41,9 @@
     "version>=" : "1.91.9",
     "features" : [ "vulkan-binding", "sdl3-binding" ]
   }, {
-    "name" : "qt5",
-    "version>=" : "5.15.15"
+    "name" : "qt5-base",
+    "version>=" : "5.15.15",
+    "default-features" : false
   } ],
   "builtin-baseline" : "84bab45d415d22042bd0b9081aea57f362da3f35"
 }

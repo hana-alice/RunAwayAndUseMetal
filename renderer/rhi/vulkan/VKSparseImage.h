@@ -61,8 +61,8 @@ private:
             aci.memoryTypeBits = req.memoryTypeBits;
             allocations.resize(PagesPerAlloc);
             allocInfos.resize(PagesPerAlloc);
-            auto res = vmaAllocateMemoryPages(device->allocator(), &memReq, &aci, PagesPerAlloc, allocations.data(), allocInfos.data());
-            assert(res == VK_SUCCESS);
+            VK_EXPECT(vmaAllocateMemoryPages(
+                device->allocator(), &memReq, &aci, PagesPerAlloc, allocations.data(), allocInfos.data()));
 
             for (size_t i = 0U; i < PagesPerAlloc; i++) {
                 availableIndex.insert(i);
@@ -121,11 +121,11 @@ private:
     Vec3u _granularity;
 
     uint8_t frame_counter_per_transfer{0};
-    VkImage _sparseImage;
-    Device* _device;
-    VmaAllocation _miptailAlloc;
+    VkImage _sparseImage{VK_NULL_HANDLE};
+    Device* _device{nullptr};
+    VmaAllocation _miptailAlloc{VK_NULL_HANDLE};
 
-    VkMemoryRequirements _memReq;
+    VkMemoryRequirements _memReq{};
 
     VkSparseImageMemoryRequirements _req{};
     std::vector<std::pair<uint8_t, uint8_t*>> _miptails;
